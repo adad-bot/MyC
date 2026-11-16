@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MyC — دفتر مالی</title>
+<meta name="theme-color" content="#4f46e5">
+<link rel="stylesheet" href="styles.css">
+<script>
+(function () {
+  try {
+    var raw = localStorage.getItem('myc_v3');
+    var t = 'system';
+    if (raw) { var d = JSON.parse(raw); if (d && d.settings && d.settings.theme) t = d.settings.theme; }
+    var dark = t === 'dark' || (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  } catch (e) { }
+})();
+</script>
+</head>
+<body>
+
+<!-- ================= قفل ================= -->
+<div class="lock hide" id="lock">
+  <div class="badge">M</div>
+  <h2 id="lockTitle">رمز ورود را وارد کن</h2>
+  <p id="lockSub">رمز ۶ رقمی</p>
+  <div class="dots" id="dots"></div>
+  <div class="pad-grid" id="pad"></div>
+  <div class="err" id="lockErr"></div>
+  <button class="btn ghost" id="forgotBtn" style="font-size:12px">فراموشی رمز</button>
+</div>
+
+<!-- ================= اپ ================= -->
+<div class="app" id="app">
+
+  <header class="topbar">
+    <div class="logo">M</div>
+    <div>
+      <h1>MyC</h1>
+      <p class="sub">دفتر مالی شخصی</p>
+    </div>
+    <div class="spacer"></div>
+    <button class="iconbtn" id="settingsBtn" aria-label="تنظیمات">⚙</button>
+  </header>
+
+  <main id="view"></main>
+</div>
+
+<button class="fab" id="fab" aria-label="افزودن">+</button>
+
+<nav class="nav">
+  <div class="in" id="nav">
+    <button data-tab="home" class="on">
+      <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9.6V20.5h13V9.6"/></svg></span>
+      خانه
+    </button>
+    <button data-tab="tx">
+      <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5h13.5"/><path d="M14.5 5.5 17.5 8.5 14.5 11.5"/><path d="M20 15.5H6.5"/><path d="M9.5 12.5 6.5 15.5 9.5 18.5"/></svg></span>
+      تراکنش‌ها
+    </button>
+    <button data-tab="obl">
+      <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/></svg></span>
+      تعهدات
+    </button>
+    <button data-tab="report">
+      <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20.5V12"/><path d="M12 20.5V5"/><path d="M19 20.5v-6"/></svg></span>
+      گزارش
+    </button>
+  </div>
+</nav>
+
+<!-- ================= دیالوگ‌ها ================= -->
+
+<dialog id="txDlg">
+  <form id="txFrm" novalidate>
+    <h2 id="txTitle">هزینهٔ جدید</h2>
+    <div class="seg" id="txKindSeg">
+      <button type="button" data-kind="expense" class="on">هزینه</button>
+      <button type="button" data-kind="income">درآمد</button>
+    </div>
+    <label>مبلغ (تومان)
+      <input id="txAmount" type="number" inputmode="numeric" min="0" step="1000" required>
+      <span class="hint" id="txAmountHint"></span>
+    </label>
+    <label>دستهٔ <span id="catLbl">هزینه</span>
+      <select id="txCat"></select>
+    </label>
+    <fieldset><legend>تاریخ</legend><div class="drow" id="dpTx"></div>
+      <div class="row-btns" style="margin:4px 0 0">
+        <button type="button" class="btn ghost" data-quick="today" style="padding:5px 10px;font-size:11px">امروز</button>
+        <button type="button" class="btn ghost" data-quick="yesterday" style="padding:5px 10px;font-size:11px">دیروز</button>
+      </div>
+    </fieldset>
+    <label>توضیح
+      <input id="txNote" type="text" maxlength="80" placeholder="مثلاً نان و میوه">
+    </label>
+    <div class="dact">
+      <button type="submit" class="primary">ذخیره</button>
+      <button type="button" id="txCancel">انصراف</button>
+      <button type="button" id="txDelete" class="danger hidden">حذف</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="smsDlg">
+  <form id="smsFrm">
+    <h2>افزودن از متن پیامک</h2>
+    <p class="hint">متن پیامک بانک را اینجا بچسبان؛ مبلغ و تاریخ خودکار استخراج می‌شود.</p>
+    <textarea id="smsText" rows="6" placeholder="مثلاً: مبلغ 4500000 ریال از حساب شما برداشت شد. تاریخ 1405/08/26"></textarea>
+    <div class="dact">
+      <button type="submit" class="primary">استخراج</button>
+      <button type="button" id="smsCancel">انصراف</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="loanDlg">
+  <form id="loanFrm" novalidate>
+    <h2 id="loanTitle">وام جدید</h2>
+    <label>عنوان وام
+      <input id="lTitle" type="text" maxlength="60" placeholder="مثلاً وام مسکن" required>
+    </label>
+    <label>مبلغ هر قسط (تومان)
+      <input id="lAmount" type="number" inputmode="numeric" min="1000" step="1000" required>
+      <span class="hint" id="lAmountHint"></span>
+    </label>
+    <label>تعداد اقساط
+      <input id="lCount" type="number" min="1" max="360" value="12" inputmode="numeric" required>
+    </label>
+    <fieldset><legend>تاریخ اولین قسط</legend><div class="drow" id="dpLoan"></div></fieldset>
+    <label>توضیح (اختیاری)
+      <input id="lNote" type="text" maxlength="100" placeholder="مثلاً بانک ملت">
+    </label>
+    <label class="chk hidden" id="lApplyWrap">
+      <input type="checkbox" id="lApplyAll">
+      مبلغ جدید روی همهٔ اقساط پرداخت‌نشده اعمال شود
+    </label>
+    <div class="dact">
+      <button type="submit" class="primary">ذخیره</button>
+      <button type="button" id="loanCancel">انصراف</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="instDlg">
+  <form id="instFrm" novalidate>
+    <h2>ویرایش قسط</h2>
+    <label>مبلغ (تومان)
+      <input id="iAmount" type="number" inputmode="numeric" min="0" step="1000" required>
+      <span class="hint" id="iAmountHint"></span>
+    </label>
+    <fieldset><legend>تاریخ سررسید</legend><div class="drow" id="dpInst"></div></fieldset>
+    <label class="chk"><input type="checkbox" id="iPaid"> پرداخت شده است</label>
+    <div class="dact">
+      <button type="submit" class="primary">ذخیره</button>
+      <button type="button" id="instCancel">انصراف</button>
+      <button type="button" id="instDelete" class="danger">حذف</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="chqDlg">
+  <form id="chqFrm" novalidate>
+    <h2 id="chqTitle">چک جدید</h2>
+    <div class="seg" id="chqKindSeg">
+      <button type="button" data-kind="in" class="on">دریافتی</button>
+      <button type="button" data-kind="out">صادره</button>
+    </div>
+    <label>مبلغ (تومان)
+      <input id="cAmount" type="number" inputmode="numeric" min="0" step="1000" required>
+      <span class="hint" id="cAmountHint"></span>
+    </label>
+    <fieldset><legend>تاریخ سررسید چک</legend><div class="drow" id="dpChq"></div></fieldset>
+    <label>نام طرف حساب
+      <input id="cParty" type="text" maxlength="60" required placeholder="نام صاحب چک / در وجه">
+    </label>
+    <label>شماره چک (اختیاری)
+      <input id="cNumber" type="text" maxlength="20" inputmode="numeric">
+    </label>
+    <label>بانک (اختیاری)
+      <input id="cBank" type="text" maxlength="40" placeholder="مثلاً بانک ملت">
+    </label>
+    <label>کد ملی طرف (اختیاری)
+      <input id="cNid" type="text" maxlength="10" inputmode="numeric">
+    </label>
+    <label>علت / بابت (اختیاری)
+      <input id="cReason" type="text" maxlength="80">
+    </label>
+    <label>وضعیت
+      <select id="cStatus">
+        <option value="open">در جریان</option>
+        <option value="deposited">خوابانده در حساب</option>
+        <option value="cleared">پاس شد</option>
+        <option value="bounced">برگشت خورد</option>
+        <option value="void">باطل شد</option>
+      </select>
+    </label>
+    <label>بانک خوابانده‌شده (اختیاری)
+      <input id="cDepBank" type="text" maxlength="40">
+    </label>
+    <label class="chk"><input type="checkbox" id="cConfirmed"> در سامانه (صیاد) تأیید شده</label>
+    <label>توضیح (اختیاری)
+      <input id="cNote" type="text" maxlength="100">
+    </label>
+    <div class="dact">
+      <button type="submit" class="primary">ذخیره</button>
+      <button type="button" id="chqCancel">انصراف</button>
+      <button type="button" id="chqDelete" class="danger hidden">حذف</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="accDlg">
+  <form id="accFrm" novalidate>
+    <h2 id="accTitle">حساب جدید</h2>
+    <div class="seg" id="accKindSeg">
+      <button type="button" data-kind="receivable" class="on">طلب من</button>
+      <button type="button" data-kind="payable">بدهی من</button>
+    </div>
+    <label>نام شخص
+      <input id="aName" type="text" maxlength="60" required>
+    </label>
+    <label>مبلغ (تومان)
+      <input id="aAmount" type="number" inputmode="numeric" min="0" step="1000" required>
+      <span class="hint" id="aAmountHint"></span>
+    </label>
+    <fieldset><legend>تاریخ ثبت</legend><div class="drow" id="dpAcc"></div></fieldset>
+    <fieldset><legend>وعدهٔ تسویه (اختیاری)</legend><div class="drow" id="dpAccDue"></div>
+      <button type="button" class="pick" id="accNoDue" style="margin-top:4px">بدون وعده</button>
+    </fieldset>
+    <label>توضیح (اختیاری)
+      <input id="aNote" type="text" maxlength="100">
+    </label>
+    <label class="chk"><input type="checkbox" id="aSettled"> تسویه شده است</label>
+    <div class="dact">
+      <button type="submit" class="primary">ذخیره</button>
+      <button type="button" id="accCancel">انصراف</button>
+      <button type="button" id="accDelete" class="danger hidden">حذف</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="ringDlg">
+  <form method="dialog">
+    <h2 id="ringTitle">اقساط نزدیک</h2>
+    <div class="list" id="ringList" style="max-height:55vh;overflow:auto"></div>
+    <div class="dact"><button type="button" class="primary" id="ringClose">بستن</button></div>
+  </form>
+</dialog>
+
+<dialog id="settingsDlg">
+  <form method="dialog">
+    <h2>تنظیمات</h2>
+    <p class="hint" id="backupStatus">آخرین پشتیبان: —</p>
+    <div class="row-btns">
+      <button type="button" class="btn" id="exportBtn" style="flex:1">پشتیبان‌گیری</button>
+      <button type="button" class="btn" id="importBtn" style="flex:1">بازیابی</button>
+    </div>
+    <label class="chk"><input type="checkbox" id="soundChk"> اعلان با صدا</label>
+    <div>
+      <div class="k" style="margin-bottom:4px">ظاهر اپ</div>
+      <div class="seg" id="themeSeg" style="margin:0">
+        <button type="button" data-theme="system" class="on">سیستم</button>
+        <button type="button" data-theme="light">روشن</button>
+        <button type="button" data-theme="dark">تیره</button>
+      </div>
+    </div>
+    <div class="grid2">
+      <label>هشدار چک صادره (روز قبل)
+        <input id="chqDays" type="number" min="0" max="30" step="1">
+      </label>
+      <label>هشدار بقیه (روز قبل)
+        <input id="genDays" type="number" min="0" max="30" step="1">
+      </label>
+    </div>
+    <div class="row-btns">
+      <button type="button" class="btn" id="changePinBtn" style="flex:1">تغییر رمز</button>
+      <button type="button" class="btn" id="changeMasterBtn" style="flex:1">تغییر کد مادر</button>
+    </div>
+    <div class="card pad" style="text-align:center;margin-top:6px">
+      <div class="k">درباره ما</div>
+      <div class="v sm" style="margin-top:4px">گروه فناوری کرانه ماندگار</div>
+      <div class="hint" style="direction:ltr;text-align:center;margin-top:2px">09394711049</div>
+    </div>
+    <div class="dact"><button type="button" class="primary" id="settingsClose">بستن</button></div>
+  </form>
+</dialog>
+
+<dialog id="pinDlg">
+  <form id="pinFrm">
+    <h2 id="pinTitle">تغییر رمز</h2>
+    <label id="curWrap">رمز فعلی
+      <input id="pinCur" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+    </label>
+    <label>رمز جدید (۶ رقم)
+      <input id="pinNew" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+    </label>
+    <label>تکرار رمز جدید
+      <input id="pinNew2" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+    </label>
+    <div class="dact">
+      <button type="submit" class="primary">ذخیره</button>
+      <button type="button" id="pinCancel">انصراف</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="backupDlg">
+  <form method="dialog">
+    <h2>پشتیبان به‌صورت متن</h2>
+    <p class="hint">این متن را کپی کن و در تلگرام ذخیره کن.</p>
+    <textarea id="backupText" rows="8" readonly></textarea>
+    <div class="dact">
+      <button type="button" class="primary" id="copyBackupBtn">کپی متن</button>
+      <button type="button" id="closeBackupBtn">بستن</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="restoreDlg">
+  <form id="restoreFrm">
+    <h2>بازیابی</h2>
+    <p class="hint">فایل پشتیبان را انتخاب کن یا متن آن را بچسبان.</p>
+    <button type="button" class="pick" id="pickFileBtn">انتخاب فایل از گوشی</button>
+    <textarea id="restoreText" rows="6" placeholder='{"app":"myc","v":3,...}'></textarea>
+    <div class="dact">
+      <button type="submit" class="primary">بازیابی از متن</button>
+      <button type="button" id="closeRestoreBtn">انصراف</button>
+    </div>
+  </form>
+</dialog>
+
+<input type="file" id="importFile" accept=".json,application/json" hidden>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<noscript><p style="padding:20px;text-align:center">برای استفاده باید جاوااسکریپت مرورگر فعال باشد.</p></noscript>
+
+<script src="app.js"></script>
+</body>
+</html>
