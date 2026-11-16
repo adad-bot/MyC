@@ -37,7 +37,7 @@ public class MainActivity extends Activity {
     private static final int REQ_PICK_FILE = 1001;
     private static final int REQ_NOTIF = 1002;
     private static final int ALARM_BASE = 4100;
-    private static final int ALARM_MAX = 120;
+    private static final int ALARM_MAX = 60;
 
     private WebView web;
     private ValueCallback<Uri[]> pendingFileCallback;
@@ -204,9 +204,14 @@ public class MainActivity extends Activity {
     public void onBackPressed() {
         if (web != null && web.canGoBack()) {
             web.goBack();
-        } else {
-            super.onBackPressed();
+            return;
         }
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("خروج از برنامه")
+                .setMessage("می‌خواهی از MyC خارج شوی؟")
+                .setPositiveButton("بله", (d, w) -> finish())
+                .setNegativeButton("نه", null)
+                .show();
     }
 
     @Override

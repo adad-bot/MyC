@@ -514,7 +514,18 @@ function render() {
   else renderReport();
 
   for (const b of $('nav').children) b.classList.toggle('on', b.dataset.tab === S.tab);
+  updateFloatNav();
   scheduleNotifications();
+}
+
+function updateFloatNav() {
+  const box = $('floatNav');
+  if (!box) return;
+  const showBack = !!S.detailLoan;
+  const showHome = S.tab !== 'home' || showBack;
+  box.classList.toggle('hide', !showBack && !showHome);
+  $('fnBack').classList.toggle('hide', !showBack);
+  $('fnHome').classList.toggle('hide', !showHome || showBack);
 }
 
 function renderRings() {
@@ -606,6 +617,13 @@ function dueRow(x) {
 
 function renderHome() {
   view.textContent = '';
+
+  const about = el('div', 'aboutbar');
+  about.innerHTML = '<b>MyC — دفتر مالی شخصی</b><br>' +
+    'گروه فناوری کرانه ماندگار · مدیریت دکتر علی دادمان<br>' +
+    'تماس: <span dir="ltr">09394711049</span>';
+  view.appendChild(about);
+
   view.appendChild(buildRings());
 
   const t = todayJdn();
@@ -1085,6 +1103,12 @@ $('txKindSeg').addEventListener('click', ev => {
   fillCats(b.dataset.kind, null);
 });
 
+$('chqKindSeg').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-kind]');
+  if (!b) return;
+  setSeg($('chqKindSeg'), b.dataset.kind);
+});
+
 $('txFrm').addEventListener('submit', ev => {
   ev.preventDefault();
   const amount = Math.round(Number($('txAmount').value));
@@ -1431,6 +1455,17 @@ $('nav').addEventListener('click', ev => {
   render();
 });
 
+$('fnHome').addEventListener('click', () => {
+  S.detailLoan = null;
+  S.tab = 'home';
+  render();
+});
+
+$('fnBack').addEventListener('click', () => {
+  S.detailLoan = null;
+  render();
+});
+
 $('fab').addEventListener('click', () => {
   if (S.tab === 'tx') openTx(null);
   else if (S.tab === 'obl') {
@@ -1728,6 +1763,13 @@ function reminderTime(date, daysBefore) {
 }
 
 function scheduleNotifications() {
+  if (notifTimer) clearTimeout(notifTimer);
+  notifTimer = setTimeout(doScheduleNotifications, 900);
+}
+
+let notifTimer = null;
+
+function doScheduleNotifications() {
   try {
     if (!window.AndroidAqsat || typeof window.AndroidAqsat.schedule !== 'function') return;
     const list = upcomingReminders();
