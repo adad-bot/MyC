@@ -363,6 +363,13 @@
       <p><b>نکتهٔ امنیتی</b></p>
       <p class="hint">داده‌ها فقط روی همین گوشی ذخیره میشوند و اپ به اینترنت دسترسی ندارد. هر چند وقت یک‌بار پشتیبان بگیر و فایل آن را جای امنی نگه دار.</p>
     </div>
+
+    <div id="demoWrap" class="hidden" style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
+      <p><b>داده‌های آزمایشی</b></p>
+      <p class="hint">چند وام، چک، حساب و تراکنش نمونه برای تست ساخته شده است.</p>
+      <button type="button" class="btn danger block" id="demoReset" style="margin-top:8px">ریست داده‌های تست</button>
+    </div>
+
     <div class="dact"><button type="button" class="primary" id="aboutClose">بستن</button></div>
   </form>
 </dialog>
@@ -378,7 +385,8 @@
     <div class="cal-grid" id="calGrid"></div>
     <div class="card pad" id="dateInfo" style="font-size:12.5px;line-height:2"></div>
     <div class="dact">
-      <button type="button" class="primary" id="dateToday">امروز</button>
+      <button type="button" class="primary" id="datePick">این روز</button>
+      <button type="button" id="dateToday">امروز</button>
       <button type="button" id="dateClose">بستن</button>
     </div>
   </form>
@@ -441,6 +449,9 @@
     <button class="tl" data-width="8">ضخیم</button>
     <span class="sep"></span>
     <button class="tl" id="edUndo" aria-label="برگشت">↶</button>
+    <span class="sep"></span>
+    <button class="tl" id="edZoomOut" aria-label="کوچک‌نمایی">−</button>
+    <button class="tl" id="edZoomIn" aria-label="بزرگ‌نمایی">+</button>
   </div>
   <div class="ed-wrap" id="edWrap"><canvas id="edCanvas"></canvas></div>
   <div class="ed-bottom">

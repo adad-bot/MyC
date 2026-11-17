@@ -675,3 +675,46 @@ button:active, .cal-cell:active, .dc-circle:active,
     transform: scale(1.02);
   }
 }
+
+/* ===== اصلاحات نسخهٔ بعد ===== */
+/* تقویم: ردیف‌های ثابت و جمع‌وجور در یک صفحه */
+.cal-grid{grid-auto-rows:44px;gap:2px}
+.cal-cell{aspect-ratio:auto;height:44px;border-radius:12px}
+.cal-cell .cd{font-size:14px}
+.cal-cell .ch{font-size:7.5px;margin-top:1px}
+
+/* دکمه‌های شناور: خانه راست، بازگشت چپ — همیشه */
+.quickbar{position:static;background:none;border:none;box-shadow:none;padding:0;display:block}
+#fnHome{
+  position:fixed;inset-inline-end:14px;bottom:calc(96px + env(safe-area-inset-bottom));
+  width:48px;height:48px;border-radius:16px;background:var(--card);
+  border:1px solid var(--line);box-shadow:var(--shadow-lg);color:var(--brand);
+  display:grid;place-items:center;z-index:46;
+}
+#fnBack{
+  position:fixed;inset-inline-start:14px;bottom:calc(96px + env(safe-area-inset-bottom));
+  width:48px;height:48px;border-radius:16px;background:var(--card);
+  border:1px solid var(--line);box-shadow:var(--shadow-lg);color:var(--brand);
+  display:grid;place-items:center;z-index:46;
+}
+#fnHome svg,#fnBack svg{width:22px;height:22px}
+#fnHome:active,#fnBack:active{transform:scale(1.08)}
+
+/* کارت تاریخ: جای ماه کمی داخل‌تر + اعداد میلادی و قمری */
+.dc-right{padding-inline-start:10px}
+.dc-gmonth{font-size:10.5px;opacity:.62;margin-top:1px;direction:ltr;text-align:right}
+.dc-h{position:absolute;top:14px;z-index:2;font-size:10px;font-weight:700;opacity:.55}
+.dc-g{position:absolute;bottom:14px;z-index:2;font-size:10px;font-weight:700;opacity:.55;direction:ltr}
+.dc-day{margin:8px 0}
+
+/* جای فیزیکی دکمه‌های شناور: خانه راست، بازگشت چپ */
+#fnHome{inset-inline-end:auto;left:auto;right:14px}
+#fnBack{inset-inline-start:auto;right:auto;left:14px}
+
+/* روزهای هفتهٔ تقویم: کامل و خوانا، هم‌تراز با ستون‌ها */
+.cal-week{
+  font-size:8.5px;font-weight:700;color:var(--muted);
+  gap:3px;margin-bottom:6px;letter-spacing:-.2px;
+}
+.cal-week > div{white-space:nowrap;text-align:center;overflow:visible}
+.cal-grid{gap:3px}

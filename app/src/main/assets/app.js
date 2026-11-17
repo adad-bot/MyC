@@ -84,6 +84,10 @@ function todayJdn() {
 }
 function todayJalali() { return d2j(todayJdn()); }
 
+/* تاریخ نمایشی موقت (با بستن اپ به تاریخ سیستم برمی‌گردد) */
+let VIEW_DATE = null;
+const effToday = () => VIEW_DATE || todayJdn();
+
 function addMonths(jy, jm, jd, n) {
   const total = jy * 12 + (jm - 1) + n;
   const ny = Math.floor(total / 12);
@@ -242,7 +246,58 @@ function loadData() {
 
   const migrated = migrateFromLegacy();
   if (migrated) return migrated;
-  return blankData();
+  const fresh = blankData();
+  seedDemo(fresh);
+  return fresh;
+}
+
+/* دادهٔ نمونه برای تست اولیه */
+function seedDemo(d) {
+  const t = todayJalali();
+  const plus = n => d2j(jdnOf(t) + n);
+
+  d.settings.demo = true;
+
+  const inst = (count, amount, offset, paidCount) => {
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      const dt = addMonths(t.jy, t.jm, t.jd, offset + i);
+      out.push({
+        id: 'demo-i' + offset + '-' + i, amount: amount,
+        jy: dt.jy, jm: dt.jm, jd: dt.jd, paid: i < paidCount, custom: false
+      });
+    }
+    return out;
+  };
+
+  d.loans.push(normalizeLoan({
+    id: 'demo-l1', title: 'وام مسکن', note: 'بانک ملی', defaultAmount: 4500000,
+    installments: inst(12, 4500000, -3, 3)
+  }));
+  d.loans.push(normalizeLoan({
+    id: 'demo-l2', title: 'قسط خودرو', note: '', defaultAmount: 3200000,
+    installments: inst(18, 3200000, 1, 0)
+  }));
+
+  const c1 = plus(2), c2 = plus(1), c3 = plus(20);
+  d.cheques.push(
+    { id: 'demo-c1', kind: 'in', amount: 12000000, jy: c1.jy, jm: c1.jm, jd: c1.jd, party: 'آقای رضایی', number: '452189', bank: 'ملت', nid: '', reason: 'فروش کالا', status: 'open', depBank: '', confirmed: true, note: '' },
+    { id: 'demo-c2', kind: 'out', amount: 8000000, jy: c2.jy, jm: c2.jm, jd: c2.jd, party: 'شرکت پارس', number: '781233', bank: 'صادرات', nid: '', reason: 'خرید مواد', status: 'open', depBank: '', confirmed: false, note: '' },
+    { id: 'demo-c3', kind: 'out', amount: 5000000, jy: c3.jy, jm: c3.jm, jd: c3.jd, party: 'آقای کریمی', number: '990012', bank: 'ملی', nid: '', reason: 'اجاره', status: 'deposited', depBank: 'ملی', confirmed: false, note: '' }
+  );
+
+  const a1 = plus(15), a2 = plus(4);
+  d.accounts.push(
+    { id: 'demo-a1', name: 'حسین محمدی', amount: 3000000, kind: 'receivable', jy: t.jy, jm: t.jm, jd: t.jd, due: { jy: a1.jy, jm: a1.jm, jd: a1.jd }, settled: false, note: 'قرض' },
+    { id: 'demo-a2', name: 'مریم احمدی', amount: 1500000, kind: 'payable', jy: t.jy, jm: t.jm, jd: t.jd, due: { jy: a2.jy, jm: a2.jm, jd: a2.jd }, settled: false, note: '' }
+  );
+
+  d.tx.push(
+    { id: 'demo-t1', type: 'income', amount: 25000000, jy: t.jy, jm: t.jm, jd: 1, cat: 'حقوق', note: 'حقوق ماه' },
+    { id: 'demo-t2', type: 'expense', amount: 250000, jy: t.jy, jm: t.jm, jd: Math.max(1, t.jd - 1), cat: 'خوراک', note: 'خرید هفتگی' },
+    { id: 'demo-t3', type: 'expense', amount: 120000, jy: t.jy, jm: t.jm, jd: Math.max(1, t.jd - 1), cat: 'حمل‌ونقل', note: 'تاکسی' },
+    { id: 'demo-t4', type: 'expense', amount: 1200000, jy: t.jy, jm: t.jm, jd: Math.max(1, t.jd - 5), cat: 'قبض', note: 'برق و گاز' }
+  );
 }
 
 function save() {
@@ -480,7 +535,7 @@ function toast(msg, undo) {
 
 /* ---------- ۷) محاسبات ---------- */
 function dueItems() {
-  const t = todayJdn();
+  const t = effToday();
   const out = [];
 
   for (const loan of S.d.loans) {
@@ -566,9 +621,28 @@ function weekIndex(jdn) {
   return (g.getDay() + 1) % 7;
 }
 
+const G_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+                  'July', 'August', 'September', 'October', 'November', 'December'];
+
+let FMT_HM = null;
+try {
+  FMT_HM = new Intl.DateTimeFormat('fa-u-ca-islamic-umalqura', { month: 'long', year: 'numeric' });
+} catch (e) { /* */ }
+
+function hijriDayNum(jdn) {
+  if (!FMT_HD) return '';
+  try { return fa(FMT_HD.format(toDate(jdn))); } catch (e) { return ''; }
+}
+
+function hijriMonthLabel(jdn) {
+  if (!FMT_HM) return '';
+  try { return FMT_HM.format(toDate(jdn)); } catch (e) { return ''; }
+}
+
 function buildDateCard() {
-  const jdn = todayJdn();
+  const jdn = effToday();
   const j = d2j(jdn);
+  const g = d2g(jdn);
   const season = seasonOf(j.jm);
 
   const card = el('div', 'datecard ' + season);
@@ -578,14 +652,19 @@ function buildDateCard() {
   const right = el('div', 'dc-right');
   right.appendChild(el('div', 'dc-month', MONTHS[j.jm - 1]));
   right.appendChild(el('div', 'dc-year', fa(j.jy)));
+  const gm = el('div', 'dc-gmonth', G_MONTHS[g.gm - 1] + ' ' + g.gy);
+  right.appendChild(gm);
 
   const circle = el('div', 'dc-circle');
-  circle.innerHTML = DECOR[season] + '<span class="dc-day">' + fa(j.jd) + '</span>';
+  circle.innerHTML = DECOR[season] +
+    '<span class="dc-h">' + hijriDayNum(jdn) + '</span>' +
+    '<span class="dc-day">' + fa(j.jd) + '</span>' +
+    '<span class="dc-g">' + g.gd + '</span>';
   circle.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(jdn); });
 
   const left = el('div', 'dc-left');
   left.appendChild(el('div', 'dc-weekday', wLabel(jdn)));
-  left.appendChild(el('div', 'dc-hijri', hLabel(jdn)));
+  left.appendChild(el('div', 'dc-hijri', hijriMonthLabel(jdn)));
 
   row.append(right, circle, left);
   card.appendChild(row);
@@ -597,7 +676,6 @@ function buildDateCard() {
     card.appendChild(wrap);
   }
 
-  // نوار هفته
   const idx = weekIndex(jdn);
   const start = jdn - idx;
   const strip = el('div', 'dc-week');
@@ -617,7 +695,7 @@ function buildDateCard() {
   const bFal = el('button', null, 'فال حافظ');
   bFal.addEventListener('click', ev => { ev.stopPropagation(); openFal(); });
   const bCal = el('button', null, 'تقویم و روزها');
-  bCal.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(todayJdn()); });
+  bCal.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(effToday()); });
   act.append(bFal, bCal);
   card.appendChild(act);
 
@@ -652,8 +730,9 @@ function renderCal() {
   const wk = $('calWeek');
   if (!wk.children.length) {
     for (const n of WEEK_NAMES) {
-      const c = el('div', null, n.slice(0, 3));
+      const c = el('div', null, n);
       c.style.textAlign = 'center';
+      c.style.whiteSpace = 'nowrap';
       wk.appendChild(c);
     }
   }
@@ -725,11 +804,23 @@ $('calNext').addEventListener('click', () => {
   renderCal();
 });
 
+$('datePick').addEventListener('click', () => {
+  VIEW_DATE = calSel;
+  $('dateDlg').close();
+  render();
+  const j = d2j(calSel);
+  toast('تاریخ نمایش: ' + fa(j.jd) + ' ' + MONTHS[j.jm - 1]);
+});
+
 $('dateToday').addEventListener('click', () => {
+  VIEW_DATE = null;
   const j = d2j(todayJdn());
   calY = j.jy; calM = j.jm; calSel = todayJdn();
   renderCal();
   renderDateInfo();
+  $('dateDlg').close();
+  render();
+  toast('به تاریخ امروز برگشت');
 });
 
 $('dateClose').addEventListener('click', () => $('dateDlg').close());
@@ -898,7 +989,7 @@ function renderHome() {
 
   view.appendChild(buildRings());
 
-  const t = todayJdn();
+  const t = effToday();
 
   // نوار امروز
   const dueToday = dueItems().filter(x => x.days === 0);
@@ -1738,7 +1829,25 @@ $('fnBack').addEventListener('click', () => {
 });
 
 /* ---------- درباره ---------- */
-function openAbout() { $('aboutDlg').showModal(); }
+function openAbout() {
+  const wrap = $('demoWrap');
+  if (wrap) wrap.classList.toggle('hidden', !S.d.settings.demo);
+  $('aboutDlg').showModal();
+}
+
+$('demoReset').addEventListener('click', () => {
+  if (!confirm('همهٔ داده‌های آزمایشی پاک شود؟ این کار قابل بازگشت نیست.')) return;
+  S.d.loans = [];
+  S.d.cheques = [];
+  S.d.accounts = [];
+  S.d.tx = [];
+  S.d.notes = [];
+  S.d.settings.demo = false;
+  save();
+  render();
+  $('aboutDlg').close();
+  toast('داده‌های تست پاک شد — آمادهٔ استفاده');
+});
 $('aboutBtn').addEventListener('click', openAbout);
 $('titleWrap').addEventListener('click', openAbout);
 $('aboutClose').addEventListener('click', () => $('aboutDlg').close());
@@ -1770,8 +1879,7 @@ $('lockBtn').addEventListener('click', () => {
   S.d.settings.requirePin = !on;
   save();
   renderLockIcon();
-  toast(!on ? 'قفل باز شد — دفعهٔ بعد رمز نمی‌پرسد' : 'قفل شد — دفعهٔ بعد رمز لازم است');
-});
+  toast(on ? 'قفل باز شد — دفعهٔ بعد رمز نمی‌پرسد' : 'قفل شد — دفعهٔ بعد رمز لازم است');});
 
 $('exitYes').addEventListener('click', () => {
   $('exitDlg').close();
@@ -2064,7 +2172,7 @@ const PAGE_SIZES = {
 
 const ED = {
   note: null, pageIdx: 0, tool: 'pen', color: '#111827', width: 4,
-  drawing: false, cur: null, scale: 1
+  drawing: false, cur: null, scale: 1, zoom: 1
 };
 
 function renderNotes() {
@@ -2171,7 +2279,8 @@ function drawStroke(g, s, scale) {
 function edRender() {
   const page = ED.note.page;
   const wrapW = ($('edWrap').clientWidth || 360) - 20;
-  const cssW = Math.max(220, Math.min(wrapW, 560));
+  const base = Math.max(220, Math.min(wrapW, 560));
+  const cssW = Math.min(base * (ED.zoom || 1), 1600);
   const cssH = cssW * page.h / page.w;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -2294,6 +2403,20 @@ $('editor').addEventListener('click', ev => {
     ED.width = parseInt(w.dataset.width, 10);
     for (const b of document.querySelectorAll('.ed-tools [data-width]')) b.classList.toggle('on', b === w);
   }
+});
+
+$('edZoomIn').addEventListener('click', () => {
+  if (!ED.note) return;
+  ED.zoom = Math.min(3, (ED.zoom || 1) + 0.5);
+  edRender();
+  toast('بزرگ‌نمایی ' + fa(Math.round(ED.zoom * 100)) + '٪');
+});
+
+$('edZoomOut').addEventListener('click', () => {
+  if (!ED.note) return;
+  ED.zoom = Math.max(1, (ED.zoom || 1) - 0.5);
+  edRender();
+  toast(ED.zoom === 1 ? 'اندازهٔ عادی' : 'بزرگ‌نمایی ' + fa(Math.round(ED.zoom * 100)) + '٪');
 });
 
 $('edUndo').addEventListener('click', () => {
