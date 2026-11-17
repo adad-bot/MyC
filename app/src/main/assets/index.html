@@ -38,10 +38,10 @@
     <button class="logo" id="aboutBtn" aria-label="دربارهٔ MyC">M</button>
     <div id="titleWrap" style="cursor:pointer">
       <h1>MyC</h1>
-      <p class="sub">دفتر مالی شخصی</p>
+      <p class="sub brand-sub">میعاد ماندگار</p>
     </div>
     <div class="spacer"></div>
-    <button class="iconbtn" id="lockBtn" aria-label="قفل کردن">
+    <button class="iconbtn" id="lockBtn" aria-label="قفل">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>
     </button>
     <button class="iconbtn" id="settingsBtn" aria-label="تنظیمات">⚙</button>
@@ -332,6 +332,12 @@
     <h2>دربارهٔ MyC</h2>
     <p class="hint">نسخهٔ ۱.۱ — دفتر مالی شخصی</p>
     <div class="about-body">
+      <div class="creator">
+        <div class="cr-title">پدیدآورنده</div>
+        <div class="cr-main">گروه فناوری کرانه ماندگار</div>
+        <div class="cr-sub">مدیریت دکتر علی دادمان</div>
+        <div class="cr-phone" dir="ltr">09394711049</div>
+      </div>
       <p><b>چه کارهایی میکند؟</b></p>
       <ul>
         <li><b>اقساط و وام:</b> تعریف وام با مبلغ هر قسط، تعداد و تاریخ؛ ویرایش گروهی؛ مبلغ متفاوت برای هر قسط.</li>
@@ -351,6 +357,7 @@
         <li>برای ویرایش یک وام، در «تعهدات ← اقساط» روی وام بزن.</li>
         <li>برای علامت‌زدن پرداخت، در فهرست اقساط روی دایرهٔ کنار هر قسط بزن.</li>
         <li>در تنظیمات: ظاهر روشن/تیره، صدا و روزهای اعلان، تغییر رمز و کد مادر.</li>
+        <li>برای یادداشت دست‌نویس: تب «یادداشت» → + → اندازهٔ صفحه را انتخاب کن.</li>
       </ol>
 
       <p><b>نکتهٔ امنیتی</b></p>
@@ -362,19 +369,16 @@
 
 <dialog id="dateDlg">
   <form method="dialog">
-    <h2>تقویم</h2>
-    <div class="drow" id="dpDate"></div>
-    <div class="row-btns" id="dateNav">
-      <button type="button" class="btn" data-nav="-365">سال قبل</button>
-      <button type="button" class="btn" data-nav="-30">ماه قبل</button>
-      <button type="button" class="btn" data-nav="-1">روز قبل</button>
-      <button type="button" class="btn" data-nav="1">روز بعد</button>
-      <button type="button" class="btn" data-nav="30">ماه بعد</button>
-      <button type="button" class="btn" data-nav="365">سال بعد</button>
+    <div class="cal-head">
+      <button type="button" id="calPrev" aria-label="ماه قبل">‹</button>
+      <div id="calTitle">—</div>
+      <button type="button" id="calNext" aria-label="ماه بعد">›</button>
     </div>
+    <div class="cal-week" id="calWeek"></div>
+    <div class="cal-grid" id="calGrid"></div>
     <div class="card pad" id="dateInfo" style="font-size:12.5px;line-height:2"></div>
     <div class="dact">
-      <button type="button" class="primary" id="dateToday">برو به امروز</button>
+      <button type="button" class="primary" id="dateToday">امروز</button>
       <button type="button" id="dateClose">بستن</button>
     </div>
   </form>
@@ -447,6 +451,18 @@
     <button class="btn" id="edRemind">یادآور</button>
   </div>
 </div>
+
+<dialog id="exitDlg">
+  <form method="dialog" class="exitbox">
+    <div class="ex-badge">M</div>
+    <h2>از MyC خارج می‌شوی؟</h2>
+    <p class="hint">همهٔ داده‌ها ذخیره شده‌اند و با رمز برمی‌گردند.</p>
+    <div class="dact">
+      <button type="button" class="primary" id="exitYes">بله، خارج شو</button>
+      <button type="button" id="exitNo">بمان</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="backupDlg">
   <form method="dialog">

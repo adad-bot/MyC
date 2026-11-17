@@ -243,16 +243,10 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (web != null && web.canGoBack()) {
-            web.goBack();
-            return;
+        // تصمیم‌گیری در خود صفحه: برگشت، بستن پنجره، یا پرسش خروج
+        if (web != null) {
+            web.evaluateJavascript("window.onAndroidBack && window.onAndroidBack()", null);
         }
-        new android.app.AlertDialog.Builder(this)
-                .setTitle("خروج از برنامه")
-                .setMessage("می‌خواهی از MyC خارج شوی؟")
-                .setPositiveButton("بله", (d, w) -> finish())
-                .setNegativeButton("نه", null)
-                .show();
     }
 
     @Override

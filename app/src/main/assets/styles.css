@@ -57,12 +57,27 @@ body{
 .logo:active{transform:scale(.94)}
 
 /* ---------- درباره ---------- */
-.about-body{font-size:12.5px;line-height:1.95;max-height:54vh;overflow:auto;padding:2px 2px 4px}
+.about-body{font-size:12.5px;line-height:1.95;max-height:56vh;overflow:auto;padding:2px 2px 4px}
 .about-body p{margin:8px 0 4px}
 .about-body ul,.about-body ol{margin:2px 0 6px;padding-inline-start:18px}
 .about-body li{margin-bottom:3px}
+
+.creator{
+  background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;
+  border-radius:14px;padding:12px 14px;margin:2px 0 12px;text-align:center;
+  box-shadow:0 8px 20px rgba(79,70,229,.28);
+}
+.creator .cr-title{font-size:10.5px;opacity:.85;font-weight:700;letter-spacing:.4px}
+.creator .cr-main{font-size:15.5px;font-weight:800;margin-top:3px}
+.creator .cr-sub{font-size:11.5px;opacity:.9;margin-top:1px}
+.creator .cr-phone{font-size:12px;margin-top:5px;opacity:.95;letter-spacing:.5px}
 .topbar h1{margin:0;font-size:17px;font-weight:800;letter-spacing:-.2px}
 .topbar .sub{margin:0;font-size:11px;color:var(--muted)}
+.brand-sub{
+  font-size:12px !important;font-weight:700;letter-spacing:.4px;
+  background:linear-gradient(90deg,var(--brand),var(--brand2));
+  -webkit-background-clip:text;background-clip:text;color:transparent !important;
+}
 .topbar .spacer{flex:1 1 auto}
 .iconbtn{
   width:44px;height:44px;border-radius:13px;border:1px solid var(--line);background:var(--card);
@@ -200,8 +215,10 @@ body{
   padding:0 6px calc(6px + env(safe-area-inset-bottom));
 }
 .quickbar{
-  max-width:640px;margin:0 auto;display:flex;gap:8px;justify-content:flex-start;
-  padding:6px 4px 4px;
+  position:fixed;inset-inline-start:14px;bottom:calc(94px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;gap:8px;z-index:45;
+  padding:7px;border-radius:18px;background:var(--card);border:1px solid var(--line);
+  box-shadow:0 6px 18px rgba(15,23,42,.14);
 }
 .quickbar button{
   width:42px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--soft);
@@ -239,7 +256,7 @@ body{
 }
 .lock h2{margin:0;font-size:17.5px;font-weight:800}
 .lock p{margin:0;font-size:12px;color:var(--muted);text-align:center}
-.dots{display:flex;gap:11px;margin:10px 0 4px}
+.dots{display:flex;gap:11px;margin:10px 0 4px;direction:ltr}
 .dots i{width:13px;height:13px;border-radius:50%;border:2px solid color-mix(in srgb,var(--brand) 65%,transparent);display:block;transition:transform .15s, background .15s}
 .dots i.f{background:var(--brand);transform:scale(1.12);border-color:var(--brand)}
 .pad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;width:min(310px,88vw);direction:ltr;margin-top:6px}
@@ -260,7 +277,17 @@ body{
   80%{transform:translateX(-4px)}
 }
 
-/* ---------- دیالوگ ---------- */
+/* ---------- دیالوگ خروج ---------- */
+.exitbox{text-align:center;padding:22px 18px 18px !important}
+.ex-badge{
+  width:56px;height:56px;border-radius:18px;margin:0 auto 10px;display:grid;place-items:center;
+  color:#fff;font-size:22px;font-weight:800;
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  box-shadow:0 10px 24px rgba(79,70,229,.35);
+}
+.exitbox h2{font-size:16.5px;margin-bottom:4px}
+.exitbox .hint{margin-bottom:12px}
+.exitbox .dact{justify-content:center}
 dialog{
   border:none;border-radius:20px;padding:0;background:var(--card);color:var(--ink);
   width:min(460px,calc(100% - 24px));box-shadow:0 24px 60px rgba(0,0,0,.3);max-height:88vh;
@@ -376,3 +403,275 @@ legend{font-size:12px;color:var(--muted);font-weight:600;padding:0;margin-bottom
 }
 .fal .beyt{font-weight:700}
 .fal .mean{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.9}
+
+/* ---------- کارت تاریخ (طرح فصلی) ---------- */
+.datecard{
+  position:relative;border-radius:22px;padding:14px 12px 10px;margin-bottom:12px;
+  overflow:hidden;cursor:pointer;color:#1f2937;border:none;
+  box-shadow:0 8px 22px rgba(15,23,42,.12);
+}
+.datecard.spring{background:linear-gradient(160deg,#e7fbf0,#bff0d4)}
+.datecard.summer{background:linear-gradient(160deg,#fff7dc,#ffe0a8)}
+.datecard.autumn{background:linear-gradient(160deg,#ffeee0,#ffd2b0)}
+.datecard.winter{background:linear-gradient(160deg,#eaf3fd,#cfe2f7)}
+:root[data-theme="dark"] .datecard{color:#e8ecf4;box-shadow:0 8px 22px rgba(0,0,0,.4)}
+:root[data-theme="dark"] .datecard.spring{background:linear-gradient(160deg,#12301f,#0d2a1a)}
+:root[data-theme="dark"] .datecard.summer{background:linear-gradient(160deg,#33290c,#2a2109)}
+:root[data-theme="dark"] .datecard.autumn{background:linear-gradient(160deg,#33200f,#2a1a0c)}
+:root[data-theme="dark"] .datecard.winter{background:linear-gradient(160deg,#152435,#101d2b)}
+
+.dc-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px}
+.dc-right{text-align:right}
+.dc-left{text-align:left}
+.dc-month{font-size:18px;font-weight:800;letter-spacing:-.3px}
+.dc-year{font-size:12.5px;opacity:.7;font-weight:600}
+.dc-weekday{font-size:15px;font-weight:800}
+.dc-hijri{font-size:11px;opacity:.72;margin-top:2px;line-height:1.6}
+
+.dc-circle{
+  width:112px;height:112px;border-radius:50%;position:relative;display:grid;place-items:center;
+  background:radial-gradient(circle at 32% 26%,#ffffff,#f4f1ff 72%);
+  box-shadow:0 12px 26px rgba(15,23,42,.16), inset 0 0 0 1px rgba(255,255,255,.7);
+  overflow:hidden;
+}
+.dc-circle:active{transform:scale(.97)}
+.dc-day{position:relative;z-index:2;font-size:41px;font-weight:800;color:#1f2437;line-height:1}
+.dc-deco{position:absolute;inset:0;width:100%;height:100%;z-index:1;opacity:.95}
+
+.dc-occ-wrap{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;justify-content:center}
+.dc-occ{font-size:11px;background:rgba(255,255,255,.65);padding:3px 10px;border-radius:8px;font-weight:700}
+
+.dc-week{display:flex;gap:4px;margin-top:12px}
+.dc-week button{
+  flex:1;border:none;background:rgba(255,255,255,.45);border-radius:11px;padding:5px 0;
+  font:inherit;cursor:pointer;color:inherit;display:flex;flex-direction:column;align-items:center;gap:1px;
+}
+.dc-week .wn{font-size:9px;opacity:.75}
+.dc-week .wd{font-size:12.5px;font-weight:700}
+.dc-week button.on{background:#fff;box-shadow:0 4px 10px rgba(15,23,42,.15)}
+:root[data-theme="dark"] .dc-week button{background:rgba(255,255,255,.08)}
+:root[data-theme="dark"] .dc-week button.on{background:rgba(255,255,255,.22)}
+
+.dc-act{display:flex;gap:8px;margin-top:10px}
+.dc-act button{
+  flex:1;border:1px solid rgba(15,23,42,.14);background:rgba(255,255,255,.5);color:inherit;
+  border-radius:11px;padding:7px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;
+}
+:root[data-theme="dark"] .dc-act button{border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.08)}
+
+/* ---------- تقویم ماهانه ---------- */
+.cal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.cal-head button{
+  width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--soft);
+  color:var(--ink);font-size:16px;cursor:pointer;
+}
+.cal-head #calTitle{font-weight:800;font-size:14.5px}
+.cal-week{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:10px;color:var(--muted);margin-bottom:4px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:10px}
+.cal-cell{
+  aspect-ratio:1;border:none;background:transparent;border-radius:50%;
+  font:inherit;font-size:13.5px;color:var(--ink);cursor:pointer;display:grid;place-items:center;
+}
+.cal-cell.empty{visibility:hidden}
+.cal-cell.fri{color:var(--red)}
+.cal-cell.today{background:var(--brand-soft);color:var(--brand);font-weight:800}
+.cal-cell.sel{background:var(--brand);color:#fff;font-weight:800}
+
+/* ---------- تقویم: نسخهٔ گرافیکی ---------- */
+.cal-head{margin-bottom:10px}
+.cal-head button{
+  width:36px;height:36px;border-radius:12px;border:none;background:var(--brand-soft);
+  color:var(--brand);font-size:17px;font-weight:700;cursor:pointer;
+}
+.cal-head button:active{transform:scale(.94)}
+.cal-head #calTitle{font-weight:800;font-size:15px;letter-spacing:-.2px}
+.cal-week{font-size:9.5px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.cal-grid{gap:3px;margin-bottom:12px}
+.cal-cell{
+  aspect-ratio:1;border:none;background:transparent;border-radius:14px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font:inherit;cursor:pointer;padding:0;transition:background .12s, transform .08s;
+}
+.cal-cell:active{transform:scale(.94)}
+.cal-cell.empty{visibility:hidden}
+.cal-cell .cd{font-size:14.5px;font-weight:700;line-height:1.2;color:var(--ink)}
+.cal-cell .ch{font-size:8px;line-height:1;color:var(--muted);opacity:.85}
+.cal-cell.hol .cd{color:var(--red)}
+.cal-cell.hol .ch{color:color-mix(in srgb,var(--red) 65%,var(--muted))}
+.cal-cell.today{background:var(--brand-soft)}
+.cal-cell.today .cd{color:var(--brand);font-weight:800}
+.cal-cell.sel{
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  box-shadow:0 8px 18px rgba(79,70,229,.32);
+}
+.cal-cell.sel .cd{color:#fff}
+.cal-cell.sel .ch{color:rgba(255,255,255,.8)}
+
+/* =========================================================
+   لایهٔ زیبایی‌شناسی — هماهنگی رنگ، فاصله و سایه
+   ========================================================= */
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --ink:#161a26; --muted:#6b7280;
+  --line:#e7e9f2; --soft:#f1f3fa;
+  --brand:#5b5bd6; --brand2:#8b5cf6; --brand-soft:#eef0ff;
+  --r:18px;
+  --shadow:0 1px 2px rgba(16,24,40,.04), 0 6px 18px rgba(16,24,40,.06);
+  --shadow-lg:0 12px 32px rgba(16,24,40,.12);
+}
+:root[data-theme="dark"]{
+  --bg:#0e1117; --card:#161a23; --ink:#e9edf6; --muted:#9aa3b2;
+  --line:#232a37; --soft:#1b2130;
+  --brand:#8b8cf8; --brand2:#a78bfa; --brand-soft:#1e1b4b;
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 6px 18px rgba(0,0,0,.32);
+  --shadow-lg:0 12px 30px rgba(0,0,0,.5);
+}
+body{
+  background:
+    radial-gradient(900px 420px at 50% -18%, rgba(91,91,214,.10), transparent 62%),
+    var(--bg);
+  letter-spacing:-.1px;
+}
+:root[data-theme="dark"] body{
+  background:
+    radial-gradient(900px 420px at 50% -18%, rgba(139,140,248,.12), transparent 62%),
+    var(--bg);
+}
+
+/* عنوان بخش‌ها */
+.mhead{
+  font-size:11px;letter-spacing:.2px;color:var(--muted);
+  margin:18px 6px 8px;font-weight:800;
+}
+.mhead span:first-child{position:relative;padding-inline-start:10px}
+.mhead span:first-child::before{
+  content:'';position:absolute;inset-inline-start:0;top:50%;transform:translateY(-50%);
+  width:3px;height:12px;border-radius:2px;
+  background:linear-gradient(180deg,var(--brand),var(--brand2));
+}
+
+/* کارت‌ها */
+.card{border-radius:var(--r);box-shadow:var(--shadow);border:1px solid var(--line)}
+.item{
+  border-radius:16px;box-shadow:var(--shadow);border:1px solid var(--line);
+  padding:12px 14px;background:var(--card);
+}
+.item:hover{border-color:color-mix(in srgb,var(--brand) 22%,var(--line))}
+.item .t{font-size:14.8px;font-weight:700;letter-spacing:-.2px}
+.item .m{font-size:11.6px}
+.item .amt{font-size:14px}
+.loan{border-radius:var(--r);box-shadow:var(--shadow);padding:14px 15px}
+.loan h3{font-size:15px;margin-bottom:10px}
+.stats .stat{border-radius:15px;box-shadow:var(--shadow);padding:11px 8px}
+.stat .v{font-size:15px;font-weight:800}
+
+/* دایره‌های سررسید */
+.rings{gap:10px}
+.ring{
+  border-radius:18px;border:1px solid var(--line);box-shadow:var(--shadow);
+  padding:12px 6px 10px;position:relative;overflow:hidden;
+  transition:transform .1s, border-color .15s;
+}
+.ring::after{
+  content:'';position:absolute;inset-inline:0;top:0;height:3px;opacity:.9;
+  background:linear-gradient(90deg,transparent,currentColor,transparent);
+}
+.ring.red{color:#e11d48} .ring.yellow{color:#eab308} .ring.orange{color:#ea580c}
+.ring .dot{border:3px solid rgba(255,255,255,.55);box-shadow:0 8px 18px rgba(16,24,40,.18)}
+.ring .lbl{font-size:10.5px;color:var(--muted)}
+.ring:active{transform:scale(.97)}
+
+/* تب‌های داخلی */
+.seg{background:var(--soft);border-radius:14px;padding:4px;border:1px solid var(--line)}
+.seg button{border-radius:11px;font-size:12.8px}
+.seg button.on{box-shadow:0 2px 8px rgba(16,24,40,.10)}
+
+/* نوار پایین */
+.nav{border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(16,24,40,.06)}
+.nav button{border-radius:14px;font-size:10.8px;padding:6px 2px}
+.nav button.on{
+  background:linear-gradient(180deg,var(--brand-soft),transparent);
+  color:var(--brand);
+}
+.nav button.on .ni{transform:translateY(-1px)}
+
+/* دکمه‌ها */
+.btn{border-radius:13px;font-size:13px;transition:transform .08s, background .15s}
+.btn.primary{
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  border:none;box-shadow:0 6px 16px rgba(91,91,214,.30);
+}
+.btn.primary:active{box-shadow:0 3px 10px rgba(91,91,214,.28)}
+
+/* دیالوگ‌ها */
+dialog{border-radius:24px;box-shadow:var(--shadow-lg)}
+dialog h2{font-size:17px;letter-spacing:-.2px}
+.dact button{border-radius:13px}
+.dact .primary{
+  background:linear-gradient(135deg,var(--brand),var(--brand2));border:none;
+  box-shadow:0 6px 16px rgba(91,91,214,.28);
+}
+
+/* حالت خالی */
+.empty{
+  border:1.5px dashed color-mix(in srgb,var(--brand) 25%,var(--line));
+  background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--brand) 4%,transparent));
+  border-radius:var(--r);padding:36px 18px;
+}
+.empty b{font-size:15px}
+
+/* کارت تاریخ */
+.datecard{border-radius:24px;box-shadow:var(--shadow-lg)}
+.dc-circle{box-shadow:0 14px 30px rgba(16,24,40,.18), inset 0 0 0 1px rgba(255,255,255,.8)}
+.dc-act button{border-radius:12px;font-weight:700}
+
+/* تقویم */
+.cal-cell{border-radius:13px}
+.cal-cell.today{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--brand) 40%,transparent)}
+
+/* FAB */
+.fab{
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  box-shadow:0 12px 26px rgba(91,91,214,.40);
+}
+.quickbar{border-radius:20px;box-shadow:var(--shadow-lg)}
+
+/* ریزترازها */
+.pill{letter-spacing:0}
+.topbar{padding-bottom:14px}
+.topbar h1{letter-spacing:-.3px}
+
+/* =========================================================
+   میکروتعامل لمسی — «جان داشتن» بدون افت سرعت
+   فقط transform انیمیت می‌شود (روی GPU) تا لمس فوری بماند
+   ========================================================= */
+button, .item, .ring, .loan, .stat, .note, .cal-cell,
+.dc-circle, .seg button, .nav button, .iconbtn, .quickbar button, .fab,
+.datecard, .card.pad{
+  transition: transform .15s cubic-bezier(.2,.9,.25,1.35);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* کنترل‌های کوچک: پاپ واضح */
+button:active, .cal-cell:active, .dc-circle:active,
+.seg button:active, .nav button:active, .iconbtn:active,
+.quickbar button:active, .fab:active{
+  transform: scale(1.07) !important;
+}
+
+/* کارت‌های متوسط: برآمدگی ملایم */
+.item:active, .ring:active, .stat:active, .note:active{
+  transform: scale(1.025) !important;
+}
+
+/* کارت‌های بزرگ: فقط یک تکان خیلی کم */
+.loan:active, .card.pad:active, .datecard:active{
+  transform: scale(1.008) !important;
+}
+
+/* برگشت نرم و بی‌پرش */
+@media (hover: hover) and (pointer: fine){
+  button:hover, .item:hover, .cal-cell:hover{
+    transform: scale(1.02);
+  }
+}

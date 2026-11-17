@@ -137,7 +137,7 @@ const LEGACY1 = 'aqsat_v1';
 
 const DEFAULT_SETTINGS = {
   pinHash: '', masterHash: hash('563570'),
-  sound: true, chqDays: 1, genDays: 3, theme: 'system', fontScale: 5,
+  sound: true, chqDays: 1, genDays: 3, theme: 'system', fontScale: 5, requirePin: true,
   fails: 0, lockUntil: 0, lastBackup: null
 };
 
@@ -531,28 +531,87 @@ function hLabel(jdn) { return FMT_H ? FMT_H.format(toDate(jdn)) : ''; }
 function wLabel(jdn) { return FMT_W.format(toDate(jdn)); }
 
 const OCCASIONS = {
-  '1-1': 'نوروز', '1-2': 'عید نوروز', '1-3': 'عید نوروز', '1-4': 'عید نوروز',
-  '1-12': 'روز جمهوری اسلامی', '1-13': 'سیزده‌به‌در',
-  '11-22': 'پیروزی انقلاب اسلامی', '12-29': 'روز ملی شدن صنعت نفت'
+  '1-1': [{ t: 'نوروز', d: 'آغاز سال نو خورشیدی؛ بزرگترین جشن ملی ایرانیان که با تحویل سال، سفرهٔ هفت‌سین و دیدوبازدید برگزار می‌شود.' }],
+  '1-2': [{ t: 'عید نوروز', d: 'دومین روز جشن‌های نوروزی؛ زمان دیدوبازدید و سفرهای کوتاه خانوادگی.' }],
+  '1-3': [{ t: 'عید نوروز', d: 'سومین روز جشن‌های نوروزی و ادامهٔ آیین‌های دیدوبازدید.' }],
+  '1-4': [{ t: 'عید نوروز', d: 'چهارمین روز جشن‌های نوروزی؛ در تقویم رسمی تعطیل است.' }],
+  '1-12': [{ t: 'روز جمهوری اسلامی', d: 'سالروز رأی مردم ایران به نظام جمهوری اسلامی در ۱۲ فروردین ۱۳۵۸.' }],
+  '1-13': [{ t: 'سیزده‌به‌در', d: 'آخرین روز جشن نوروز و «روز طبیعت»؛ ایرانیان این روز را در دامان طبیعت می‌گذرانند.' }],
+  '2-12': [{ t: 'روز معلم', d: 'سالروز شهادت مرتضی مطهری و بزرگداشت مقام معلم و استاد.' }],
+  '11-22': [{ t: 'پیروزی انقلاب اسلامی', d: 'سالروز پیروزی انقلاب اسلامی در ۲۲ بهمن ۱۳۵۷ و پایان نظام پادشاهی.' }],
+  '12-29': [{ t: 'روز ملی شدن صنعت نفت', d: 'سالروز ملی شدن صنعت نفت ایران در ۲۹ اسفند ۱۳۲۹ به رهبری دکتر مصدق.' }]
 };
 
-function occasionOf(jy, jm, jd) { return OCCASIONS[jm + '-' + jd] || ''; }
+function occList(jm, jd) { return OCCASIONS[jm + '-' + jd] || []; }
+
+const WEEK_NAMES = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
+
+const DECOR = {
+  spring: '<svg class="dc-deco" viewBox="0 0 120 120"><circle cx="92" cy="24" r="13" fill="#ffe066" opacity=".95"/><path d="M6 100 Q38 70 74 88" stroke="#2f7d4f" stroke-width="3" fill="none"/><circle cx="34" cy="84" r="5" fill="#ff8fab"/><circle cx="56" cy="80" r="4.5" fill="#ff8fab"/><circle cx="70" cy="86" r="4" fill="#ff8fab"/></svg>',
+  summer: '<svg class="dc-deco" viewBox="0 0 120 120"><circle cx="90" cy="26" r="16" fill="#ffcf40" opacity=".95"/><path d="M0 104 Q40 88 80 100" stroke="#e08b2f" stroke-width="3" fill="none"/></svg>',
+  autumn: '<svg class="dc-deco" viewBox="0 0 120 120"><circle cx="90" cy="26" r="14" fill="#ffb347" opacity=".9"/><path d="M8 98 Q40 66 76 86" stroke="#b5651d" stroke-width="3" fill="none"/><path d="M40 78 q6 -10 14 -4 q-2 10 -14 4z" fill="#e07a5f"/><path d="M62 86 q8 -9 15 -2 q-4 10 -15 2z" fill="#d96a3f"/></svg>',
+  winter: '<svg class="dc-deco" viewBox="0 0 120 120"><circle cx="90" cy="26" r="13" fill="#cfe3ff" opacity=".95"/><path d="M10 100 Q40 78 74 92" stroke="#7fa7cf" stroke-width="3" fill="none"/><circle cx="30" cy="60" r="2.5" fill="#ffffff"/><circle cx="52" cy="44" r="2" fill="#ffffff"/><circle cx="70" cy="62" r="2.2" fill="#ffffff"/></svg>'
+};
+
+function seasonOf(jm) {
+  if (jm <= 3) return 'spring';
+  if (jm <= 6) return 'summer';
+  if (jm <= 9) return 'autumn';
+  return 'winter';
+}
+
+function weekIndex(jdn) {
+  // شنبه = ۰
+  const g = toDate(jdn);
+  return (g.getDay() + 1) % 7;
+}
 
 function buildDateCard() {
   const jdn = todayJdn();
   const j = d2j(jdn);
+  const season = seasonOf(j.jm);
 
-  const card = el('div', 'datecard');
+  const card = el('div', 'datecard ' + season);
 
-  const top = el('div', 'dc-top');
-  top.appendChild(el('div', 'dc-big', fa(j.jd)));
-  const mid = el('div');
-  mid.appendChild(el('div', 'dc-m', MONTHS[j.jm - 1] + ' ' + fa(j.jy)));
-  mid.appendChild(el('div', 'dc-w', wLabel(jdn)));
-  top.appendChild(mid);
+  const row = el('div', 'dc-row');
 
-  const sub = el('div', 'dc-sub', gLabel(jdn) + (hLabel(jdn) ? ' · ' + hLabel(jdn) : ''));
-  const occ = el('div', 'dc-occ', occasionOf(j.jy, j.jm, j.jd) || 'امروز چه روزی است؟');
+  const right = el('div', 'dc-right');
+  right.appendChild(el('div', 'dc-month', MONTHS[j.jm - 1]));
+  right.appendChild(el('div', 'dc-year', fa(j.jy)));
+
+  const circle = el('div', 'dc-circle');
+  circle.innerHTML = DECOR[season] + '<span class="dc-day">' + fa(j.jd) + '</span>';
+  circle.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(jdn); });
+
+  const left = el('div', 'dc-left');
+  left.appendChild(el('div', 'dc-weekday', wLabel(jdn)));
+  left.appendChild(el('div', 'dc-hijri', hLabel(jdn)));
+
+  row.append(right, circle, left);
+  card.appendChild(row);
+
+  const occs = occList(j.jm, j.jd).slice(0, 2);
+  if (occs.length) {
+    const wrap = el('div', 'dc-occ-wrap');
+    for (const o of occs) wrap.appendChild(el('div', 'dc-occ', o.t));
+    card.appendChild(wrap);
+  }
+
+  // نوار هفته
+  const idx = weekIndex(jdn);
+  const start = jdn - idx;
+  const strip = el('div', 'dc-week');
+  for (let i = 0; i < 7; i++) {
+    const d = start + i;
+    const jd = d2j(d);
+    const b = document.createElement('button');
+    b.type = 'button';
+    if (i === idx) b.className = 'on';
+    b.innerHTML = '<span class="wn">' + WEEK_NAMES[i] + '</span><span class="wd">' + fa(jd.jd) + '</span>';
+    b.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(d); });
+    strip.appendChild(b);
+  }
+  card.appendChild(strip);
 
   const act = el('div', 'dc-act');
   const bFal = el('button', null, 'فال حافظ');
@@ -560,70 +619,116 @@ function buildDateCard() {
   const bCal = el('button', null, 'تقویم و روزها');
   bCal.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(todayJdn()); });
   act.append(bFal, bCal);
+  card.appendChild(act);
 
-  card.append(top, sub, occ, act);
-  card.addEventListener('click', () => openDateDlg(todayJdn()));
   return card;
 }
 
-let dateJdn = 0;
+let calY = 0, calM = 0, calSel = 0;
 
 function openDateDlg(jdn) {
-  dateJdn = jdn;
-  setDP($('dpDate'), d2j(jdn));
+  const j = d2j(jdn);
+  calY = j.jy;
+  calM = j.jm;
+  calSel = jdn;
+  renderCal();
   renderDateInfo();
   $('dateDlg').showModal();
 }
 
-function renderDateInfo() {
-  const j = d2j(dateJdn);
-  const box = $('dateInfo');
-  box.textContent = '';
+let FMT_HD = null;
+try {
+  FMT_HD = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', { day: 'numeric' });
+} catch (e) { FMT_HD = null; }
 
-  const rows = [
-    ['روز', wLabel(dateJdn) + ' — ' + fa(j.jd) + ' ' + MONTHS[j.jm - 1] + ' ' + fa(j.jy)],
-    ['میلادی', gLabel(dateJdn)],
-    ['قمری', hLabel(dateJdn) || '—']
-  ];
-  const occ = occasionOf(j.jy, j.jm, j.jd);
-  if (occ) rows.push(['مناسبت', occ]);
+function hijriDay(jdn) {
+  if (!FMT_HD) return '';
+  try { return fa(FMT_HD.format(toDate(jdn))); } catch (e) { return ''; }
+}
 
-  for (const [k, v] of rows) {
-    const line = el('div');
-    line.style.display = 'flex';
-    line.style.justifyContent = 'space-between';
-    line.style.gap = '10px';
-    line.appendChild(el('span', 'k', k));
-    line.appendChild(el('span', null, v));
-    box.appendChild(line);
+function renderCal() {
+  $('calTitle').textContent = MONTHS[calM - 1] + ' ' + fa(calY);
+
+  const wk = $('calWeek');
+  if (!wk.children.length) {
+    for (const n of WEEK_NAMES) {
+      const c = el('div', null, n.slice(0, 3));
+      c.style.textAlign = 'center';
+      wk.appendChild(c);
+    }
+  }
+
+  const grid = $('calGrid');
+  grid.textContent = '';
+
+  const first = j2d(calY, calM, 1);
+  const startIdx = weekIndex(first);
+  const len = monthLen(calY, calM);
+  const todayJ = todayJdn();
+
+  for (let i = 0; i < startIdx; i++) grid.appendChild(el('div', 'cal-cell empty'));
+
+  for (let d = 1; d <= len; d++) {
+    const jdn = first + d - 1;
+    const jj = d2j(jdn);
+
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'cal-cell';
+
+    const isFri = weekIndex(jdn) === 6;
+    const isHol = isFri || occList(jj.jm, jj.jd).length > 0;
+    if (isHol) b.classList.add('hol');
+    if (jdn === todayJ) b.classList.add('today');
+    if (jdn === calSel) b.classList.add('sel');
+
+    b.appendChild(el('span', 'cd', fa(d)));
+    b.appendChild(el('span', 'ch', hijriDay(jdn)));
+
+    b.addEventListener('click', () => {
+      calSel = jdn;
+      renderCal();
+      renderDateInfo();
+    });
+    grid.appendChild(b);
   }
 }
 
-$('dateNav').addEventListener('click', ev => {
-  const b = ev.target.closest('button[data-nav]');
-  if (!b) return;
-  const delta = parseInt(b.dataset.nav, 10);
-  if (Math.abs(delta) === 1) {
-    dateJdn += delta;
-  } else if (Math.abs(delta) === 30) {
-    const j = d2j(dateJdn);
-    dateJdn = jdnOf(addMonths(j.jy, j.jm, j.jd, delta > 0 ? 1 : -1));
-  } else {
-    const j = d2j(dateJdn);
-    dateJdn = jdnOf(addMonths(j.jy, j.jm, j.jd, delta > 0 ? 12 : -12));
+function renderDateInfo() {
+  const j = d2j(calSel);
+  const box = $('dateInfo');
+  box.textContent = '';
+
+  const list = occList(j.jm, j.jd);
+  box.classList.toggle('hidden', list.length === 0);
+
+  for (const o of list) {
+    const wrap = el('div');
+    wrap.appendChild(el('div', null, o.t));
+    const d = el('div', 'hint');
+    d.style.marginTop = '3px';
+    d.textContent = o.d;
+    wrap.appendChild(d);
+    box.appendChild(wrap);
   }
-  setDP($('dpDate'), d2j(dateJdn));
-  renderDateInfo();
+}
+
+$('calPrev').addEventListener('click', () => {
+  const n = addMonths(calY, calM, 1, -1);
+  calY = n.jy; calM = n.jm;
+  renderCal();
 });
 
-$('dpDate').addEventListener('change', () => {
-  dateJdn = jdnOf(getDP($('dpDate')));
-  renderDateInfo();
+$('calNext').addEventListener('click', () => {
+  const n = addMonths(calY, calM, 1, 1);
+  calY = n.jy; calM = n.jm;
+  renderCal();
 });
 
 $('dateToday').addEventListener('click', () => {
-  dateJdn = todayJdn();
-  setDP($('dpDate'), d2j(dateJdn));
+  const j = d2j(todayJdn());
+  calY = j.jy; calM = j.jm; calSel = todayJdn();
+  renderCal();
   renderDateInfo();
 });
 
@@ -790,12 +895,6 @@ function renderHome() {
   view.textContent = '';
 
   view.appendChild(buildDateCard());
-
-  const about = el('div', 'aboutbar');
-  about.innerHTML = '<b>MyC — دفتر مالی شخصی</b><br>' +
-    'گروه فناوری کرانه ماندگار · مدیریت دکتر علی دادمان<br>' +
-    'تماس: <span dir="ltr">09394711049</span>';
-  view.appendChild(about);
 
   view.appendChild(buildRings());
 
@@ -1635,16 +1734,7 @@ $('fnHome').addEventListener('click', () => {
 });
 
 $('fnBack').addEventListener('click', () => {
-  if (S.detailLoan) { S.detailLoan = null; render(); return; }
-  if (S.tab !== 'home') { S.tab = 'home'; render(); return; }
-  if (!confirm('از برنامه خارج می‌شوی؟')) return;
-  try {
-    if (window.AndroidAqsat && window.AndroidAqsat.exitApp) {
-      window.AndroidAqsat.exitApp();
-      return;
-    }
-  } catch (e) { /* */ }
-  toast('برای خروج، دکمهٔ بازگشت گوشی را بزن');
+  if (window.onAndroidBack) window.onAndroidBack();
 });
 
 /* ---------- درباره ---------- */
@@ -1666,10 +1756,43 @@ $('fab').addEventListener('click', () => {
 
 $('settingsBtn').addEventListener('click', openSettings);
 
+const ICON_LOCKED = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>';
+const ICON_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 6.3-2.1"/></svg>';
+
+function renderLockIcon() {
+  const on = S.d.settings.requirePin !== false;
+  $('lockBtn').innerHTML = on ? ICON_LOCKED : ICON_OPEN;
+  $('lockBtn').setAttribute('aria-pressed', on ? 'true' : 'false');
+}
+
 $('lockBtn').addEventListener('click', () => {
-  startLock('unlock');
-  toast('قفل شد — برای ورود رمز لازم است');
+  const on = S.d.settings.requirePin !== false;
+  S.d.settings.requirePin = !on;
+  save();
+  renderLockIcon();
+  toast(!on ? 'قفل باز شد — دفعهٔ بعد رمز نمی‌پرسد' : 'قفل شد — دفعهٔ بعد رمز لازم است');
 });
+
+$('exitYes').addEventListener('click', () => {
+  $('exitDlg').close();
+  try {
+    if (window.AndroidAqsat && window.AndroidAqsat.exitApp) {
+      window.AndroidAqsat.exitApp();
+      return;
+    }
+  } catch (e) { /* */ }
+  toast('برای خروج، دکمهٔ بازگشت گوشی را بزن');
+});
+$('exitNo').addEventListener('click', () => $('exitDlg').close());
+
+window.onAndroidBack = function () {
+  if (!$('editor').classList.contains('hide')) { closeEditor(); return; }
+  const openDlg = document.querySelector('dialog[open]');
+  if (openDlg) { openDlg.close(); return; }
+  if (S.detailLoan) { S.detailLoan = null; render(); return; }
+  if (S.tab !== 'home') { S.tab = 'home'; render(); return; }
+  $('exitDlg').showModal();
+};
 
 /* ---------- ۱۲) تنظیمات ---------- */
 function applyTheme() {
@@ -2319,6 +2442,7 @@ function boot() {
   applyFontScale();
   buildPad();
   buildRings();
+  renderLockIcon();
 
   if (window.matchMedia) {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
@@ -2331,6 +2455,10 @@ function boot() {
     startLock('setup1');
   } else if ((S.d.settings.lockUntil || 0) > Date.now()) {
     startLock('unlock');
+  } else if (S.d.settings.requirePin === false) {
+    lockEl.classList.add('hide');
+    $('app').classList.remove('hidden');
+    render();
   } else {
     startLock('unlock');
   }
@@ -2352,7 +2480,6 @@ function boot() {
   mountDP($('dpChq'));
   mountDP($('dpAcc'));
   mountDP($('dpAccDue'));
-  mountDP($('dpDate'));
   mountDP($('dpNoteRemind'));
 
   // امروز/دیروز در فرم تراکنش
