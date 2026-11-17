@@ -202,8 +202,9 @@ public class MainActivity extends Activity {
 
                     String title = it.optString("title", "MyC");
                     String body = it.optString("body", "");
+                    boolean itemSound = it.optBoolean("sound", sound);
 
-                    PendingIntent pi = pendingFor(i, sound, title, body);
+                    PendingIntent pi = pendingFor(i, itemSound, title, body);
                     if (pi == null) continue;
 
                     if (Build.VERSION.SDK_INT >= 23) {

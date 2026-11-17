@@ -38,13 +38,15 @@
     <button class="logo" id="aboutBtn" aria-label="دربارهٔ MyC">M</button>
     <div id="titleWrap" style="cursor:pointer">
       <h1>MyC</h1>
-      <p class="sub brand-sub">میعاد ماندگار</p>
+      <p class="sub brand-sub">دکتر علی دادمان</p>
     </div>
     <div class="spacer"></div>
     <button class="iconbtn" id="lockBtn" aria-label="قفل">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>
     </button>
-    <button class="iconbtn" id="settingsBtn" aria-label="تنظیمات">⚙</button>
+    <button class="iconbtn" id="settingsBtn" aria-label="تنظیمات">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+    </button>
   </header>
 
   <main id="view"></main></div>
@@ -257,6 +259,33 @@
 
 <div class="ring-overlay hidden" id="ringOverlay"></div>
 
+<dialog id="remDlg">
+  <form id="remFrm">
+    <h2 id="remTitleH">یادآور جدید</h2>
+    <label>عنوان
+      <input id="remTitle" type="text" maxlength="60" placeholder="مثلاً پرداخت اجاره" required>
+    </label>
+    <label>توضیح (اختیاری)
+      <input id="remNote" type="text" maxlength="100">
+    </label>
+    <label>چند روز قبل اعلان شود
+      <select id="remBefore">
+        <option value="0">همان روز</option>
+        <option value="1">۱ روز قبل</option>
+        <option value="2">۲ روز قبل</option>
+        <option value="3">۳ روز قبل</option>
+        <option value="7">۷ روز قبل</option>
+      </select>
+    </label>
+    <label class="chk"><input type="checkbox" id="remSound" checked> با صدا (الارم)</label>
+    <div class="dact">
+      <button type="submit" class="primary">ذخیره</button>
+      <button type="button" id="remCancel">انصراف</button>
+      <button type="button" id="remDelete" class="danger hidden">حذف</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="sideDlg">
   <form method="dialog">
     <h2 id="sideTitle">طلب‌های من</h2>
@@ -412,6 +441,12 @@
     <div class="cal-week" id="calWeek"></div>
     <div class="cal-grid" id="calGrid"></div>
     <div class="card pad" id="dateInfo" style="font-size:12.5px;line-height:2"></div>
+
+    <div class="dayrem">
+      <div class="mhead" style="margin:10px 4px 6px"><span>یادآور این روز</span></div>
+      <div id="dayRemList" class="list"></div>
+      <button type="button" class="btn block" id="addRemBtn" style="margin-top:8px">+ افزودن یادآور</button>
+    </div>
     <div class="dact">
       <button type="button" class="primary" id="datePick">این روز</button>
       <button type="button" id="dateToday">امروز</button>

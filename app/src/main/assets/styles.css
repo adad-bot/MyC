@@ -801,3 +801,32 @@ button:active, .cal-cell:active, .dc-circle:active,
 .fab{bottom:calc(168px + env(safe-area-inset-bottom))}
 #fnBack{bottom:calc(96px + env(safe-area-inset-bottom))}
 #fnHome{bottom:calc(96px + env(safe-area-inset-bottom))}
+
+/* ===== نسخهٔ بعد: راهنما، چرخش دایره‌ها و آیکن بزرگ‌تر ===== */
+.iconbtn{width:46px;height:46px}
+.iconbtn svg{width:24px;height:24px}
+
+.legend{display:flex;gap:14px;justify-content:center;margin:12px 0 4px;font-size:13px;font-weight:800}
+.legend .lg-in,.legend .lg-out{display:flex;align-items:center;gap:6px}
+.legend .lg-in{color:var(--green)}
+.legend .lg-out{color:var(--red)}
+.legend .lg-in::before,.legend .lg-out::before{content:'';width:10px;height:10px;border-radius:3px;display:block}
+.legend .lg-in::before{background:var(--green)}
+.legend .lg-out::before{background:var(--red)}
+
+.rings.spin-r{animation:spinR .6s ease}
+.rings.spin-l{animation:spinL .6s ease}
+@keyframes spinR{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes spinL{from{transform:rotate(0)}to{transform:rotate(-360deg)}}
+
+.dc-occ.hol{background:rgba(220,38,38,.16);color:#b91c1c;border:1px solid rgba(220,38,38,.28)}
+:root[data-theme="dark"] .dc-occ.hol{background:rgba(248,113,113,.18);color:#fca5a5;border-color:rgba(248,113,113,.3)}
+
+/* یادآور در تقویم */
+.cal-cell{position:relative}
+.cal-cell.hasrem::after{
+  content:'';position:absolute;bottom:5px;left:50%;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:50%;background:var(--brand);
+}
+.cal-cell.sel.hasrem::after{background:#fff}
+.dayrem{margin-top:4px}

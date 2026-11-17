@@ -156,7 +156,7 @@ const S = {
 };
 
 function blankData() {
-  return { v: 3, settings: Object.assign({}, DEFAULT_SETTINGS), loans: [], cheques: [], accounts: [], tx: [], notes: [] };
+  return { v: 3, settings: Object.assign({}, DEFAULT_SETTINGS), loans: [], cheques: [], accounts: [], tx: [], notes: [], reminders: [] };
 }
 
 function normalizeLoan(raw) {
@@ -239,6 +239,7 @@ function loadData() {
         d.accounts = d.accounts || [];
         d.tx = d.tx || [];
         d.notes = d.notes || [];
+        d.reminders = d.reminders || [];
         return d;
       }
     }
@@ -571,6 +572,101 @@ function bucketOf(days) {
   return null;
 }
 
+/* ---------- یادآورهای تقویم ---------- */
+let remEditId = null;
+
+function remForDay(jdn) {
+  return (S.d.reminders || []).filter(r => jdnOf(r) === jdn);
+}
+
+function renderDayRem() {
+  const list = $('dayRemList');
+  list.textContent = '';
+  const items = remForDay(calSel);
+
+  if (!items.length) {
+    const e = el('div', 'hint');
+    e.textContent = 'برای این روز یادآوری ثبت نشده است.';
+    e.style.padding = '6px 4px';
+    list.appendChild(e);
+    return;
+  }
+
+  for (const r of items) {
+    const row = el('div', 'item');
+    const ico = el('div', 'ico chq', '⏰');
+    const main = el('div', 'main');
+    main.appendChild(el('div', 't', r.title));
+    const m = el('div', 'm');
+    m.appendChild(el('span', null, dateLabel(r)));
+    m.appendChild(el('span', 'pill info', r.daysBefore ? fa(r.daysBefore) + ' روز قبل' : 'همان روز'));
+    m.appendChild(el('span', 'pill ' + (r.sound === false ? 'info' : 'ok'), r.sound === false ? 'بی‌صدا' : 'با صدا'));
+    main.appendChild(m);
+    row.append(ico, main);
+    row.addEventListener('click', () => openRem(r));
+    list.appendChild(row);
+  }
+}
+
+function openRem(r) {
+  remEditId = r ? r.id : null;
+  $('remTitleH').textContent = r ? 'ویرایش یادآور' : 'یادآور جدید';
+  $('remTitle').value = r ? r.title : '';
+  $('remNote').value = r ? (r.note || '') : '';
+  $('remBefore').value = String(r ? (r.daysBefore || 0) : 0);
+  $('remSound').checked = r ? r.sound !== false : true;
+  $('remDelete').classList.toggle('hidden', !r);
+  $('remDlg').showModal();
+  setTimeout(() => $('remTitle').focus(), 80);
+}
+
+$('addRemBtn').addEventListener('click', () => openRem(null));
+$('remCancel').addEventListener('click', () => $('remDlg').close());
+
+$('remFrm').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const title = $('remTitle').value.trim();
+  if (!title) { toast('عنوان یادآور را بنویس'); return; }
+
+  const rec = {
+    id: remEditId || uid(),
+    title: title,
+    note: $('remNote').value.trim(),
+    jy: d2j(calSel).jy,
+    jm: d2j(calSel).jm,
+    jd: d2j(calSel).jd,
+    daysBefore: parseInt($('remBefore').value, 10) || 0,
+    sound: $('remSound').checked
+  };
+
+  if (remEditId) {
+    const i = S.d.reminders.findIndex(x => x.id === remEditId);
+    if (i >= 0) S.d.reminders[i] = rec;
+  } else {
+    S.d.reminders.push(rec);
+  }
+
+  save();
+  $('remDlg').close();
+  renderCal();
+  renderDayRem();
+  scheduleNotifications();
+  toast('یادآور ذخیره شد');
+});
+
+$('remDelete').addEventListener('click', () => {
+  const i = S.d.reminders.findIndex(x => x.id === remEditId);
+  if (i < 0) return;
+  if (!confirm('این یادآور حذف شود؟')) return;
+  S.d.reminders.splice(i, 1);
+  save();
+  $('remDlg').close();
+  renderCal();
+  renderDayRem();
+  scheduleNotifications();
+  toast('حذف شد');
+});
+
 /* ---------- گزارش طلب / بدهی ---------- */
 let sideExpanded = false, sideKind = 'r';
 
@@ -743,6 +839,21 @@ const OCCASIONS = {
   '12-29': [{ t: 'روز ملی شدن صنعت نفت', d: 'سالروز ملی شدن صنعت نفت ایران در ۲۹ اسفند ۱۳۲۹ به رهبری دکتر مصدق.' }]
 };
 
+/* مناسبت‌های رسمی و تکمیلی (h = تعطیل رسمی) */
+Object.assign(OCCASIONS, {
+  '1-1': [{ t: 'نوروز', h: true, d: 'آغاز سال نو خورشیدی؛ بزرگ‌ترین جشن ملی ایرانیان با سفرهٔ هفت‌سین و دیدوبازدید.' }],
+  '1-2': [{ t: 'عید نوروز', h: true, d: 'دومین روز جشن‌های نوروزی؛ زمان دیدوبازدید خانوادگی.' }],
+  '1-3': [{ t: 'عید نوروز', h: true, d: 'سومین روز جشن‌های نوروزی و ادامهٔ آیین‌های نوروز.' }],
+  '1-4': [{ t: 'عید نوروز', h: true, d: 'چهارمین روز جشن‌های نوروزی؛ تعطیل رسمی.' }],
+  '1-12': [{ t: 'روز جمهوری اسلامی', h: true, d: 'سالروز رأی مردم ایران به نظام جمهوری اسلامی در ۱۲ فروردین ۱۳۵۸.' }],
+  '1-13': [{ t: 'سیزده‌به‌در', h: true, d: 'آخرین روز جشن نوروز و «روز طبیعت»؛ ایرانیان این روز را در دامان طبیعت می‌گذرانند.' }],
+  '2-11': [{ t: 'روز کارگر', d: 'بزرگداشت کار و کارگر؛ روز جهانی کارگر در تقویم ایران.' }],
+  '2-12': [{ t: 'روز معلم', d: 'سالروز شهادت مرتضی مطهری و بزرگداشت مقام معلم و استاد.' }],
+  '8-13': [{ t: 'روز دانش‌آموز', d: 'سالروز ۱۳ آبان؛ روز مبارزه با استکبار و روز دانش‌آموز.' }],
+  '11-22': [{ t: 'پیروزی انقلاب اسلامی', h: true, d: 'سالروز پیروزی انقلاب اسلامی در ۲۲ بهمن ۱۳۵۷ و پایان نظام پادشاهی.' }],
+  '12-29': [{ t: 'روز ملی شدن صنعت نفت', h: true, d: 'سالروز ملی شدن صنعت نفت ایران در ۲۹ اسفند ۱۳۲۹ به رهبری دکتر مصدق.' }]
+});
+
 function occList(jm, jd) { return OCCASIONS[jm + '-' + jd] || []; }
 
 const WEEK_NAMES = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
@@ -817,7 +928,11 @@ function buildDateCard() {
   const occs = occList(j.jm, j.jd).slice(0, 2);
   if (occs.length) {
     const wrap = el('div', 'dc-occ-wrap');
-    for (const o of occs) wrap.appendChild(el('div', 'dc-occ', o.t));
+    for (const o of occs) {
+      const chip = el('div', 'dc-occ' + (o.h ? ' hol' : ''), o.t);
+      chip.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(jdn); });
+      wrap.appendChild(chip);
+    }
     card.appendChild(wrap);
   }
 
@@ -912,7 +1027,7 @@ function renderCal() {
     b.className = 'cal-cell';
 
     const isFri = weekIndex(jdn) === 6;
-    const isHol = isFri || occList(jj.jm, jj.jd).length > 0;
+    const isHol = isFri || occList(jj.jm, jj.jd).some(o => o.h);
     if (isHol) b.classList.add('hol');
     if (jdn === todayJ) b.classList.add('today');
     if (jdn === calSel) b.classList.add('sel');
@@ -923,6 +1038,7 @@ function renderCal() {
     num.appendChild(el('span', 'cg', String(gg.gd)));
     const hd = hijriDayNum(jdn);
     if (hd === '۱') b.classList.add('hnew');
+    if (remForDay(jdn).length) b.classList.add('hasrem');
     num.appendChild(el('span', 'ch', hd));
     b.appendChild(num);
 
@@ -951,6 +1067,8 @@ function renderCal() {
     });
     grid.appendChild(b);
   }
+
+  renderDayRem();
 }
 
 function renderDateInfo() {
@@ -1575,8 +1693,10 @@ function renderReport() {
   }
   view.appendChild(chart);
 
-  const lg = el('div', 'mhead');
-  lg.append(el('span', null, 'سبز: درآمد'), el('span', null, 'قرمز: هزینه'));
+  const lg = el('div', 'legend');
+  const li = el('span', 'lg-in', 'درآمد');
+  const lo = el('span', 'lg-out', 'هزینه');
+  lg.append(li, lo);
   view.appendChild(lg);
 
   // بایگانی سالانه
@@ -2207,7 +2327,7 @@ const IN_APP = /;\s*wv\)/.test(navigator.userAgent);
 function backupPayload() {
   return JSON.stringify({
     app: 'myc', v: 3, exportedAt: new Date().toISOString(),
-    data: { loans: S.d.loans, cheques: S.d.cheques, accounts: S.d.accounts, tx: S.d.tx, notes: S.d.notes },
+    data: { loans: S.d.loans, cheques: S.d.cheques, accounts: S.d.accounts, tx: S.d.tx, notes: S.d.notes, reminders: S.d.reminders },
     settings: { sound: S.d.settings.sound, chqDays: S.d.settings.chqDays, genDays: S.d.settings.genDays }
   }, null, 2);
 }
@@ -2297,7 +2417,8 @@ function applyImport(raw) {
     cheques: d.cheques || [],
     accounts: d.accounts || [],
     tx: d.tx || [],
-    notes: d.notes || []
+    notes: d.notes || [],
+    reminders: d.reminders || []
   };
 }
 
@@ -2337,6 +2458,7 @@ function restoreFrom(raw) {
   S.d.accounts = data.accounts;
   S.d.tx = data.tx;
   S.d.notes = data.notes || [];
+  S.d.reminders = data.reminders || [];
   save(); render();
   toast('داده‌ها بازیابی شد');
   return true;
@@ -2768,11 +2890,21 @@ function scheduleNotifications() {
 let notifTimer = null;
 let notifSig = '';
 
+function calReminders() {
+  return (S.d.reminders || []).map(r => ({
+    id: 'cal-' + r.id,
+    title: 'یادآور تقویم',
+    body: r.title + (r.note ? ' — ' + r.note : ''),
+    sound: r.sound !== false,
+    at: reminderTime(r, r.daysBefore || 0)
+  }));
+}
+
 function doScheduleNotifications() {
   try {
     if (!window.AndroidAqsat || typeof window.AndroidAqsat.schedule !== 'function') return;
 
-    const list = upcomingReminders().concat(noteReminders());
+    const list = upcomingReminders().concat(noteReminders()).concat(calReminders());
     const sig = list.map(r => r.id + '@' + r.at).join('|') +
       '#' + (S.d.settings.sound !== false ? 1 : 0);
     if (sig === notifSig) return;
@@ -2788,6 +2920,67 @@ function doScheduleNotifications() {
     }, 0);
   } catch (e) { /* */ }
 }
+
+/* ---------- کشیدن انگشت (سوایپ) ---------- */
+let swipeStart = null;
+
+function shiftCalMonth(dir) {
+  const n = addMonths(calY, calM, 1, dir);
+  calY = n.jy;
+  calM = n.jm;
+  renderCal();
+}
+
+function spinRings(dir) {
+  const box = $('rings');
+  if (!box) return;
+  const cls = dir > 0 ? 'spin-r' : 'spin-l';
+  box.classList.remove('spin-r', 'spin-l');
+  void box.offsetWidth;
+  box.classList.add(cls);
+  setTimeout(() => box.classList.remove(cls), 600);
+}
+
+function handleSwipe(dir, target) {
+  if ($('dateDlg').open) { shiftCalMonth(dir); return; }
+  if ($('sideDlg').open || $('todayDlg').open) return;
+  if (!$('editor').classList.contains('hide')) return;
+
+  if (S.tab === 'report') {
+    S.reportYm = shiftYm(S.reportYm || monthKey(todayJalali()), dir);
+    render();
+    return;
+  }
+
+  if (S.tab === 'home') {
+    if (target.closest('.rings')) { spinRings(dir); return; }
+    if (target.closest('.datecard') || target.closest('.dc-week')) {
+      const j = d2j(effToday());
+      openDateDlg(jdnOf(addMonths(j.jy, j.jm, j.jd, dir)));
+      return;
+    }
+    if (target.closest('.grid2')) {
+      openSide(dir > 0 ? 'p' : 'r', false);
+    }
+  }
+}
+
+document.addEventListener('touchstart', ev => {
+  if (ev.touches.length !== 1) { swipeStart = null; return; }
+  const t = ev.touches[0];
+  swipeStart = { x: t.clientX, y: t.clientY, target: ev.target };
+}, { passive: true });
+
+document.addEventListener('touchend', ev => {
+  if (!swipeStart) return;
+  const t = ev.changedTouches[0];
+  const dx = t.clientX - swipeStart.x;
+  const dy = t.clientY - swipeStart.y;
+  const target = swipeStart.target;
+  swipeStart = null;
+  if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+  handleSwipe(dx < 0 ? 1 : -1, target);
+}, { passive: true });
 
 /* ---------- ۱۵) شروع ---------- */
 function boot() {
