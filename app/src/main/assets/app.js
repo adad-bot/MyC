@@ -571,7 +571,153 @@ function bucketOf(days) {
   return null;
 }
 
-/* ---------- ۷.۵) تاریخ و تقویم ---------- */
+/* ---------- گزارش طلب / بدهی ---------- */
+let sideExpanded = false, sideKind = 'r';
+
+function sideItems(kind) {
+  const items = [];
+  const t = effToday();
+
+  for (const a of S.d.accounts) {
+    if (a.settled) continue;
+    if (kind === 'r' && a.kind !== 'receivable') continue;
+    if (kind === 'p' && a.kind !== 'payable') continue;
+    const date = a.due || { jy: a.jy, jm: a.jm, jd: a.jd };
+    items.push({
+      kind: 'account', account: a, amount: a.amount, date: date,
+      days: a.due ? jdnOf(a.due) - t : 0,
+      label: a.kind === 'receivable' ? 'طلب' : 'بدهی'
+    });
+  }
+
+  for (const c of S.d.cheques) {
+    if (c.status !== 'open' && c.status !== 'deposited') continue;
+    if (kind === 'r' && c.kind !== 'in') continue;
+    if (kind === 'p' && c.kind !== 'out') continue;
+    items.push({
+      kind: 'cheque', cheque: c, amount: c.amount, date: c,
+      days: jdnOf(c) - t,
+      label: c.kind === 'in' ? 'چک دریافتی' : 'چک صادره'
+    });
+  }
+
+  items.sort((a, b) => jdnOf(a.date) - jdnOf(b.date));
+  return items;
+}
+
+function sideMoneyRow(x) {
+  const row = el('div', 'item');
+  const isIn = (x.kind === 'cheque' && x.cheque.kind === 'in') ||
+    (x.kind === 'account' && x.account.kind === 'receivable');
+  const ico = el('div', 'ico ' + (x.kind === 'cheque' ? 'chq' : 'acc'), isIn ? '↙' : '↗');
+  const main = el('div', 'main');
+  main.appendChild(el('div', 't', x.kind === 'cheque' ? x.cheque.party : x.account.name));
+  const m = el('div', 'm');
+  m.appendChild(el('span', null, dateLabel(x.date)));
+  m.appendChild(el('span', 'pill info', x.label));
+  if (x.kind === 'cheque') m.appendChild(el('span', null, CHQ_STATUS[x.cheque.status] || ''));
+  main.appendChild(m);
+  const amt = el('div', 'amt ' + (isIn ? 'green' : 'red'), NUM.format(x.amount));
+  row.append(ico, main, amt);
+  return row;
+}
+
+function openSide(kind, expanded) {
+  sideKind = kind;
+  sideExpanded = !!expanded;
+
+  const items = sideItems(kind);
+  $('sideTitle').textContent = kind === 'r' ? 'طلب‌های من' : 'بدهی‌های من';
+  $('sideMore').textContent = sideExpanded ? 'خلاصه' : 'توضیح کامل';
+  $('sideMore').disabled = !items.length;
+
+  const list = $('sideList');
+  list.textContent = '';
+
+  if (!items.length) {
+    const e = el('div', 'empty');
+    e.innerHTML = kind === 'r' ? '<b>طلبی نداری</b>حساب طلب یا چک دریافتی باز نیست.' : '<b>بدهی نداری</b>حساب بدهی یا چک صادرهٔ باز نیست.';
+    list.appendChild(e);
+  }
+
+  for (const x of items) list.appendChild(sideExpanded ? expandedCard(x) : sideMoneyRow(x));
+
+  if (!$('sideDlg').open) $('sideDlg').showModal();
+}
+
+$('sideMore').addEventListener('click', () => openSide(sideKind, !sideExpanded));
+$('sideClose').addEventListener('click', () => $('sideDlg').close());
+
+/* ---------- گزارش تعهدهای امروز ---------- */
+let todayExpanded = false;
+
+function infoRow(k, v) {
+  const r = el('div', 'inforow');
+  r.appendChild(el('span', 'k', k));
+  r.appendChild(el('span', 'vv', v));
+  return r;
+}
+
+function expandedCard(x) {
+  const card = el('div', 'card pad');
+  card.style.marginBottom = '8px';
+
+  const head = el('div');
+  head.style.fontWeight = '800';
+  head.style.marginBottom = '6px';
+  head.style.fontSize = '13.5px';
+  const name = x.kind === 'loan' ? x.loan.title : x.kind === 'cheque' ? x.cheque.party : x.account.name;
+  head.textContent = name + ' — ' + x.label;
+  card.appendChild(head);
+
+  card.appendChild(infoRow('مبلغ', money(x.amount)));
+  card.appendChild(infoRow('تاریخ', dateLabel(x.date) + '  (' + daysLabel(x.days) + ')'));
+
+  if (x.kind === 'loan') {
+    const idx = x.loan.installments.findIndex(i => i.id === x.inst.id) + 1;
+    card.appendChild(infoRow('قسط', fa(idx) + ' از ' + fa(x.loan.installments.length)));
+    card.appendChild(infoRow('وضعیت', x.inst.paid ? 'پرداخت‌شده' : 'پرداخت‌نشده'));
+    if (x.loan.note) card.appendChild(infoRow('یادداشت', x.loan.note));
+  } else if (x.kind === 'cheque') {
+    const c = x.cheque;
+    card.appendChild(infoRow('نوع چک', c.kind === 'in' ? 'دریافتی' : 'صادره'));
+    if (c.number) card.appendChild(infoRow('شماره چک', c.number));
+    if (c.bank) card.appendChild(infoRow('بانک', c.bank));
+    if (c.reason) card.appendChild(infoRow('بابت', c.reason));
+    card.appendChild(infoRow('وضعیت', CHQ_STATUS[c.status] || c.status));
+  } else {
+    const a = x.account;
+    card.appendChild(infoRow('نوع', a.kind === 'receivable' ? 'طلب من' : 'بدهی من'));
+    if (a.note) card.appendChild(infoRow('یادداشت', a.note));
+  }
+  return card;
+}
+
+function openToday(expanded) {
+  todayExpanded = !!expanded;
+  const items = dueItems().filter(x => x.days === 0);
+
+  const list = $('todayList');
+  list.textContent = '';
+
+  $('todayMore').textContent = todayExpanded ? 'خلاصه' : 'توضیح کامل';
+  $('todayMore').disabled = !items.length;
+
+  if (!items.length) {
+    const e = el('div', 'empty');
+    e.innerHTML = '<b>امروز تعهدی نیست</b>سررسیدی برای امروز ثبت نشده است.';
+    list.appendChild(e);
+  }
+
+  for (const x of items) {
+    list.appendChild(todayExpanded ? expandedCard(x) : dueRow(x));
+  }
+
+  if (!$('todayDlg').open) $('todayDlg').showModal();
+}
+
+$('todayMore').addEventListener('click', () => openToday(!todayExpanded));
+$('todayClose').addEventListener('click', () => $('todayDlg').close());
 const FMT_G = new Intl.DateTimeFormat('fa-IR-u-ca-gregory', { day: 'numeric', month: 'long', year: 'numeric' });
 const FMT_W = new Intl.DateTimeFormat('fa-IR', { weekday: 'long' });
 let FMT_H = null;
@@ -989,8 +1135,17 @@ function openRing(bucket) {
   for (const x of items) {
     list.appendChild(dueRow(x));
   }
-  $('ringDlg').showModal();
+  $('ringOverlay').classList.remove('hidden');
+  $('ringDlg').show();
 }
+
+function closeRing() {
+  if ($('ringDlg').open) $('ringDlg').close();
+  $('ringOverlay').classList.add('hidden');
+}
+
+$('ringOverlay').addEventListener('click', closeRing);
+$('ringClose').addEventListener('click', closeRing);
 
 function dueRow(x) {
   const row = el('div', 'item');
@@ -1008,7 +1163,7 @@ function dueRow(x) {
   amt.appendChild(el('small', null, ' تومان'));
   row.append(ico, main, amt);
   row.addEventListener('click', () => {
-    if ($('ringDlg').open) $('ringDlg').close();
+    closeRing();
     if (x.kind === 'loan') { S.tab = 'obl'; S.oblTab = 'loans'; S.detailLoan = x.loan.id; render(); }
     else if (x.kind === 'cheque') { S.tab = 'obl'; S.oblTab = 'cheques'; render(); openCheque(x.cheque); }
     else { S.tab = 'obl'; S.oblTab = 'accounts'; render(); openAccount(x.account); }
@@ -1033,6 +1188,8 @@ function renderHome() {
   if (dueToday.length) parts.push(fa(dueToday.length) + ' تعهد امروز');
   if (txToday.length) parts.push(fa(txToday.length) + ' تراکنش امروز');
   line.textContent = parts.length ? 'امروز: ' + parts.join(' · ') : 'امروز: کاری ثبت نشده';
+  line.style.cursor = 'pointer';
+  line.addEventListener('click', () => openToday(false));
   view.appendChild(line);
 
   // خلاصه
@@ -1048,9 +1205,15 @@ function renderHome() {
 
   const grid = el('div', 'grid2');
   const c1 = el('div', 'card pad');
+  c1.style.cursor = 'pointer';
   c1.append(el('div', 'k', 'طلب من'), el('div', 'v green', money(receivable)));
+  c1.addEventListener('click', () => openSide('r', false));
+
   const c2 = el('div', 'card pad');
+  c2.style.cursor = 'pointer';
   c2.append(el('div', 'k', 'بدهی من'), el('div', 'v red', money(payable)));
+  c2.addEventListener('click', () => openSide('p', false));
+
   grid.append(c1, c2);
   view.appendChild(grid);
 
@@ -1847,12 +2010,15 @@ $('smsCancel').addEventListener('click', () => $('smsDlg').close());
 $('nav').addEventListener('click', ev => {
   const b = ev.target.closest('button[data-tab]');
   if (!b) return;
+  if (typeof closeRing === 'function') closeRing();
   S.tab = b.dataset.tab;
   S.detailLoan = null;
   render();
 });
 
 $('fnHome').addEventListener('click', () => {
+  closeRing();
+  if (!$('editor').classList.contains('hide')) closeEditor();
   S.detailLoan = null;
   S.tab = 'home';
   render();
@@ -2424,8 +2590,21 @@ canvas.addEventListener('pointermove', ev => {
   drawStroke(ctx, { c: ED.cur.c, w: ED.cur.w, pts: [prev, p] }, ED.scale);
 });
 
+function setTool(name) {
+  ED.tool = name;
+  for (const b of document.querySelectorAll('.ed-tools [data-tool]')) {
+    b.classList.toggle('on', b.dataset.tool === name);
+  }
+}
+
 function endStroke() {
+  const wasPan = !!ED.panning;
   ED.panning = null;
+  if (wasPan) {
+    // بعد از جابه‌جایی، خودکار به حالت نوشتن برگرد
+    setTool('pen');
+    return;
+  }
   if (!ED.drawing) return;
   ED.drawing = false;
   if (ED.cur && ED.cur.pts.length) currentStrokes().push(ED.cur);
@@ -2440,16 +2619,14 @@ $('edTools')?.addEventListener('click', () => {});
 $('editor').addEventListener('click', ev => {
   const tool = ev.target.closest('button[data-tool]');
   if (tool) {
-    ED.tool = tool.dataset.tool;
-    for (const b of document.querySelectorAll('.ed-tools [data-tool]')) b.classList.toggle('on', b === tool);
+    setTool(tool.dataset.tool);
     return;
   }
   const sw = ev.target.closest('button.sw');
   if (sw) {
     ED.color = sw.dataset.color;
     for (const b of document.querySelectorAll('.ed-tools .sw')) b.classList.toggle('on', b === sw);
-    ED.tool = 'pen';
-    for (const b of document.querySelectorAll('.ed-tools [data-tool]')) b.classList.toggle('on', b.dataset.tool === 'pen');
+    setTool('pen');
     return;
   }
   const w = ev.target.closest('button[data-width]');

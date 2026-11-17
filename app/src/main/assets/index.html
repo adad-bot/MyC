@@ -255,7 +255,31 @@
   </form>
 </dialog>
 
-<dialog id="ringDlg">
+<div class="ring-overlay hidden" id="ringOverlay"></div>
+
+<dialog id="sideDlg">
+  <form method="dialog">
+    <h2 id="sideTitle">طلب‌های من</h2>
+    <div class="list" id="sideList" style="max-height:52vh;overflow:auto"></div>
+    <div class="dact">
+      <button type="button" class="primary" id="sideMore">توضیح کامل</button>
+      <button type="button" id="sideClose">بستن</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="todayDlg">
+  <form method="dialog">
+    <h2>تعهدهای امروز</h2>
+    <div class="list" id="todayList" style="max-height:52vh;overflow:auto"></div>
+    <div class="dact">
+      <button type="button" class="primary" id="todayMore">توضیح کامل</button>
+      <button type="button" id="todayClose">بستن</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="ringDlg" class="ringdlg">
   <form method="dialog">
     <h2 id="ringTitle">اقساط نزدیک</h2>
     <div class="list" id="ringList" style="max-height:55vh;overflow:auto"></div>
@@ -265,7 +289,10 @@
 
 <dialog id="settingsDlg">
   <form method="dialog">
-    <h2>تنظیمات</h2>
+    <div class="set-badge">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
+    </div>
+    <h2 style="text-align:center">تنظیمات</h2>
     <p class="hint" id="backupStatus">آخرین پشتیبان: —</p>
     <div class="row-btns">
       <button type="button" class="btn" id="exportBtn" style="flex:1">پشتیبان‌گیری</button>

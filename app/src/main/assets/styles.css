@@ -763,3 +763,41 @@ button:active, .cal-cell:active, .dc-circle:active,
 /* برچسب‌ها: کوتاه و بدون شکستن خط */
 .cal-cell .ctag{white-space:nowrap;overflow:visible}
 .cal-cell .ctag .th{max-width:60px;overflow:hidden;text-overflow:ellipsis}
+
+/* ===== لیست دایره‌ها: پنجرهٔ غیرمودال تا دکمه‌های شناور پنهان نشوند ===== */
+.ring-overlay{
+  position:fixed;inset:0;background:rgba(10,12,18,.45);z-index:190;
+}
+.ring-overlay.hidden{display:none}
+.ringdlg{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  margin:0;z-index:200;max-height:86vh;
+}
+#fnHome,#fnBack{z-index:210}
+
+/* مرکز کردن مطمئن پنجرهٔ دایره‌ها */
+.ringdlg{
+  position:fixed;inset:0;margin:auto;left:0;right:0;top:0;bottom:0;
+  width:min(440px,calc(100% - 24px));height:fit-content;
+  max-height:84vh;transform:none;z-index:200;
+}
+
+/* گزارش امروز */
+.inforow{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:3px 0;border-bottom:1px dashed color-mix(in srgb,var(--line) 70%,transparent)}
+.inforow:last-child{border-bottom:none}
+.inforow .k{color:var(--muted)}
+.inforow .vv{font-weight:600;text-align:left}
+
+/* نشان تنظیمات در بالای پنجره */
+.set-badge{
+  width:54px;height:54px;border-radius:18px;margin:0 auto 6px;display:grid;place-items:center;
+  background:var(--brand-soft);color:var(--brand);
+  box-shadow:0 6px 16px rgba(91,91,214,.18);
+}
+.set-badge svg{width:26px;height:26px}
+.side-card{cursor:pointer}
+
+/* فاصلهٔ دکمهٔ افزودن و فلش بازگشت (روی هم نیفتند) */
+.fab{bottom:calc(168px + env(safe-area-inset-bottom))}
+#fnBack{bottom:calc(96px + env(safe-area-inset-bottom))}
+#fnHome{bottom:calc(96px + env(safe-area-inset-bottom))}
