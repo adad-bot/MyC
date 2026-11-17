@@ -35,30 +35,31 @@
 <div class="app" id="app">
 
   <header class="topbar">
-    <div class="logo">M</div>
-    <div>
+    <button class="logo" id="aboutBtn" aria-label="دربارهٔ MyC">M</button>
+    <div id="titleWrap" style="cursor:pointer">
       <h1>MyC</h1>
       <p class="sub">دفتر مالی شخصی</p>
     </div>
     <div class="spacer"></div>
+    <button class="iconbtn" id="lockBtn" aria-label="قفل کردن">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>
+    </button>
     <button class="iconbtn" id="settingsBtn" aria-label="تنظیمات">⚙</button>
   </header>
 
-  <main id="view"></main>
-</div>
+  <main id="view"></main></div>
 
 <button class="fab" id="fab" aria-label="افزودن">+</button>
 
-<div class="floatnav hide" id="floatNav">
-  <button id="fnBack" class="hide" aria-label="بازگشت">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
-  </button>
-  <button id="fnHome" aria-label="خانه">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9.6V20.5h13V9.6"/></svg>
-  </button>
-</div>
-
 <nav class="nav">
+  <div class="quickbar">
+    <button id="fnBack" aria-label="مرحله قبل">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <button id="fnHome" aria-label="خانه">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9.6V20.5h13V9.6"/></svg>
+    </button>
+  </div>
   <div class="in" id="nav">
     <button data-tab="home" class="on">
       <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9.6V20.5h13V9.6"/></svg></span>
@@ -71,6 +72,10 @@
     <button data-tab="obl">
       <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/></svg></span>
       تعهدات
+    </button>
+    <button data-tab="notes">
+      <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l3.5-1 11-11a2.1 2.1 0 0 0-3-3l-11 11L4 20z"/><path d="M13.5 6.5l3 3"/></svg></span>
+      یادداشت
     </button>
     <button data-tab="report">
       <span class="ni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20.5V12"/><path d="M12 20.5V5"/><path d="M19 20.5v-6"/></svg></span>
@@ -268,6 +273,13 @@
     </div>
     <label class="chk"><input type="checkbox" id="soundChk"> اعلان با صدا</label>
     <div>
+      <div class="k" style="display:flex;justify-content:space-between">
+        <span>اندازهٔ فونت</span>
+        <span id="fsVal">۵</span>
+      </div>
+      <input id="fsRange" type="range" min="1" max="10" step="1" value="5" style="padding:0">
+    </div>
+    <div>
       <div class="k" style="margin-bottom:4px">ظاهر اپ</div>
       <div class="seg" id="themeSeg" style="margin:0">
         <button type="button" data-theme="system" class="on">سیستم</button>
@@ -314,6 +326,127 @@
     </div>
   </form>
 </dialog>
+
+<dialog id="aboutDlg">
+  <form method="dialog">
+    <h2>دربارهٔ MyC</h2>
+    <p class="hint">نسخهٔ ۱.۱ — دفتر مالی شخصی</p>
+    <div class="about-body">
+      <p><b>چه کارهایی میکند؟</b></p>
+      <ul>
+        <li><b>اقساط و وام:</b> تعریف وام با مبلغ هر قسط، تعداد و تاریخ؛ ویرایش گروهی؛ مبلغ متفاوت برای هر قسط.</li>
+        <li><b>چک:</b> دریافتی و صادره با شماره، بانک، در وجه، علت، کد ملی، وضعیت و تأیید صیاد.</li>
+        <li><b>حسابها:</b> طلب و بدهی با وعدهٔ تسویه.</li>
+        <li><b>هزینه و درآمد:</b> ثبت روزانه با دسته، نمودار ۶ ماه و بایگانی ماهانه/سالانه.</li>
+        <li><b>یادآور:</b> سه دایرهٔ رنگی برای سررسیدهای امروز، ۱ تا ۳ روز و ۴ تا ۵ روز؛ اعلان با صدا.</li>
+        <li><b>پشتیبان:</b> ذخیرهٔ خودکار روزانه در پوشهٔ Download و بازیابی از فایل یا متن.</li>
+        <li><b>قفل:</b> رمز ۶ رقمی، قفل سه‌دقیقه‌ای بعد از سه خطا و کد مادر برای بازیابی.</li>
+      </ul>
+
+      <p><b>راهنمای سریع</b></p>
+      <ol>
+        <li>پایین صفحه چهار بخش: خانه، تراکنشها، تعهدات، گزارش.</li>
+        <li>دکمهٔ <b>+</b> در هر بخش، فرم همان بخش را باز میکند.</li>
+        <li>در خانه، روی هر دایره بزن تا فهرست همان سررسیدها را ببینی.</li>
+        <li>برای ویرایش یک وام، در «تعهدات ← اقساط» روی وام بزن.</li>
+        <li>برای علامت‌زدن پرداخت، در فهرست اقساط روی دایرهٔ کنار هر قسط بزن.</li>
+        <li>در تنظیمات: ظاهر روشن/تیره، صدا و روزهای اعلان، تغییر رمز و کد مادر.</li>
+      </ol>
+
+      <p><b>نکتهٔ امنیتی</b></p>
+      <p class="hint">داده‌ها فقط روی همین گوشی ذخیره میشوند و اپ به اینترنت دسترسی ندارد. هر چند وقت یک‌بار پشتیبان بگیر و فایل آن را جای امنی نگه دار.</p>
+    </div>
+    <div class="dact"><button type="button" class="primary" id="aboutClose">بستن</button></div>
+  </form>
+</dialog>
+
+<dialog id="dateDlg">
+  <form method="dialog">
+    <h2>تقویم</h2>
+    <div class="drow" id="dpDate"></div>
+    <div class="row-btns" id="dateNav">
+      <button type="button" class="btn" data-nav="-365">سال قبل</button>
+      <button type="button" class="btn" data-nav="-30">ماه قبل</button>
+      <button type="button" class="btn" data-nav="-1">روز قبل</button>
+      <button type="button" class="btn" data-nav="1">روز بعد</button>
+      <button type="button" class="btn" data-nav="30">ماه بعد</button>
+      <button type="button" class="btn" data-nav="365">سال بعد</button>
+    </div>
+    <div class="card pad" id="dateInfo" style="font-size:12.5px;line-height:2"></div>
+    <div class="dact">
+      <button type="button" class="primary" id="dateToday">برو به امروز</button>
+      <button type="button" id="dateClose">بستن</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="falDlg">
+  <form method="dialog">
+    <h2>فال حافظ</h2>
+    <p class="hint">نیت کن، بعد «فال دوباره» را بزن.</p>
+    <div class="fal" id="falText"></div>
+    <div class="dact">
+      <button type="button" class="primary" id="falAgain">فال دوباره</button>
+      <button type="button" id="falClose">بستن</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="pageDlg">
+  <form method="dialog">
+    <h2>صفحهٔ یادداشت</h2>
+    <p class="hint">اندازه و جهت صفحه را انتخاب کن.</p>
+    <div class="page-grid">
+      <button type="button" data-page="a4p">A4 عمودی</button>
+      <button type="button" data-page="a5p">A5 عمودی</button>
+      <button type="button" data-page="a4l">A4 افقی</button>
+      <button type="button" data-page="a5l">A5 افقی</button>
+    </div>
+    <div class="dact"><button type="button" id="pageCancel">انصراف</button></div>
+  </form>
+</dialog>
+
+<dialog id="noteRemindDlg">
+  <form method="dialog">
+    <h2>یادآور یادداشت</h2>
+    <div class="drow" id="dpNoteRemind"></div>
+    <div class="dact">
+      <button type="button" class="primary" id="remindSet">ثبت یادآور</button>
+      <button type="button" id="remindClear">بدون یادآور</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="editor hide" id="editor">
+  <div class="ed-top">
+    <button class="btn" id="edClose">بستن</button>
+    <input id="edTitle" type="text" maxlength="60" placeholder="عنوان یادداشت">
+    <button class="btn primary" id="edSave">ذخیره</button>
+  </div>
+  <div class="ed-tools">
+    <button class="tl on" data-tool="pen" aria-label="خودکار">✎</button>
+    <button class="tl" data-tool="eraser" aria-label="پاک‌کن">⌫</button>
+    <span class="sep"></span>
+    <button class="sw on" data-color="#111827" style="background:#111827"></button>
+    <button class="sw" data-color="#2563eb" style="background:#2563eb"></button>
+    <button class="sw" data-color="#dc2626" style="background:#dc2626"></button>
+    <button class="sw" data-color="#16a34a" style="background:#16a34a"></button>
+    <span class="sep"></span>
+    <button class="tl" data-width="2">نازک</button>
+    <button class="tl on" data-width="4">متوسط</button>
+    <button class="tl" data-width="8">ضخیم</button>
+    <span class="sep"></span>
+    <button class="tl" id="edUndo" aria-label="برگشت">↶</button>
+  </div>
+  <div class="ed-wrap" id="edWrap"><canvas id="edCanvas"></canvas></div>
+  <div class="ed-bottom">
+    <button class="btn" id="edPrev">‹</button>
+    <span id="edPageLbl" style="font-size:12px;color:var(--muted)">۱ از ۱</span>
+    <button class="btn" id="edNext">›</button>
+    <button class="btn" id="edAddPage">+ صفحه</button>
+    <button class="btn" id="edRemind">یادآور</button>
+  </div>
+</div>
 
 <dialog id="backupDlg">
   <form method="dialog">

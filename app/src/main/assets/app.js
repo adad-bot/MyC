@@ -137,7 +137,7 @@ const LEGACY1 = 'aqsat_v1';
 
 const DEFAULT_SETTINGS = {
   pinHash: '', masterHash: hash('563570'),
-  sound: true, chqDays: 1, genDays: 3, theme: 'system',
+  sound: true, chqDays: 1, genDays: 3, theme: 'system', fontScale: 5,
   fails: 0, lockUntil: 0, lastBackup: null
 };
 
@@ -152,7 +152,7 @@ const S = {
 };
 
 function blankData() {
-  return { v: 3, settings: Object.assign({}, DEFAULT_SETTINGS), loans: [], cheques: [], accounts: [], tx: [] };
+  return { v: 3, settings: Object.assign({}, DEFAULT_SETTINGS), loans: [], cheques: [], accounts: [], tx: [], notes: [] };
 }
 
 function normalizeLoan(raw) {
@@ -234,6 +234,7 @@ function loadData() {
         d.cheques = d.cheques || [];
         d.accounts = d.accounts || [];
         d.tx = d.tx || [];
+        d.notes = d.notes || [];
         return d;
       }
     }
@@ -299,7 +300,11 @@ function startLock(mode) {
   lockMode = mode;
   buf = '';
   $('lockTitle').textContent = LOCK_TITLE[mode] || 'رمز';
-  $('lockSub').textContent = mode === 'master' ? 'کد بازیابی (کد مادر)' : 'رمز ۶ رقمی';
+  const sub = mode === 'master' ? 'کد بازیابی (کد مادر)'
+    : mode === 'setup1' ? 'مرحلهٔ ۱ از ۲ — یک رمز ۶ رقمی انتخاب کن'
+      : mode === 'setup2' ? 'مرحلهٔ ۲ از ۲ — همان رمز را تکرار کن'
+        : 'رمز ۶ رقمی';
+  $('lockSub').textContent = sub;
   $('forgotBtn').classList.toggle('hidden', mode !== 'unlock');
   lockErr.textContent = '';
   drawDots();
@@ -313,6 +318,13 @@ function endLock() {
   $('app').classList.remove('hidden');
   if (lockTimer) { clearInterval(lockTimer); lockTimer = null; }
   render();
+}
+
+function shakeLock() {
+  lockEl.classList.remove('shake');
+  void lockEl.offsetWidth;
+  lockEl.classList.add('shake');
+  setTimeout(() => lockEl.classList.remove('shake'), 420);
 }
 
 function checkLockTimer() {
@@ -396,6 +408,7 @@ function submitPin() {
   st.fails = (st.fails || 0) + 1;
   buf = '';
   drawDots();
+  shakeLock();
 
   if (st.fails >= 3) {
     st.fails = 0;
@@ -503,6 +516,167 @@ function bucketOf(days) {
   return null;
 }
 
+/* ---------- ۷.۵) تاریخ و تقویم ---------- */
+const FMT_G = new Intl.DateTimeFormat('fa-IR-u-ca-gregory', { day: 'numeric', month: 'long', year: 'numeric' });
+const FMT_W = new Intl.DateTimeFormat('fa-IR', { weekday: 'long' });
+let FMT_H = null;
+try {
+  FMT_H = new Intl.DateTimeFormat('fa-IR-u-ca-islamic-umalqura',
+    { day: 'numeric', month: 'long', year: 'numeric' });
+} catch (e) { FMT_H = null; }
+
+function toDate(jdn) { const g = d2g(jdn); return new Date(g.gy, g.gm - 1, g.gd); }
+function gLabel(jdn) { return FMT_G.format(toDate(jdn)); }
+function hLabel(jdn) { return FMT_H ? FMT_H.format(toDate(jdn)) : ''; }
+function wLabel(jdn) { return FMT_W.format(toDate(jdn)); }
+
+const OCCASIONS = {
+  '1-1': 'نوروز', '1-2': 'عید نوروز', '1-3': 'عید نوروز', '1-4': 'عید نوروز',
+  '1-12': 'روز جمهوری اسلامی', '1-13': 'سیزده‌به‌در',
+  '11-22': 'پیروزی انقلاب اسلامی', '12-29': 'روز ملی شدن صنعت نفت'
+};
+
+function occasionOf(jy, jm, jd) { return OCCASIONS[jm + '-' + jd] || ''; }
+
+function buildDateCard() {
+  const jdn = todayJdn();
+  const j = d2j(jdn);
+
+  const card = el('div', 'datecard');
+
+  const top = el('div', 'dc-top');
+  top.appendChild(el('div', 'dc-big', fa(j.jd)));
+  const mid = el('div');
+  mid.appendChild(el('div', 'dc-m', MONTHS[j.jm - 1] + ' ' + fa(j.jy)));
+  mid.appendChild(el('div', 'dc-w', wLabel(jdn)));
+  top.appendChild(mid);
+
+  const sub = el('div', 'dc-sub', gLabel(jdn) + (hLabel(jdn) ? ' · ' + hLabel(jdn) : ''));
+  const occ = el('div', 'dc-occ', occasionOf(j.jy, j.jm, j.jd) || 'امروز چه روزی است؟');
+
+  const act = el('div', 'dc-act');
+  const bFal = el('button', null, 'فال حافظ');
+  bFal.addEventListener('click', ev => { ev.stopPropagation(); openFal(); });
+  const bCal = el('button', null, 'تقویم و روزها');
+  bCal.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(todayJdn()); });
+  act.append(bFal, bCal);
+
+  card.append(top, sub, occ, act);
+  card.addEventListener('click', () => openDateDlg(todayJdn()));
+  return card;
+}
+
+let dateJdn = 0;
+
+function openDateDlg(jdn) {
+  dateJdn = jdn;
+  setDP($('dpDate'), d2j(jdn));
+  renderDateInfo();
+  $('dateDlg').showModal();
+}
+
+function renderDateInfo() {
+  const j = d2j(dateJdn);
+  const box = $('dateInfo');
+  box.textContent = '';
+
+  const rows = [
+    ['روز', wLabel(dateJdn) + ' — ' + fa(j.jd) + ' ' + MONTHS[j.jm - 1] + ' ' + fa(j.jy)],
+    ['میلادی', gLabel(dateJdn)],
+    ['قمری', hLabel(dateJdn) || '—']
+  ];
+  const occ = occasionOf(j.jy, j.jm, j.jd);
+  if (occ) rows.push(['مناسبت', occ]);
+
+  for (const [k, v] of rows) {
+    const line = el('div');
+    line.style.display = 'flex';
+    line.style.justifyContent = 'space-between';
+    line.style.gap = '10px';
+    line.appendChild(el('span', 'k', k));
+    line.appendChild(el('span', null, v));
+    box.appendChild(line);
+  }
+}
+
+$('dateNav').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-nav]');
+  if (!b) return;
+  const delta = parseInt(b.dataset.nav, 10);
+  if (Math.abs(delta) === 1) {
+    dateJdn += delta;
+  } else if (Math.abs(delta) === 30) {
+    const j = d2j(dateJdn);
+    dateJdn = jdnOf(addMonths(j.jy, j.jm, j.jd, delta > 0 ? 1 : -1));
+  } else {
+    const j = d2j(dateJdn);
+    dateJdn = jdnOf(addMonths(j.jy, j.jm, j.jd, delta > 0 ? 12 : -12));
+  }
+  setDP($('dpDate'), d2j(dateJdn));
+  renderDateInfo();
+});
+
+$('dpDate').addEventListener('change', () => {
+  dateJdn = jdnOf(getDP($('dpDate')));
+  renderDateInfo();
+});
+
+$('dateToday').addEventListener('click', () => {
+  dateJdn = todayJdn();
+  setDP($('dpDate'), d2j(dateJdn));
+  renderDateInfo();
+});
+
+$('dateClose').addEventListener('click', () => $('dateDlg').close());
+
+/* ---------- فال حافظ ---------- */
+const FAL = [
+  ['الا یا ایها الساقی ادر کأساً و ناولها', 'که عشق آسان نمود اول ولی افتاد مشکل‌ها',
+    'کار تازه‌ات آغاز آسانی دارد، اما برای رسیدن باید سختی‌ها را به جان بخری.'],
+  ['دلا بسوز که سوز تو کارها بکند', 'نیاز نیم‌شبی دفع صد بلا بکند',
+    'دل‌سوزی و اخلاص تو اثر می‌کند؛ از دعای خالصانه غافل نشو.'],
+  ['هر آن که جانب اهل خدا نگه دارد', 'خداش در همه حال از بلا نگه دارد',
+    'حق‌شناسی و همراهی با نیکان، تو را از آسیب‌ها دور می‌کند.'],
+  ['رسید مژده که ایام غم نخواهد ماند', 'چنان نماند چنین نیز هم نخواهد ماند',
+    'سختی دیر نمی‌ماند؛ به پایان این دوره امیدوار باش.'],
+  ['صلاح کار کجا و من خراب کجا', 'ببین تفاوت ره کز کجاست تا به کجا',
+    'مسیرت را بازبینی کن؛ فاصلهٔ تصمیم‌های امروز با هدف اصلی‌ات زیاد شده است.'],
+  ['یوسف گم‌گشته بازآید به کنعان غم مخور', 'کلبهٔ احزان شود روزی گلستان غم مخور',
+    'چیزی که از دست داده‌ای برمی‌گردد؛ اندوه را طولانی نکن.'],
+  ['دوش وقت سحر از غصه نجاتم دادند', 'واندر آن ظلمت شب آب حیاتم دادند',
+    'گشایش نزدیک است؛ در سخت‌ترین لحظه‌ها هم راهی باز می‌شود.'],
+  ['به ملازمان سلطان که رساند این دعا را', 'که به شکر پادشاهی ز نظر مران گدا را',
+    'وفاداری‌ات دیده می‌شود؛ از بزرگان و اهل کرم ناامید نشو.'],
+  ['گر چه راهیست پر از بیم ز ما تا بر دوست', 'رفتن آسان بود ار واقف منزل باشی',
+    'راهت روشن است اگر مقصد را بدانی؛ تردید، سخت‌تر از خودِ راه است.'],
+  ['ما در پیاله عکس رخ یار دیده‌ایم', 'ای بی‌خبر ز لذت شرب مدام ما',
+    'لذت واقعی در چیزهای ساده است؛ نگاهت را به داشته‌هایت بدوز.']
+];
+
+function openFal() {
+  showFal();
+  $('falDlg').showModal();
+}
+
+function showFal() {
+  const f = FAL[Math.floor(Math.random() * FAL.length)];
+  const box = $('falText');
+  box.textContent = '';
+  box.appendChild(el('div', 'beyt', f[0]));
+  box.appendChild(el('div', 'beyt', f[1]));
+  box.appendChild(el('div', 'mean', f[2]));
+}
+
+$('falAgain').addEventListener('click', showFal);
+$('falClose').addEventListener('click', () => $('falDlg').close());
+
+/* ---------- اندازهٔ فونت ---------- */
+function applyFontScale() {
+  const v = clamp(parseInt(S.d.settings.fontScale, 10) || 5, 1, 10);
+  const zoom = 0.86 + (v - 1) * (0.42 / 9);
+  document.documentElement.style.zoom = zoom.toFixed(3);
+}
+
 /* ---------- ۸) رندر ---------- */
 const view = $('view');
 
@@ -511,6 +685,7 @@ function render() {
   if (S.tab === 'home') renderHome();
   else if (S.tab === 'tx') renderTx();
   else if (S.tab === 'obl') renderObl();
+  else if (S.tab === 'notes') renderNotes();
   else renderReport();
 
   for (const b of $('nav').children) b.classList.toggle('on', b.dataset.tab === S.tab);
@@ -519,13 +694,9 @@ function render() {
 }
 
 function updateFloatNav() {
-  const box = $('floatNav');
-  if (!box) return;
-  const showBack = !!S.detailLoan;
-  const showHome = S.tab !== 'home' || showBack;
-  box.classList.toggle('hide', !showBack && !showHome);
-  $('fnBack').classList.toggle('hide', !showBack);
-  $('fnHome').classList.toggle('hide', !showHome || showBack);
+  const home = $('fnHome');
+  if (!home) return;
+  home.style.opacity = (S.tab === 'home' && !S.detailLoan) ? '.45' : '1';
 }
 
 function renderRings() {
@@ -617,6 +788,8 @@ function dueRow(x) {
 
 function renderHome() {
   view.textContent = '';
+
+  view.appendChild(buildDateCard());
 
   const about = el('div', 'aboutbar');
   about.innerHTML = '<b>MyC — دفتر مالی شخصی</b><br>' +
@@ -1462,12 +1635,27 @@ $('fnHome').addEventListener('click', () => {
 });
 
 $('fnBack').addEventListener('click', () => {
-  S.detailLoan = null;
-  render();
+  if (S.detailLoan) { S.detailLoan = null; render(); return; }
+  if (S.tab !== 'home') { S.tab = 'home'; render(); return; }
+  if (!confirm('از برنامه خارج می‌شوی؟')) return;
+  try {
+    if (window.AndroidAqsat && window.AndroidAqsat.exitApp) {
+      window.AndroidAqsat.exitApp();
+      return;
+    }
+  } catch (e) { /* */ }
+  toast('برای خروج، دکمهٔ بازگشت گوشی را بزن');
 });
 
+/* ---------- درباره ---------- */
+function openAbout() { $('aboutDlg').showModal(); }
+$('aboutBtn').addEventListener('click', openAbout);
+$('titleWrap').addEventListener('click', openAbout);
+$('aboutClose').addEventListener('click', () => $('aboutDlg').close());
+
 $('fab').addEventListener('click', () => {
-  if (S.tab === 'tx') openTx(null);
+  if (S.tab === 'notes') newNote();
+  else if (S.tab === 'tx') openTx(null);
   else if (S.tab === 'obl') {
     if (S.oblTab === 'cheques') openCheque(null);
     else if (S.oblTab === 'loans') openLoan(null);
@@ -1477,6 +1665,11 @@ $('fab').addEventListener('click', () => {
 });
 
 $('settingsBtn').addEventListener('click', openSettings);
+
+$('lockBtn').addEventListener('click', () => {
+  startLock('unlock');
+  toast('قفل شد — برای ورود رمز لازم است');
+});
 
 /* ---------- ۱۲) تنظیمات ---------- */
 function applyTheme() {
@@ -1500,6 +1693,8 @@ function openSettings() {
   $('chqDays').value = String(st.chqDays);
   $('genDays').value = String(st.genDays);
   setThemeSeg(st.theme || 'system');
+  $('fsRange').value = String(st.fontScale || 5);
+  $('fsVal').textContent = fa(st.fontScale || 5);
   $('backupStatus').textContent = st.lastBackup
     ? 'آخرین پشتیبان: ' + st.lastBackup
     : 'آخرین پشتیبان: هنوز انجام نشده';
@@ -1513,6 +1708,14 @@ $('themeSeg').addEventListener('click', ev => {
   save();
   setThemeSeg(b.dataset.theme);
   applyTheme();
+});
+
+$('fsRange').addEventListener('input', () => {
+  const v = clamp(parseInt($('fsRange').value, 10) || 5, 1, 10);
+  S.d.settings.fontScale = v;
+  $('fsVal').textContent = fa(v);
+  applyFontScale();
+  save();
 });
 
 $('soundChk').addEventListener('change', () => {
@@ -1573,7 +1776,7 @@ const IN_APP = /;\s*wv\)/.test(navigator.userAgent);
 function backupPayload() {
   return JSON.stringify({
     app: 'myc', v: 3, exportedAt: new Date().toISOString(),
-    data: { loans: S.d.loans, cheques: S.d.cheques, accounts: S.d.accounts, tx: S.d.tx },
+    data: { loans: S.d.loans, cheques: S.d.cheques, accounts: S.d.accounts, tx: S.d.tx, notes: S.d.notes },
     settings: { sound: S.d.settings.sound, chqDays: S.d.settings.chqDays, genDays: S.d.settings.genDays }
   }, null, 2);
 }
@@ -1662,7 +1865,8 @@ function applyImport(raw) {
     loans: (d.loans || []).map(normalizeLoan),
     cheques: d.cheques || [],
     accounts: d.accounts || [],
-    tx: d.tx || []
+    tx: d.tx || [],
+    notes: d.notes || []
   };
 }
 
@@ -1701,6 +1905,7 @@ function restoreFrom(raw) {
   S.d.cheques = data.cheques;
   S.d.accounts = data.accounts;
   S.d.tx = data.tx;
+  S.d.notes = data.notes || [];
   save(); render();
   toast('داده‌ها بازیابی شد');
   return true;
@@ -1724,6 +1929,308 @@ $('importFile').addEventListener('change', ev => {
   };
   reader.readAsText(file);
   ev.target.value = '';
+});
+
+/* ---------- ۱۳.۵) یادداشت‌های دست‌نویس ---------- */
+const PAGE_SIZES = {
+  a4p: { w: 595, h: 842, label: 'A4 عمودی' },
+  a5p: { w: 420, h: 595, label: 'A5 عمودی' },
+  a4l: { w: 842, h: 595, label: 'A4 افقی' },
+  a5l: { w: 595, h: 420, label: 'A5 افقی' }
+};
+
+const ED = {
+  note: null, pageIdx: 0, tool: 'pen', color: '#111827', width: 4,
+  drawing: false, cur: null, scale: 1
+};
+
+function renderNotes() {
+  view.textContent = '';
+
+  const list = S.d.notes.slice().sort((a, b) => (b.updated || 0) - (a.updated || 0));
+
+  if (!list.length) {
+    const e = el('div', 'empty');
+    e.innerHTML = '<b>یادداشتی نیست</b>با دکمهٔ + یک صفحهٔ دست‌نویس بساز (مناسب جلسه و قلم).';
+    view.appendChild(e);
+    return;
+  }
+
+  for (const n of list) {
+    const card = el('div', 'note');
+
+    if (n.thumb) {
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.src = n.thumb;
+      card.appendChild(img);
+    }
+
+    const info = el('div', 'info');
+    const left = el('div');
+    const t = el('div', 't', n.title || 'بدون عنوان');
+    const d = el('div', 'd');
+    const when = n.reminder ? 'یادآور: ' + dateLabel(n.reminder) : 'بدون یادآور';
+    d.textContent = fa(n.pages.length) + ' صفحه · ' + when;
+    left.append(t, d);
+
+    const del = el('button', 'btn danger', 'حذف');
+    del.style.padding = '5px 10px';
+    del.style.fontSize = '11px';
+    del.addEventListener('click', ev => {
+      ev.stopPropagation();
+      if (!confirm('یادداشت «' + (n.title || 'بدون عنوان') + '» حذف شود؟')) return;
+      const idx = S.d.notes.indexOf(n);
+      S.d.notes.splice(idx, 1);
+      save(); render();
+      toast('حذف شد', () => { S.d.notes.splice(idx, 0, n); save(); render(); });
+    });
+
+    info.append(left, del);
+    card.appendChild(info);
+    card.addEventListener('click', () => openEditor(n));
+    view.appendChild(card);
+  }
+}
+
+function newNote() { $('pageDlg').showModal(); }
+
+$('pageCancel').addEventListener('click', () => $('pageDlg').close());
+$('pageDlg').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-page]');
+  if (!b) return;
+  const size = PAGE_SIZES[b.dataset.page];
+  const note = {
+    id: uid(), title: '', created: Date.now(), updated: Date.now(),
+    page: { w: size.w, h: size.h },
+    pages: [{ strokes: [] }],
+    thumb: '', reminder: null
+  };
+  S.d.notes.push(note);
+  save();
+  $('pageDlg').close();
+  openEditor(note);
+});
+
+/* ---------- ویرایشگر ---------- */
+const canvas = $('edCanvas');
+const ctx = canvas.getContext('2d');
+
+function currentStrokes() {
+  return ED.note.pages[ED.pageIdx].strokes;
+}
+
+function drawStroke(g, s, scale) {
+  if (!s.pts.length) return;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+  g.strokeStyle = s.c;
+
+  if (s.pts.length === 1) {
+    const p = s.pts[0];
+    g.beginPath();
+    g.arc(p.x * scale, p.y * scale, Math.max(0.6, (p.w || s.w) * scale / 2), 0, Math.PI * 2);
+    g.fillStyle = s.c;
+    g.fill();
+    return;
+  }
+
+  for (let i = 1; i < s.pts.length; i++) {
+    const a = s.pts[i - 1], b = s.pts[i];
+    g.beginPath();
+    g.lineWidth = Math.max(0.5, ((a.w || s.w) + (b.w || s.w)) / 2 * scale);
+    g.moveTo(a.x * scale, a.y * scale);
+    g.lineTo(b.x * scale, b.y * scale);
+    g.stroke();
+  }
+}
+
+function edRender() {
+  const page = ED.note.page;
+  const wrapW = ($('edWrap').clientWidth || 360) - 20;
+  const cssW = Math.max(220, Math.min(wrapW, 560));
+  const cssH = cssW * page.h / page.w;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+
+  ED.scale = canvas.width / page.w;
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (const s of currentStrokes()) drawStroke(ctx, s, ED.scale);
+}
+
+function updatePageLbl() {
+  $('edPageLbl').textContent = fa(ED.pageIdx + 1) + ' از ' + fa(ED.note.pages.length);
+}
+
+function openEditor(note) {
+  ED.note = note;
+  ED.pageIdx = 0;
+  $('edTitle').value = note.title || '';
+  $('editor').classList.remove('hide');
+  updatePageLbl();
+  setTimeout(edRender, 30);
+}
+
+function closeEditor(silent) {
+  if (ED.note) {
+    ED.note.title = $('edTitle').value.trim();
+    ED.note.updated = Date.now();
+    ED.note.thumb = makeThumb(ED.note);
+    save();
+  }
+  $('editor').classList.add('hide');
+  if (!silent) render();
+}
+
+function makeThumb(note) {
+  try {
+    const p = note.page;
+    const tw = 260;
+    const th = Math.round(tw * p.h / p.w);
+    const c = document.createElement('canvas');
+    c.width = tw; c.height = th;
+    const g = c.getContext('2d');
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, tw, th);
+    const sc = tw / p.w;
+    for (const s of note.pages[0].strokes) drawStroke(g, s, sc);
+    return c.toDataURL('image/jpeg', 0.55);
+  } catch (e) { return ''; }
+}
+
+function evPoint(ev) {
+  const r = canvas.getBoundingClientRect();
+  const x = (ev.clientX - r.left) / r.width * ED.note.page.w;
+  const y = (ev.clientY - r.top) / r.height * ED.note.page.h;
+  const pr = (ev.pointerType === 'pen' && ev.pressure > 0) ? ev.pressure : 0.5;
+  return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, w: Math.round(ED.width * (0.55 + pr) * 10) / 10 };
+}
+
+canvas.addEventListener('pointerdown', ev => {
+  if (!ED.note) return;
+  ev.preventDefault();
+  canvas.setPointerCapture(ev.pointerId);
+  ED.drawing = true;
+  ED.cur = {
+    c: ED.tool === 'eraser' ? '#ffffff' : ED.color,
+    w: ED.tool === 'eraser' ? ED.width * 2.4 : ED.width,
+    pts: []
+  };
+  if (ED.tool === 'eraser') ED.cur.w = Math.max(ED.cur.w, 14);
+  const p = evPoint(ev);
+  ED.cur.pts.push(p);
+  drawStroke(ctx, { c: ED.cur.c, w: ED.cur.w, pts: [p] }, ED.scale);
+});
+
+canvas.addEventListener('pointermove', ev => {
+  if (!ED.drawing || !ED.cur) return;
+  ev.preventDefault();
+  const p = evPoint(ev);
+  const prev = ED.cur.pts[ED.cur.pts.length - 1];
+  ED.cur.pts.push(p);
+  drawStroke(ctx, { c: ED.cur.c, w: ED.cur.w, pts: [prev, p] }, ED.scale);
+});
+
+function endStroke() {
+  if (!ED.drawing) return;
+  ED.drawing = false;
+  if (ED.cur && ED.cur.pts.length) currentStrokes().push(ED.cur);
+  ED.cur = null;
+}
+canvas.addEventListener('pointerup', endStroke);
+canvas.addEventListener('pointerleave', endStroke);
+canvas.addEventListener('pointercancel', endStroke);
+
+$('edTools')?.addEventListener('click', () => {});
+
+$('editor').addEventListener('click', ev => {
+  const tool = ev.target.closest('button[data-tool]');
+  if (tool) {
+    ED.tool = tool.dataset.tool;
+    for (const b of document.querySelectorAll('.ed-tools [data-tool]')) b.classList.toggle('on', b === tool);
+    return;
+  }
+  const sw = ev.target.closest('button.sw');
+  if (sw) {
+    ED.color = sw.dataset.color;
+    for (const b of document.querySelectorAll('.ed-tools .sw')) b.classList.toggle('on', b === sw);
+    ED.tool = 'pen';
+    for (const b of document.querySelectorAll('.ed-tools [data-tool]')) b.classList.toggle('on', b.dataset.tool === 'pen');
+    return;
+  }
+  const w = ev.target.closest('button[data-width]');
+  if (w) {
+    ED.width = parseInt(w.dataset.width, 10);
+    for (const b of document.querySelectorAll('.ed-tools [data-width]')) b.classList.toggle('on', b === w);
+  }
+});
+
+$('edUndo').addEventListener('click', () => {
+  if (!ED.note) return;
+  currentStrokes().pop();
+  edRender();
+});
+
+$('edPrev').addEventListener('click', () => {
+  if (!ED.note || ED.pageIdx === 0) return;
+  ED.pageIdx -= 1;
+  updatePageLbl();
+  edRender();
+});
+
+$('edNext').addEventListener('click', () => {
+  if (!ED.note || ED.pageIdx >= ED.note.pages.length - 1) return;
+  ED.pageIdx += 1;
+  updatePageLbl();
+  edRender();
+});
+
+$('edAddPage').addEventListener('click', () => {
+  if (!ED.note) return;
+  ED.note.pages.push({ strokes: [] });
+  ED.pageIdx = ED.note.pages.length - 1;
+  updatePageLbl();
+  edRender();
+  toast('صفحه اضافه شد');
+});
+
+$('edSave').addEventListener('click', () => {
+  closeEditor();
+  toast('یادداشت ذخیره شد');
+});
+
+$('edClose').addEventListener('click', () => closeEditor());
+
+$('edRemind').addEventListener('click', () => {
+  if (!ED.note) return;
+  setDP($('dpNoteRemind'), ED.note.reminder || todayJalali());
+  $('noteRemindDlg').showModal();
+});
+
+$('remindSet').addEventListener('click', () => {
+  if (!ED.note) return;
+  ED.note.reminder = getDP($('dpNoteRemind'));
+  save();
+  $('noteRemindDlg').close();
+  toast('یادآور ثبت شد');
+  scheduleNotifications();
+});
+
+$('remindClear').addEventListener('click', () => {
+  if (!ED.note) return;
+  ED.note.reminder = null;
+  save();
+  $('noteRemindDlg').close();
+  toast('یادآور حذف شد');
+  scheduleNotifications();
 });
 
 /* ---------- ۱۴) اعلان‌ها ---------- */
@@ -1756,6 +2263,20 @@ function upcomingReminders() {
   return out.filter(r => r.at > Date.now());
 }
 
+function noteReminders() {
+  const out = [];
+  for (const n of S.d.notes || []) {
+    if (!n.reminder) continue;
+    out.push({
+      id: 'note-' + n.id,
+      title: 'یادآوری یادداشت',
+      body: n.title || 'یادداشت',
+      at: reminderTime(n.reminder, 0)
+    });
+  }
+  return out;
+}
+
 function reminderTime(date, daysBefore) {
   const jdn = jdnOf(date) - daysBefore;
   const g = d2g(jdn);
@@ -1768,15 +2289,26 @@ function scheduleNotifications() {
 }
 
 let notifTimer = null;
+let notifSig = '';
 
 function doScheduleNotifications() {
   try {
     if (!window.AndroidAqsat || typeof window.AndroidAqsat.schedule !== 'function') return;
-    const list = upcomingReminders();
-    window.AndroidAqsat.schedule(JSON.stringify({
-      sound: S.d.settings.sound !== false,
-      items: list
-    }));
+
+    const list = upcomingReminders().concat(noteReminders());
+    const sig = list.map(r => r.id + '@' + r.at).join('|') +
+      '#' + (S.d.settings.sound !== false ? 1 : 0);
+    if (sig === notifSig) return;
+    notifSig = sig;
+
+    setTimeout(() => {
+      try {
+        window.AndroidAqsat.schedule(JSON.stringify({
+          sound: S.d.settings.sound !== false,
+          items: list
+        }));
+      } catch (e) { /* */ }
+    }, 0);
   } catch (e) { /* */ }
 }
 
@@ -1784,6 +2316,7 @@ function doScheduleNotifications() {
 function boot() {
   S.d = loadData();
   applyTheme();
+  applyFontScale();
   buildPad();
   buildRings();
 
@@ -1819,6 +2352,8 @@ function boot() {
   mountDP($('dpChq'));
   mountDP($('dpAcc'));
   mountDP($('dpAccDue'));
+  mountDP($('dpDate'));
+  mountDP($('dpNoteRemind'));
 
   // امروز/دیروز در فرم تراکنش
   document.querySelectorAll('[data-quick]').forEach(b => {

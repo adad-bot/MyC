@@ -78,6 +78,42 @@ public class MainActivity extends Activity {
                     return false;
                 }
             }
+
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, final android.webkit.JsResult result) {
+                new android.app.AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setPositiveButton("باشه", (d, w) -> result.confirm())
+                        .setOnCancelListener(d -> result.cancel())
+                        .show();
+                return true;
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, final android.webkit.JsResult result) {
+                new android.app.AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setPositiveButton("بله", (d, w) -> result.confirm())
+                        .setNegativeButton("نه", (d, w) -> result.cancel())
+                        .setOnCancelListener(d -> result.cancel())
+                        .show();
+                return true;
+            }
+
+            @Override
+            public boolean onJsPrompt(WebView view, String url, String message, String defaultValue,
+                                      final android.webkit.JsPromptResult result) {
+                final android.widget.EditText input = new android.widget.EditText(MainActivity.this);
+                input.setText(defaultValue == null ? "" : defaultValue);
+                new android.app.AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setView(input)
+                        .setPositiveButton("تایید", (d, w) -> result.confirm(input.getText().toString()))
+                        .setNegativeButton("انصراف", (d, w) -> result.cancel())
+                        .setOnCancelListener(d -> result.cancel())
+                        .show();
+                return true;
+            }
         });
 
         web.addJavascriptInterface(new Bridge(), "AndroidAqsat");
@@ -131,6 +167,11 @@ public class MainActivity extends Activity {
                     try { out.close(); } catch (Exception ignored) { }
                 }
             }
+        }
+
+        @JavascriptInterface
+        public void exitApp() {
+            runOnUiThread(() -> MainActivity.this.finish());
         }
 
         @JavascriptInterface
