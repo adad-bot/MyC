@@ -718,3 +718,48 @@ button:active, .cal-cell:active, .dc-circle:active,
 }
 .cal-week > div{white-space:nowrap;text-align:center;overflow:visible}
 .cal-grid{gap:3px}
+
+/* ===== تقویم: سه عدد در هر روز (شمسی، میلادی، قمری) ===== */
+.cal-sub{font-size:9.5px;color:var(--muted);text-align:center;margin:-2px 0 9px;font-weight:600}
+.cal-grid{grid-auto-rows:54px;gap:2px}
+.cal-cell{height:54px;gap:1px;justify-content:center}
+.cal-cell .cd{font-size:16px;font-weight:800;line-height:1.1}
+.cal-cell .cnum{display:flex;align-items:center;justify-content:center;gap:4px;line-height:1}
+.cal-cell .cg{font-size:7.5px;color:var(--muted);direction:ltr;font-family:'Segoe UI',Tahoma,sans-serif}
+.cal-cell .ch{font-size:9px;color:var(--muted);font-family:'Noto Naskh Arabic','Traditional Arabic','Amiri',serif}
+.cal-cell.hol .cg,.cal-cell.hol .ch{color:color-mix(in srgb,var(--red) 60%,var(--muted))}
+.cal-cell.hnew .ch{color:var(--brand);font-weight:700}
+.cal-cell.sel .cg,.cal-cell.sel .ch{color:rgba(255,255,255,.82)}
+.cal-cell.today .cg,.cal-cell.today .ch{color:var(--brand)}
+
+/* عدد شمسی در کارت خانه: فقط همان، درشت */
+.dc-day{font-size:46px}
+
+/* درشت‌ترکردن اعداد تقویم */
+.cal-grid{grid-auto-rows:58px}
+.cal-cell{height:58px}
+.cal-cell .cd{font-size:17.5px}
+.cal-cell .cg{font-size:8.5px}
+.cal-cell .ch{font-size:10.5px}
+.cal-sub{font-size:10px}
+
+/* ویرایشگر یادداشت: لمس پایدار و جابه‌جایی */
+.ed-wrap{overscroll-behavior:contain}
+#edCanvas{
+  touch-action:none;-webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;pointer-events:auto;
+}
+.ed-tools .tl[data-tool="pan"]{font-size:15px}
+
+/* برچسب تغییر ماه در تقویم */
+.cal-grid{grid-auto-rows:64px}
+.cal-cell{height:64px;gap:0}
+.cal-cell .ctag{display:flex;gap:3px;line-height:1;margin-top:2px}
+.cal-cell .ctag .tg{font-size:6.8px;font-weight:700;color:var(--brand);font-family:'Segoe UI',Tahoma,sans-serif;direction:ltr}
+.cal-cell .ctag .th{font-size:7px;color:var(--muted);font-family:'Noto Naskh Arabic','Traditional Arabic',serif}
+.cal-cell.hol .ctag .th{color:color-mix(in srgb,var(--red) 60%,var(--muted))}
+.cal-cell.sel .ctag .tg,.cal-cell.sel .ctag .th{color:#fff}
+
+/* برچسب‌ها: کوتاه و بدون شکستن خط */
+.cal-cell .ctag{white-space:nowrap;overflow:visible}
+.cal-cell .ctag .th{max-width:60px;overflow:hidden;text-overflow:ellipsis}

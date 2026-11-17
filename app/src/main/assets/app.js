@@ -623,6 +623,8 @@ function weekIndex(jdn) {
 
 const G_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                   'July', 'August', 'September', 'October', 'November', 'December'];
+const G_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 let FMT_HM = null;
 try {
@@ -656,10 +658,7 @@ function buildDateCard() {
   right.appendChild(gm);
 
   const circle = el('div', 'dc-circle');
-  circle.innerHTML = DECOR[season] +
-    '<span class="dc-h">' + hijriDayNum(jdn) + '</span>' +
-    '<span class="dc-day">' + fa(j.jd) + '</span>' +
-    '<span class="dc-g">' + g.gd + '</span>';
+  circle.innerHTML = DECOR[season] + '<span class="dc-day">' + fa(j.jd) + '</span>';
   circle.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(jdn); });
 
   const left = el('div', 'dc-left');
@@ -745,11 +744,22 @@ function renderCal() {
   const len = monthLen(calY, calM);
   const todayJ = todayJdn();
 
+  // زیرنویس: ماه میلادی و قمری (ممکن است هر کدام دو ماه باشند)
+  const g1 = d2g(first), g2 = d2g(first + len - 1);
+  const gm1 = G_MONTHS[g1.gm - 1] + ' ' + g1.gy;
+  const gm2 = G_MONTHS[g2.gm - 1] + ' ' + g2.gy;
+  const hm1 = hijriMonthLabel(first);
+  const hm2 = hijriMonthLabel(first + len - 1);
+  const gTxt = gm1 === gm2 ? gm1 : gm1 + ' – ' + gm2;
+  const hTxt = hm1 === hm2 ? hm1 : hm1 + ' – ' + hm2;
+  $('calSub').textContent = gTxt + '   ·   ' + hTxt;
+
   for (let i = 0; i < startIdx; i++) grid.appendChild(el('div', 'cal-cell empty'));
 
   for (let d = 1; d <= len; d++) {
     const jdn = first + d - 1;
     const jj = d2j(jdn);
+    const gg = d2g(jdn);
 
     const b = document.createElement('button');
     b.type = 'button';
@@ -762,7 +772,31 @@ function renderCal() {
     if (jdn === calSel) b.classList.add('sel');
 
     b.appendChild(el('span', 'cd', fa(d)));
-    b.appendChild(el('span', 'ch', hijriDay(jdn)));
+
+    const num = el('span', 'cnum');
+    num.appendChild(el('span', 'cg', String(gg.gd)));
+    const hd = hijriDayNum(jdn);
+    if (hd === '۱') b.classList.add('hnew');
+    num.appendChild(el('span', 'ch', hd));
+    b.appendChild(num);
+
+    // برچسب تغییر ماه میلادی/قمری
+    const tags = [];
+    const nextG = d2g(jdn + 1);
+    const nextH = hijriDayNum(jdn + 1);
+    const isGEnd = nextG.gm !== gg.gm;
+    if (gg.gd === 1) tags.push({ k: 'g', t: G_ABBR[gg.gm - 1] });
+    else if (isGEnd) tags.push({ k: 'g', t: G_ABBR[gg.gm - 1] });
+
+    const hmName = hijriMonthLabel(jdn).split(' ')[0] || '';
+    if (hd === '۱') tags.push({ k: 'h', t: hmName });
+    else if (nextH === '۱') tags.push({ k: 'h', t: hmName });
+
+    if (tags.length) {
+      const tag = el('span', 'ctag');
+      for (const x of tags) tag.appendChild(el('span', x.k === 'g' ? 'tg' : 'th', x.t));
+      b.appendChild(tag);
+    }
 
     b.addEventListener('click', () => {
       calSel = jdn;
@@ -2172,7 +2206,7 @@ const PAGE_SIZES = {
 
 const ED = {
   note: null, pageIdx: 0, tool: 'pen', color: '#111827', width: 4,
-  drawing: false, cur: null, scale: 1, zoom: 1
+  drawing: false, cur: null, scale: 1, zoom: 1, panning: null
 };
 
 function renderNotes() {
@@ -2349,7 +2383,17 @@ function evPoint(ev) {
 canvas.addEventListener('pointerdown', ev => {
   if (!ED.note) return;
   ev.preventDefault();
-  canvas.setPointerCapture(ev.pointerId);
+  ev.stopPropagation();
+
+  // ابزار جابه‌جایی: صفحه را با انگشت حرکت بده
+  if (ED.tool === 'pan') {
+    const wrap = $('edWrap');
+    ED.panning = { x: ev.clientX, y: ev.clientY, sl: wrap.scrollLeft, st: wrap.scrollTop };
+    return;
+  }
+
+  try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* */ }
+
   ED.drawing = true;
   ED.cur = {
     c: ED.tool === 'eraser' ? '#ffffff' : ED.color,
@@ -2363,6 +2407,15 @@ canvas.addEventListener('pointerdown', ev => {
 });
 
 canvas.addEventListener('pointermove', ev => {
+  if (ED.panning) {
+    const wrap = $('edWrap');
+    const dx = ev.clientX - ED.panning.x;
+    const dy = ev.clientY - ED.panning.y;
+    const rtl = getComputedStyle(wrap).direction === 'rtl';
+    wrap.scrollLeft = rtl ? ED.panning.sl + dx : ED.panning.sl - dx;
+    wrap.scrollTop = ED.panning.st - dy;
+    return;
+  }
   if (!ED.drawing || !ED.cur) return;
   ev.preventDefault();
   const p = evPoint(ev);
@@ -2372,6 +2425,7 @@ canvas.addEventListener('pointermove', ev => {
 });
 
 function endStroke() {
+  ED.panning = null;
   if (!ED.drawing) return;
   ED.drawing = false;
   if (ED.cur && ED.cur.pts.length) currentStrokes().push(ED.cur);
