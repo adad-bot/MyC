@@ -846,6 +846,9 @@ const HIJRI_OCCASIONS = {
   '1-9': [{ t: 'تاسوعای حسینی', h: true, d: 'نهم محرم؛ روز بزرگداشت حضرت ابوالفضل العباس و یاران امام حسین (ع).' }],
   '1-10': [{ t: 'عاشورای حسینی', h: true, d: 'دهم محرم؛ سالروز شهادت امام حسین (ع) و یارانشان در کربلا.' }],
   '1-12': [{ t: 'شهادت امام سجاد (ع)', d: 'دوازدهم محرم؛ سالروز شهادت امام زین‌العابدین (ع).' }],
+  '2-20': [{ t: 'اربعین حسینی', d: 'بیستم صفر؛ چهلمین روز شهادت امام حسین (ع) و یارانش.' }],
+  '2-28': [{ t: 'رحلت پیامبر (ص)', h: true, d: 'بیست‌وهشتم صفر؛ سالروز رحلت حضرت محمد (ص) و شهادت امام حسن مجتبی (ع).' }],
+  '2-30': [{ t: 'شهادت امام رضا (ع)', h: true, d: 'سی‌ام صفر؛ سالروز شهادت امام علی بن موسی الرضا (ع).' }],
   '3-12': [{ t: 'ولادت پیامبر (ص)', d: 'دوازدهم ربیع‌الاول؛ سالروز ولادت حضرت محمد (ص) و امام جعفر صادق (ع) در روایتی.' }],
   '3-17': [{ t: 'ولادت امام جعفر صادق (ع)', d: 'هفدهم ربیع‌الاول؛ سالروز ولادت امام جعفر صادق (ع).' }],
   '6-3': [{ t: 'شهادت حضرت فاطمه (س)', d: 'سوم جمادی‌الثانی؛ سالروز شهادت حضرت فاطمه زهرا (س) در روایتی.' }],
@@ -853,9 +856,12 @@ const HIJRI_OCCASIONS = {
   '7-27': [{ t: 'مبعث پیامبر (ص)', h: true, d: 'بیست‌وهفتم رجب؛ سالروز بعثت حضرت محمد (ص).' }],
   '8-15': [{ t: 'ولادت امام مهدی (عج)', d: 'پانزدهم شعبان؛ سالروز ولادت حضرت مهدی (عج).' }],
   '9-1': [{ t: 'عید سعید فطر', h: true, d: 'اول شوال؛ پایان ماه رمضان و عید فطر.' }],
+  '9-10': [{ t: 'وفات حضرت خدیجه (س)', d: 'دهم رمضان؛ سالروز وفات حضرت خدیجه (س)، همسر پیامبر (ص).' }],
+  '9-21': [{ t: 'شهادت امام علی (ع)', h: true, d: 'بیست‌ویکم رمضان؛ سالروز شهادت امام علی (ع) در محراب کوفه.' }],
   '10-25': [{ t: 'شهادت امام جعفر صادق (ع)', h: true, d: 'بیست‌وپنجم شوال؛ سالروز شهادت امام جعفر صادق (ع).' }],
   '12-10': [{ t: 'عید سعید قربان', h: true, d: 'دهم ذی‌الحجه؛ عید قربان و روز حج.' }],
-  '12-18': [{ t: 'عید غدیر خم', h: true, d: 'هجدهم ذی‌الحجه؛ سالروز واقعهٔ غدیر خم.' }]
+  '12-18': [{ t: 'عید غدیر خم', h: true, d: 'هجدهم ذی‌الحجه؛ سالروز واقعهٔ غدیر خم.' }],
+  '12-24': [{ t: 'مباهله', d: 'بیست‌وچهارم ذی‌الحجه؛ سالروز واقعهٔ مباهله پیامبر (ص) با مسیحیان نجران.' }]
 };
 
 let FMT_HMD = null;
@@ -958,12 +964,14 @@ function buildDateCard() {
 
   const right = el('div', 'dc-right');
   right.appendChild(el('div', 'dc-month', MONTHS[j.jm - 1]));
-  right.appendChild(el('div', 'dc-year', fa(j.jy)));
   const gm = el('div', 'dc-gmonth', G_MONTHS[g.gm - 1] + ' ' + g.gy);
   right.appendChild(gm);
 
   const circle = el('div', 'dc-circle');
-  circle.innerHTML = DECOR[season] + '<span class="dc-day">' + fa(j.jd) + '</span>';
+  circle.innerHTML = DECOR[season] +
+    '<span class="dc-h">' + hijriDayNum(jdn) + '</span>' +
+    '<span class="dc-day">' + fa(j.jd) + '</span>' +
+    '<span class="dc-y">' + fa(j.jy) + '</span>';
   circle.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(jdn); });
 
   const left = el('div', 'dc-left');
@@ -1046,6 +1054,41 @@ try {
 function hijriDay(jdn) {
   if (!FMT_HD) return '';
   try { return fa(FMT_HD.format(toDate(jdn))); } catch (e) { return ''; }
+}
+
+function renderUpcomingRems() {
+  const list = $('upRemList');
+  if (!list) return;
+  list.textContent = '';
+
+  const t = effToday();
+  const items = (S.d.reminders || [])
+    .map(r => ({ r: r, d: jdnOf(r) - t }))
+    .filter(x => x.d >= 0 && x.d <= 7)
+    .sort((a, b) => a.d - b.d);
+
+  if (!items.length) {
+    const e = el('div', 'hint');
+    e.textContent = 'یادآوری در هفتهٔ پیش رو نیست.';
+    e.style.padding = '2px 4px';
+    list.appendChild(e);
+    return;
+  }
+
+  for (const x of items) {
+    const u = x.d <= 1 ? 'u-red' : x.d <= 3 ? 'u-yellow' : 'u-orange';
+    const row = el('div', 'item rem-row ' + u);
+    const ico = el('div', 'ico chq', '⏰');
+    const main = el('div', 'main');
+    main.appendChild(el('div', 't', x.r.title));
+    const m = el('div', 'm');
+    m.appendChild(el('span', null, dateLabel(x.r)));
+    m.appendChild(el('span', 'pill ' + (x.d <= 1 ? 'late' : x.d <= 3 ? 'due' : 'ok'),
+      x.d === 0 ? 'امروز' : fa(x.d) + ' روز مانده'));
+    main.appendChild(m);
+    row.append(ico, main);
+    list.appendChild(row);
+  }
 }
 
 function renderCal() {
@@ -1133,6 +1176,7 @@ function renderCal() {
   }
 
   renderDayRem();
+  renderUpcomingRems();
 }
 
 function renderDateInfo() {
@@ -1701,17 +1745,31 @@ function renderReport() {
   const now = todayJalali();
   const ym = S.reportYm || monthKey(now);
 
-  const nav = el('div', 'mhead');
-  const prev = el('button', 'btn ghost', 'ماه قبل');
+  const nav = el('div', 'mhead rep-head');
+
+  const monthSel = document.createElement('select');
+  MONTHS.forEach((mn, i) => monthSel.add(new Option(mn, String(i + 1))));
+  monthSel.value = String(ym % 100);
+
+  const yearsSet = new Set(S.d.tx.map(x => x.jy));
+  yearsSet.add(now.jy);
+  const yearOpts = Array.from(yearsSet).sort((a, b) => b - a);
+  const yearSel = document.createElement('select');
+  yearOpts.forEach(y => yearSel.add(new Option(fa(y), String(y))));
+  yearSel.value = String(Math.floor(ym / 100));
+
+  const go = () => { S.reportYm = (+yearSel.value) * 100 + (+monthSel.value); render(); };
+  monthSel.addEventListener('change', go);
+  yearSel.addEventListener('change', go);
+
+  const prev = el('button', 'btn ghost', '‹');
   prev.style.padding = '2px 10px';
-  prev.style.fontSize = '11px';
   prev.addEventListener('click', () => { S.reportYm = shiftYm(ym, -1); render(); });
-  const next = el('button', 'btn ghost', 'ماه بعد');
+  const next = el('button', 'btn ghost', '›');
   next.style.padding = '2px 10px';
-  next.style.fontSize = '11px';
   next.addEventListener('click', () => { S.reportYm = shiftYm(ym, 1); render(); });
-  const lbl = el('span', null, MONTHS[ym % 100 - 1] + ' ' + fa(Math.floor(ym / 100)));
-  nav.append(prev, lbl, next);
+
+  nav.append(prev, yearSel, monthSel, next);
   view.appendChild(nav);
 
   let inc = 0, exp = 0;
@@ -1729,6 +1787,65 @@ function renderReport() {
   s3.append(el('div', 'k', 'مانده'), el('div', 'v ' + (inc - exp >= 0 ? 'green' : 'red'), NUM.format(inc - exp)));
   st.append(s1, s2, s3);
   view.appendChild(st);
+
+  /* ---------- مقایسه ---------- */
+  S.cmp = S.cmp || 'none';
+  const cmpSeg = el('div', 'seg');
+  const cmpOpts = [['none', 'بدون مقایسه'], ['prev', 'ماه قبل'], ['year', 'سال قبل']];
+  for (const [k, lbl2] of cmpOpts) {
+    const b = el('button', S.cmp === k ? 'on' : '', lbl2);
+    b.type = 'button';
+    b.addEventListener('click', () => { S.cmp = k; render(); });
+    cmpSeg.appendChild(b);
+  }
+  view.appendChild(cmpSeg);
+
+  if (S.cmp !== 'none') {
+    const cym = S.cmp === 'prev' ? shiftYm(ym, -1) : shiftYm(ym, -12);
+    let inc2 = 0, exp2 = 0;
+    for (const x of S.d.tx) {
+      if (monthKey(x) !== cym) continue;
+      if (x.type === 'income') inc2 += x.amount; else exp2 += x.amount;
+    }
+
+    const cmpLabel = MONTHS[cym % 100 - 1] + ' ' + fa(Math.floor(cym / 100));
+    const maxV = Math.max(inc, exp, inc2, exp2, 1);
+
+    const cmpCard = el('div', 'card pad');
+    const cmpH = el('div', 'mhead');
+    cmpH.style.margin = '0 0 8px';
+    cmpH.appendChild(el('span', null, 'این ماه در برابر ' + cmpLabel));
+    cmpCard.appendChild(cmpH);
+
+    const rows = [
+      ['درآمد این ماه', inc, 'in'],
+      ['درآمد ' + cmpLabel, inc2, 'in2'],
+      ['هزینهٔ این ماه', exp, 'out'],
+      ['هزینهٔ ' + cmpLabel, exp2, 'out2']
+    ];
+
+    for (const [lbl3, v, cls] of rows) {
+      const line = el('div', 'cmpbar');
+      line.appendChild(el('span', 'cmpl', lbl3));
+      const track = el('div', 'cmp-track');
+      const fill = el('i', 'cmp-fill ' + cls);
+      fill.style.width = Math.max(2, Math.round(v / maxV * 100)) + '%';
+      track.appendChild(fill);
+      line.appendChild(track);
+      line.appendChild(el('span', 'cmpv', NUM.format(v)));
+      cmpCard.appendChild(line);
+    }
+
+    const dInc = inc2 ? Math.round((inc - inc2) / inc2 * 100) : 0;
+    const dExp = exp2 ? Math.round((exp - exp2) / exp2 * 100) : 0;
+    const sum = el('div', 'hint');
+    sum.style.marginTop = '8px';
+    sum.textContent = 'تغییر درآمد: ' + fa(Math.abs(dInc)) + '٪ ' + (dInc >= 0 ? 'بیشتر' : 'کمتر') +
+      ' · تغییر هزینه: ' + fa(Math.abs(dExp)) + '٪ ' + (dExp >= 0 ? 'بیشتر' : 'کمتر');
+    cmpCard.appendChild(sum);
+
+    view.appendChild(cmpCard);
+  }
 
   // نمودار ۶ ماه
   const months = [];
@@ -2558,7 +2675,8 @@ const PAGE_SIZES = {
 
 const ED = {
   note: null, pageIdx: 0, tool: 'pen', color: '#111827', width: 4,
-  drawing: false, cur: null, scale: 1, zoom: 1, panning: null
+  drawing: false, cur: null, scale: 1, zoom: 1, panning: null,
+  fill: false, redo: [], shapeStart: null
 };
 
 function renderNotes() {
@@ -2662,6 +2780,35 @@ function drawStroke(g, s, scale) {
   }
 }
 
+function drawItem(g, s, scale) {
+  if (!s.shape) { drawStroke(g, s, scale); return; }
+
+  const a = { x: s.a.x * scale, y: s.a.y * scale };
+  const b = { x: s.b.x * scale, y: s.b.y * scale };
+  g.lineWidth = Math.max(1, s.w * scale);
+  g.strokeStyle = s.c;
+  g.fillStyle = s.c;
+  g.lineCap = 'round';
+  g.lineJoin = 'round';
+
+  if (s.shape === 'line') {
+    g.beginPath();
+    g.moveTo(a.x, a.y);
+    g.lineTo(b.x, b.y);
+    g.stroke();
+  } else if (s.shape === 'rect') {
+    const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y);
+    const w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
+    if (s.fill) g.fillRect(x, y, w, h); else g.strokeRect(x, y, w, h);
+  } else if (s.shape === 'ellipse') {
+    const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+    const rx = Math.abs(b.x - a.x) / 2, ry = Math.abs(b.y - a.y) / 2;
+    g.beginPath();
+    g.ellipse(cx, cy, Math.max(1, rx), Math.max(1, ry), 0, 0, Math.PI * 2);
+    if (s.fill) g.fill(); else g.stroke();
+  }
+}
+
 function edRender() {
   const page = ED.note.page;
   const wrapW = ($('edWrap').clientWidth || 360) - 20;
@@ -2681,7 +2828,7 @@ function edRender() {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  for (const s of currentStrokes()) drawStroke(ctx, s, ED.scale);
+  for (const s of currentStrokes()) drawItem(ctx, s, ED.scale);
 }
 
 function updatePageLbl() {
@@ -2719,7 +2866,7 @@ function makeThumb(note) {
     g.fillStyle = '#ffffff';
     g.fillRect(0, 0, tw, th);
     const sc = tw / p.w;
-    for (const s of note.pages[0].strokes) drawStroke(g, s, sc);
+    for (const s of note.pages[0].strokes) drawItem(g, s, sc);
     return c.toDataURL('image/jpeg', 0.55);
   } catch (e) { return ''; }
 }
@@ -2746,6 +2893,13 @@ canvas.addEventListener('pointerdown', ev => {
 
   try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* */ }
 
+  // ابزارهای شکل: خط، مستطیل، دایره
+  if (ED.tool === 'line' || ED.tool === 'rect' || ED.tool === 'ellipse') {
+    ED.shapeStart = evPoint(ev);
+    ED.drawing = true;
+    return;
+  }
+
   ED.drawing = true;
   ED.cur = {
     c: ED.tool === 'eraser' ? '#ffffff' : ED.color,
@@ -2768,7 +2922,19 @@ canvas.addEventListener('pointermove', ev => {
     wrap.scrollTop = ED.panning.st - dy;
     return;
   }
-  if (!ED.drawing || !ED.cur) return;
+  if (!ED.drawing || !ED.cur) {
+    if (ED.drawing && ED.shapeStart) {
+      ev.preventDefault();
+      const p = evPoint(ev);
+      edRender();
+      drawItem(ctx, {
+        shape: ED.tool, a: ED.shapeStart, b: p,
+        c: ED.color, w: ED.width, fill: ED.fill
+      }, ED.scale);
+      ED.shapeEnd = p;
+    }
+    return;
+  }
   ev.preventDefault();
   const p = evPoint(ev);
   const prev = ED.cur.pts[ED.cur.pts.length - 1];
@@ -2786,14 +2952,28 @@ function setTool(name) {
 function endStroke() {
   const wasPan = !!ED.panning;
   ED.panning = null;
-  if (wasPan) {
-    // بعد از جابه‌جایی، خودکار به حالت نوشتن برگرد
-    setTool('pen');
-    return;
-  }
+  if (wasPan) return;
   if (!ED.drawing) return;
   ED.drawing = false;
-  if (ED.cur && ED.cur.pts.length) currentStrokes().push(ED.cur);
+
+  if (ED.shapeStart && ED.shapeEnd) {
+    const a = ED.shapeStart, b = ED.shapeEnd;
+    if (Math.abs(a.x - b.x) > 3 || Math.abs(a.y - b.y) > 3) {
+      currentStrokes().push({
+        shape: ED.tool, a: a, b: b, c: ED.color, w: ED.width, fill: ED.fill
+      });
+      ED.redo = [];
+    }
+    ED.shapeStart = null;
+    ED.shapeEnd = null;
+    edRender();
+    return;
+  }
+
+  if (ED.cur && ED.cur.pts.length) {
+    currentStrokes().push(ED.cur);
+    ED.redo = [];
+  }
   ED.cur = null;
 }
 canvas.addEventListener('pointerup', endStroke);
@@ -2838,8 +3018,20 @@ $('edZoomOut').addEventListener('click', () => {
 
 $('edUndo').addEventListener('click', () => {
   if (!ED.note) return;
-  currentStrokes().pop();
-  edRender();
+  const s = currentStrokes().pop();
+  if (s) { ED.redo.push(s); edRender(); }
+});
+
+$('edRedo').addEventListener('click', () => {
+  if (!ED.note) return;
+  const s = ED.redo.pop();
+  if (s) { currentStrokes().push(s); edRender(); }
+});
+
+$('edFill').addEventListener('click', () => {
+  ED.fill = !ED.fill;
+  $('edFill').classList.toggle('on', ED.fill);
+  toast(ED.fill ? 'پرکردن روشن' : 'پرکردن خاموش');
 });
 
 $('edPrev').addEventListener('click', () => {

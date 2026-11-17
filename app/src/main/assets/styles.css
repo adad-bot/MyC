@@ -867,3 +867,55 @@ button:active, .cal-cell:active, .dc-circle:active,
   content:'';position:absolute;left:50%;transform:translateX(-50%);
   bottom:6px;width:18px;height:2.5px;border-radius:2px;background:rgba(255,255,255,.9);
 }
+
+.dc-occ.rem{font-weight:700}
+
+/* ===== اصلاحات ظاهری ===== */
+/* خط زیر M: کوچک‌تر، پایین‌تر، دقیقاً زیر حرف */
+.logo{padding-bottom:0}
+.logo::after{bottom:4px;width:14px;height:2px;border-radius:2px}
+.lock .badge{position:relative}
+.lock .badge::after{
+  content:'';position:absolute;left:50%;transform:translateX(-50%);
+  bottom:9px;width:20px;height:2.5px;border-radius:2px;background:rgba(255,255,255,.9);
+}
+
+/* آیکن ردیف‌ها: داخل کادر بماند */
+.ico{overflow:hidden;font-size:15px;line-height:1;flex:0 0 36px;width:36px;height:36px}
+.ico svg{width:18px;height:18px}
+
+/* سال داخل دایرهٔ روز */
+.dc-y{
+  position:absolute;bottom:10px;z-index:2;font-size:9.5px;font-weight:700;
+  opacity:.6;letter-spacing:.5px;
+}
+.dc-gmonth{font-size:12px;opacity:.75;font-weight:700}
+.dc-month{font-size:19px}
+
+/* نوار ابزار یادداشت: دو ردیف و درشت‌تر */
+.ed-tools{flex-wrap:wrap;gap:6px;padding:8px 10px}
+.ed-tools .tl{min-width:42px;height:38px;font-size:13px}
+.ed-tools .sw{width:30px;height:30px}
+.ed-tools .sep{display:none}
+
+/* نوار پایین ویرایشگر: درشت‌تر */
+.ed-bottom .btn{padding:9px 14px;font-size:13.5px}
+
+/* سرصفحهٔ گزارش: انتخاب مستقیم سال و ماه */
+.rep-head{gap:8px}
+.rep-head select{
+  font:inherit;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--soft);
+  border:1px solid var(--line);border-radius:10px;padding:5px 8px;
+}
+.rep-head .btn{padding:4px 10px !important}
+
+/* ---------- مقایسه در گزارش ---------- */
+.cmpbar{display:grid;grid-template-columns:96px 1fr auto;gap:8px;align-items:center;margin:5px 0}
+.cmpl{font-size:10.5px;color:var(--muted)}
+.cmp-track{height:9px;border-radius:999px;background:var(--soft);overflow:hidden}
+.cmp-fill{display:block;height:100%;border-radius:999px}
+.cmp-fill.in{background:linear-gradient(90deg,#34d399,var(--green))}
+.cmp-fill.in2{background:linear-gradient(90deg,#a7f3d0,#6ee7b7)}
+.cmp-fill.out{background:linear-gradient(90deg,#fb7185,var(--red))}
+.cmp-fill.out2{background:linear-gradient(90deg,#fecdd3,#fda4af)}
+.cmpv{font-size:10px;color:var(--muted);direction:ltr}

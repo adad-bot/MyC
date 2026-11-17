@@ -38,7 +38,7 @@
     <button class="logo" id="aboutBtn" aria-label="دربارهٔ MyC">M</button>
     <div id="titleWrap" style="cursor:pointer">
       <h1>MyC</h1>
-      <p class="sub brand-sub">دکتر علی دادمان</p>
+      <p class="sub brand-sub">علی دادمان</p>
     </div>
     <div class="spacer"></div>
     <button class="iconbtn" id="lockBtn" aria-label="قفل">
@@ -443,6 +443,11 @@
     <div class="card pad" id="dateInfo" style="font-size:12.5px;line-height:2"></div>
 
     <div class="dayrem">
+      <div class="mhead" style="margin:10px 4px 6px"><span>یادآورهای پیش رو</span></div>
+      <div id="upRemList" class="list"></div>
+    </div>
+
+    <div class="dayrem">
       <div class="mhead" style="margin:10px 4px 6px"><span>یادآور این روز</span></div>
       <div id="dayRemList" class="list"></div>
       <button type="button" class="btn block" id="addRemBtn" style="margin-top:8px">+ افزودن یادآور</button>
@@ -502,18 +507,23 @@
     <button class="tl on" data-tool="pen" aria-label="خودکار">✎</button>
     <button class="tl" data-tool="eraser" aria-label="پاک‌کن">⌫</button>
     <button class="tl" data-tool="pan" aria-label="جابه‌جایی">✋</button>
-    <span class="sep"></span>
-    <button class="sw on" data-color="#111827" style="background:#111827"></button>
-    <button class="sw" data-color="#2563eb" style="background:#2563eb"></button>
-    <button class="sw" data-color="#dc2626" style="background:#dc2626"></button>
-    <button class="sw" data-color="#16a34a" style="background:#16a34a"></button>
-    <span class="sep"></span>
+    <button class="tl" data-tool="line" aria-label="خط">／</button>
+    <button class="tl" data-tool="rect" aria-label="مستطیل">▭</button>
+    <button class="tl" data-tool="ellipse" aria-label="دایره">◯</button>
+    <button class="tl" id="edFill" aria-label="پرکردن">◧</button>
+
+    <button class="sw on" data-color="#111827" style="background:#111827" aria-label="مشکی"></button>
+    <button class="sw" data-color="#2563eb" style="background:#2563eb" aria-label="آبی"></button>
+    <button class="sw" data-color="#dc2626" style="background:#dc2626" aria-label="قرمز"></button>
+    <button class="sw" data-color="#16a34a" style="background:#16a34a" aria-label="سبز"></button>
+    <button class="sw" data-color="#d97706" style="background:#d97706" aria-label="نارنجی"></button>
+
     <button class="tl" data-width="2">نازک</button>
     <button class="tl on" data-width="4">متوسط</button>
     <button class="tl" data-width="8">ضخیم</button>
-    <span class="sep"></span>
+
     <button class="tl" id="edUndo" aria-label="برگشت">↶</button>
-    <span class="sep"></span>
+    <button class="tl" id="edRedo" aria-label="جلو">↷</button>
     <button class="tl" id="edZoomOut" aria-label="کوچک‌نمایی">−</button>
     <button class="tl" id="edZoomIn" aria-label="بزرگ‌نمایی">+</button>
   </div>
