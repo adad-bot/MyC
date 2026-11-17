@@ -830,3 +830,40 @@ button:active, .cal-cell:active, .dc-circle:active,
 }
 .cal-cell.sel.hasrem::after{background:#fff}
 .dayrem{margin-top:4px}
+
+/* ===== چرخش استوانه‌ای (به‌جای دایره) ===== */
+.rings,.datecard,.grid2{transform-origin:center center;backface-visibility:hidden}
+.cyl-r{animation:cylR .7s cubic-bezier(.3,.7,.3,1)}
+.cyl-l{animation:cylL .7s cubic-bezier(.3,.7,.3,1)}
+@keyframes cylR{
+  0%{transform:perspective(800px) rotateY(0) translateX(0)}
+  45%{transform:perspective(800px) rotateY(-32deg) translateX(-12%) scale(.97)}
+  100%{transform:perspective(800px) rotateY(0) translateX(0)}
+}
+@keyframes cylL{
+  0%{transform:perspective(800px) rotateY(0) translateX(0)}
+  45%{transform:perspective(800px) rotateY(32deg) translateX(12%) scale(.97)}
+  100%{transform:perspective(800px) rotateY(0) translateX(0)}
+}
+
+/* برچسب مناسبت: تک‌مناسبت درشت‌تر */
+.dc-occ{font-size:11px}
+.dc-occ.big{font-size:13px;padding:4px 12px;font-weight:800}
+
+/* رنگ فوریت یادآور */
+.dc-occ.rem{u-font-weight:700}
+.dc-occ.u-red{background:rgba(220,38,38,.18);color:#b91c1c;border:1px solid rgba(220,38,38,.3)}
+.dc-occ.u-yellow{background:rgba(234,179,8,.22);color:#854d0e;border:1px solid rgba(234,179,8,.35)}
+.dc-occ.u-orange{background:rgba(249,115,22,.18);color:#c2410c;border:1px solid rgba(249,115,22,.32)}
+
+/* ردیف یادآور در تقویم */
+.rem-row.u-red{border-color:rgba(220,38,38,.55)}
+.rem-row.u-yellow{border-color:rgba(234,179,8,.6)}
+.rem-row.u-orange{border-color:rgba(249,115,22,.55)}
+
+/* خط زیر M در لوگوی صفحهٔ اصلی */
+.logo{position:relative;padding-bottom:2px}
+.logo::after{
+  content:'';position:absolute;left:50%;transform:translateX(-50%);
+  bottom:6px;width:18px;height:2.5px;border-radius:2px;background:rgba(255,255,255,.9);
+}

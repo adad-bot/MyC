@@ -593,7 +593,9 @@ function renderDayRem() {
   }
 
   for (const r of items) {
-    const row = el('div', 'item');
+    const dd = jdnOf(r) - effToday();
+    const u = dd <= 1 ? 'u-red' : dd <= 3 ? 'u-yellow' : dd <= 7 ? 'u-orange' : '';
+    const row = el('div', 'item rem-row ' + u);
     const ico = el('div', 'ico chq', '⏰');
     const main = el('div', 'main');
     main.appendChild(el('div', 't', r.title));
@@ -839,6 +841,52 @@ const OCCASIONS = {
   '12-29': [{ t: 'روز ملی شدن صنعت نفت', d: 'سالروز ملی شدن صنعت نفت ایران در ۲۹ اسفند ۱۳۲۹ به رهبری دکتر مصدق.' }]
 };
 
+/* مناسبت‌های قمری (کلید: ماه-روز قمری) */
+const HIJRI_OCCASIONS = {
+  '1-9': [{ t: 'تاسوعای حسینی', h: true, d: 'نهم محرم؛ روز بزرگداشت حضرت ابوالفضل العباس و یاران امام حسین (ع).' }],
+  '1-10': [{ t: 'عاشورای حسینی', h: true, d: 'دهم محرم؛ سالروز شهادت امام حسین (ع) و یارانشان در کربلا.' }],
+  '1-12': [{ t: 'شهادت امام سجاد (ع)', d: 'دوازدهم محرم؛ سالروز شهادت امام زین‌العابدین (ع).' }],
+  '3-12': [{ t: 'ولادت پیامبر (ص)', d: 'دوازدهم ربیع‌الاول؛ سالروز ولادت حضرت محمد (ص) و امام جعفر صادق (ع) در روایتی.' }],
+  '3-17': [{ t: 'ولادت امام جعفر صادق (ع)', d: 'هفدهم ربیع‌الاول؛ سالروز ولادت امام جعفر صادق (ع).' }],
+  '6-3': [{ t: 'شهادت حضرت فاطمه (س)', d: 'سوم جمادی‌الثانی؛ سالروز شهادت حضرت فاطمه زهرا (س) در روایتی.' }],
+  '7-13': [{ t: 'ولادت امام علی (ع)', d: 'سیزدهم رجب؛ سالروز ولادت امام علی (ع) در کعبه.' }],
+  '7-27': [{ t: 'مبعث پیامبر (ص)', h: true, d: 'بیست‌وهفتم رجب؛ سالروز بعثت حضرت محمد (ص).' }],
+  '8-15': [{ t: 'ولادت امام مهدی (عج)', d: 'پانزدهم شعبان؛ سالروز ولادت حضرت مهدی (عج).' }],
+  '9-1': [{ t: 'عید سعید فطر', h: true, d: 'اول شوال؛ پایان ماه رمضان و عید فطر.' }],
+  '10-25': [{ t: 'شهادت امام جعفر صادق (ع)', h: true, d: 'بیست‌وپنجم شوال؛ سالروز شهادت امام جعفر صادق (ع).' }],
+  '12-10': [{ t: 'عید سعید قربان', h: true, d: 'دهم ذی‌الحجه؛ عید قربان و روز حج.' }],
+  '12-18': [{ t: 'عید غدیر خم', h: true, d: 'هجدهم ذی‌الحجه؛ سالروز واقعهٔ غدیر خم.' }]
+};
+
+let FMT_HMD = null;
+try {
+  FMT_HMD = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', { month: 'numeric', day: 'numeric' });
+} catch (e) { /* */ }
+
+function hijriParts(jdn) {
+  if (!FMT_HMD) return null;
+  try {
+    const parts = FMT_HMD.formatToParts(toDate(jdn));
+    let m = 0, d = 0;
+    for (const p of parts) {
+      if (p.type === 'month') m = parseInt(p.value, 10);
+      if (p.type === 'day') d = parseInt(p.value, 10);
+    }
+    return { m: m, d: d };
+  } catch (e) { return null; }
+}
+
+function hijriOcc(jdn) {
+  const p = hijriParts(jdn);
+  if (!p) return [];
+  return HIJRI_OCCASIONS[p.m + '-' + p.d] || [];
+}
+
+function allOcc(jdn) {
+  const j = d2j(jdn);
+  return occList(j.jm, j.jd).concat(hijriOcc(jdn));
+}
+
 /* مناسبت‌های رسمی و تکمیلی (h = تعطیل رسمی) */
 Object.assign(OCCASIONS, {
   '1-1': [{ t: 'نوروز', h: true, d: 'آغاز سال نو خورشیدی؛ بزرگ‌ترین جشن ملی ایرانیان با سفرهٔ هفت‌سین و دیدوبازدید.' }],
@@ -925,15 +973,31 @@ function buildDateCard() {
   row.append(right, circle, left);
   card.appendChild(row);
 
-  const occs = occList(j.jm, j.jd).slice(0, 2);
+  const occs = allOcc(jdn).slice(0, 2);
   if (occs.length) {
     const wrap = el('div', 'dc-occ-wrap');
     for (const o of occs) {
-      const chip = el('div', 'dc-occ' + (o.h ? ' hol' : ''), o.t);
+      const chip = el('div', 'dc-occ' + (o.h ? ' hol' : '') + (occs.length === 1 ? ' big' : ''), o.t);
       chip.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(jdn); });
       wrap.appendChild(chip);
     }
     card.appendChild(wrap);
+  }
+
+  // یادآور نزدیک (تا یک هفته) با رنگ فوریت
+  const rems = (S.d.reminders || [])
+    .map(r => ({ r: r, d: jdnOf(r) - effToday() }))
+    .filter(x => x.d >= 0 && x.d <= 7)
+    .sort((a, b) => a.d - b.d);
+
+  if (rems.length) {
+    const x = rems[0];
+    const u = x.d <= 1 ? 'u-red' : x.d <= 3 ? 'u-yellow' : 'u-orange';
+    const chip = el('div', 'dc-occ rem ' + u, '⏰ ' + x.r.title + (x.d === 0 ? ' امروز' : ' · ' + fa(x.d) + ' روز'));
+    chip.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(jdnOf(x.r)); });
+    const w = el('div', 'dc-occ-wrap');
+    w.appendChild(chip);
+    card.appendChild(w);
   }
 
   const idx = weekIndex(jdn);
@@ -1027,7 +1091,7 @@ function renderCal() {
     b.className = 'cal-cell';
 
     const isFri = weekIndex(jdn) === 6;
-    const isHol = isFri || occList(jj.jm, jj.jd).some(o => o.h);
+    const isHol = isFri || allOcc(jdn).some(o => o.h);
     if (isHol) b.classList.add('hol');
     if (jdn === todayJ) b.classList.add('today');
     if (jdn === calSel) b.classList.add('sel');
@@ -1076,7 +1140,7 @@ function renderDateInfo() {
   const box = $('dateInfo');
   box.textContent = '';
 
-  const list = occList(j.jm, j.jd);
+  const list = allOcc(calSel);
   box.classList.toggle('hidden', list.length === 0);
 
   for (const o of list) {
@@ -2931,14 +2995,14 @@ function shiftCalMonth(dir) {
   renderCal();
 }
 
-function spinRings(dir) {
-  const box = $('rings');
-  if (!box) return;
-  const cls = dir > 0 ? 'spin-r' : 'spin-l';
-  box.classList.remove('spin-r', 'spin-l');
-  void box.offsetWidth;
-  box.classList.add(cls);
-  setTimeout(() => box.classList.remove(cls), 600);
+function spinRings(dir, node) {
+  const el2 = node || $('rings');
+  if (!el2) return;
+  const cls = dir > 0 ? 'cyl-r' : 'cyl-l';
+  el2.classList.remove('cyl-r', 'cyl-l');
+  void el2.offsetWidth;
+  el2.classList.add(cls);
+  setTimeout(() => el2.classList.remove(cls), 700);
 }
 
 function handleSwipe(dir, target) {
@@ -2953,14 +3017,22 @@ function handleSwipe(dir, target) {
   }
 
   if (S.tab === 'home') {
-    if (target.closest('.rings')) { spinRings(dir); return; }
-    if (target.closest('.datecard') || target.closest('.dc-week')) {
+    const rings = target.closest('.rings');
+    if (rings) { spinRings(dir, rings); return; }
+
+    const card = target.closest('.datecard');
+    if (card) {
+      spinRings(dir, card);
       const j = d2j(effToday());
-      openDateDlg(jdnOf(addMonths(j.jy, j.jm, j.jd, dir)));
+      const target2 = jdnOf(addMonths(j.jy, j.jm, j.jd, dir));
+      setTimeout(() => openDateDlg(target2), 260);
       return;
     }
-    if (target.closest('.grid2')) {
-      openSide(dir > 0 ? 'p' : 'r', false);
+
+    const grid = target.closest('.grid2');
+    if (grid) {
+      spinRings(dir, grid);
+      setTimeout(() => openSide(dir > 0 ? 'p' : 'r', false), 260);
     }
   }
 }
@@ -2979,7 +3051,7 @@ document.addEventListener('touchend', ev => {
   const target = swipeStart.target;
   swipeStart = null;
   if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-  handleSwipe(dx < 0 ? 1 : -1, target);
+  handleSwipe(dx > 0 ? 1 : -1, target);
 }, { passive: true });
 
 /* ---------- ۱۵) شروع ---------- */
