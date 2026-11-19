@@ -126,6 +126,16 @@ public class MainActivity extends Activity {
         setContentView(web);
         web.loadUrl("file:///android_asset/index.html");
 
+        // اجازهٔ اعلان در اندروید ۱۳ و بالاتر
+        if (Build.VERSION.SDK_INT >= 33) {
+            try {
+                if (checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                        != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 7801);
+                }
+            } catch (Exception ignored) { }
+        }
+
         askNotificationPermission();
     }
 
@@ -135,6 +145,19 @@ public class MainActivity extends Activity {
                 requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, REQ_NOTIF);
             }
         }
+    }
+
+    /** اجرای کد JS از رشتهٔ بومی */
+    private void runJs(String code) {
+        runOnUiThread(() -> {
+            try {
+                if (web != null) web.evaluateJavascript(code, null);
+            } catch (Exception ignored) { }
+        });
+    }
+
+    private void failBiometric() {
+        runJs("window.onBiometricFail && window.onBiometricFail()");
     }
 
     /** پل جاوااسکریپت ← اندروید */
@@ -172,6 +195,86 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void exitApp() {
             runOnUiThread(() -> MainActivity.this.finish());
+        }
+
+        /** خواندن QR از تصویر (Base64) و برگرداندن متن */
+        @JavascriptInterface
+        public String decodeQrBase64(String b64) {
+            try {
+                byte[] bytes = android.util.Base64.decode(b64, android.util.Base64.DEFAULT);
+                android.graphics.Bitmap bmp =
+                        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                if (bmp == null) return "";
+
+                int w = bmp.getWidth();
+                int h = bmp.getHeight();
+                int[] px = new int[w * h];
+                bmp.getPixels(px, 0, w, 0, 0, w, h);
+
+                com.google.zxing.LuminanceSource src =
+                        new com.google.zxing.RGBLuminanceSource(w, h, px);
+                com.google.zxing.BinaryBitmap bb =
+                        new com.google.zxing.BinaryBitmap(new com.google.zxing.common.HybridBinarizer(src));
+
+                com.google.zxing.Result r = new com.google.zxing.MultiFormatReader().decode(bb);
+                return r != null ? r.getText() : "";
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
+        /** آیا گوشی اثر انگشت/چهره دارد و قفل صفحه فعال است؟ */
+        @JavascriptInterface
+        public boolean hasBiometric() {
+            if (Build.VERSION.SDK_INT < 28) return false;
+            try {
+                PackageManager pm = getPackageManager();
+                boolean hw = pm.hasSystemFeature("android.hardware.fingerprint")
+                        || pm.hasSystemFeature("android.hardware.face")
+                        || pm.hasSystemFeature("android.hardware.iris");
+                if (!hw) return false;
+
+                android.app.KeyguardManager km =
+                        (android.app.KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+                return km != null && km.isDeviceSecure();
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        /** نمایش پنجرهٔ اثر انگشت؛ در صورت موفقیت onBiometricOk در JS صدا زده می‌شود */
+        @JavascriptInterface
+        public void askBiometric() {
+            if (Build.VERSION.SDK_INT < 28) { failBiometric(); return; }
+
+            runOnUiThread(() -> {
+                try {
+                    java.util.concurrent.Executor ex = getMainExecutor();
+
+                    android.hardware.biometrics.BiometricPrompt prompt =
+                            new android.hardware.biometrics.BiometricPrompt.Builder(MainActivity.this)
+                                    .setTitle("ورود به MyC")
+                                    .setSubtitle("انگشت را روی حسگر بگذار")
+                                    .setNegativeButton("انصراف", ex, (d, w) -> { })
+                                    .build();
+
+                    prompt.authenticate(new android.os.CancellationSignal(), ex,
+                            new android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                                @Override
+                                public void onAuthenticationSucceeded(
+                                        android.hardware.biometrics.BiometricPrompt.AuthenticationResult result) {
+                                    runJs("window.onBiometricOk && window.onBiometricOk()");
+                                }
+
+                                @Override
+                                public void onAuthenticationFailed() {
+                                    runJs("window.onBiometricFail && window.onBiometricFail()");
+                                }
+                            });
+                } catch (Exception e) {
+                    failBiometric();
+                }
+            });
         }
 
         @JavascriptInterface

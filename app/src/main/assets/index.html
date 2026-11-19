@@ -22,13 +22,24 @@
 
 <!-- ================= قفل ================= -->
 <div class="lock hide" id="lock">
-  <div class="badge">M</div>
+  <div class="badge"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M17 45V21l15 15 15-15v24" fill="none" stroke="#fff" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="21" y="51" width="22" height="3.2" rx="1.6" fill="#fff" opacity=".92"/></svg></div>
   <h2 id="lockTitle">رمز ورود را وارد کن</h2>
   <p id="lockSub">رمز ۶ رقمی</p>
   <div class="dots" id="dots"></div>
+  <button type="button" class="fp-btn hidden" id="fpBtn" aria-label="ورود با اثر انگشت">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4c-3.3 0-6 2.7-6 6v3"/><path d="M18 13v-3c0-1.1-.3-2.1-.8-3"/><path d="M9 13v-3a3 3 0 0 1 5.1-2.1"/><path d="M15 13c0 2.8-.6 5.4-1.7 7.7"/><path d="M9 17c.3 1.4.8 2.7 1.4 3.9"/><path d="M12 10v4c0 2.2-.4 4.3-1.1 6.2"/><path d="M5.5 17.5c.5 1.6 1.2 3 2 4.3"/></svg>
+    <span>ورود با اثر انگشت</span>
+  </button>
   <div class="pad-grid" id="pad"></div>
   <div class="err" id="lockErr"></div>
   <button class="btn ghost" id="forgotBtn" style="font-size:12px">فراموشی رمز</button>
+
+  <div class="lock-foot">
+    <span class="lock-mini">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M17 45V21l15 15 15-15v24" fill="none" stroke="#fff" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="21" y="51" width="22" height="3.2" rx="1.6" fill="#fff" opacity=".92"/></svg>
+    </span>
+    <span class="lock-credit">Developed by Ali Dadman</span>
+  </div>
 </div>
 
 <!-- ================= اپ ================= -->
@@ -145,6 +156,10 @@
       <input id="lCount" type="number" min="1" max="360" value="12" inputmode="numeric" required>
     </label>
     <fieldset><legend>تاریخ اولین قسط</legend><div class="drow" id="dpLoan"></div></fieldset>
+    <label class="hidden" id="lPaidWrap">اقساطی که تا امروز پرداخت کرده‌ای (برای ادامهٔ وام در جریان)
+      <input id="lPaid" type="number" min="0" max="359" value="0" inputmode="numeric">
+      <span class="hint">اگر وام قبلاً شروع شده، تعداد اقساط پرداخت‌شده را بنویس تا از قسط بعدی ادامه دهد.</span>
+    </label>
     <label>توضیح (اختیاری)
       <input id="lNote" type="text" maxlength="100" placeholder="مثلاً بانک ملت">
     </label>
@@ -188,6 +203,8 @@
       <span class="hint" id="cAmountHint"></span>
     </label>
     <fieldset><legend>تاریخ سررسید چک</legend><div class="drow" id="dpChq"></div></fieldset>
+    <button type="button" class="btn block" id="qrBtn" style="margin:2px 0 8px">📷 خواندن اطلاعات چک از QR</button>
+    <input type="file" id="qrFile" accept="image/*" class="hidden">
     <label>نام طرف حساب
       <input id="cParty" type="text" maxlength="60" required placeholder="نام صاحب چک / در وجه">
     </label>
@@ -259,6 +276,15 @@
 
 <div class="ring-overlay hidden" id="ringOverlay"></div>
 
+<dialog id="occDlg">
+  <form method="dialog">
+    <h2 id="occTitle">مناسبت</h2>
+    <p id="occBody" style="font-size:13px;line-height:2;text-align:justify"></p>
+    <div id="occHadith" class="card pad" style="font-size:12.5px;line-height:2;margin-top:10px"></div>
+    <div class="dact"><button type="button" class="primary" id="occOk">فهمیدم</button></div>
+  </form>
+</dialog>
+
 <dialog id="remDlg">
   <form id="remFrm">
     <h2 id="remTitleH">یادآور جدید</h2>
@@ -328,6 +354,7 @@
       <button type="button" class="btn" id="importBtn" style="flex:1">بازیابی</button>
     </div>
     <label class="chk"><input type="checkbox" id="soundChk"> اعلان با صدا</label>
+    <label class="chk hidden" id="bioRow"><input type="checkbox" id="bioChk"> ورود با اثر انگشت</label>
     <div>
       <div class="k" style="display:flex;justify-content:space-between">
         <span>اندازهٔ فونت</span>
@@ -512,11 +539,14 @@
     <button class="tl" data-tool="ellipse" aria-label="دایره">◯</button>
     <button class="tl" id="edFill" aria-label="پرکردن">◧</button>
 
-    <button class="sw on" data-color="#111827" style="background:#111827" aria-label="مشکی"></button>
+    <button class="sw" id="edColorBtn" aria-label="رنگ دلخواه" style="background:conic-gradient(#ef4444,#eab308,#22c55e,#3b82f6,#a855f7,#ef4444);position:relative;overflow:hidden">
+      <input type="color" id="edCustomColor" value="#111827" style="position:absolute;inset:0;opacity:0;width:100%;height:100%;border:0">
+    </button>
     <button class="sw" data-color="#2563eb" style="background:#2563eb" aria-label="آبی"></button>
     <button class="sw" data-color="#dc2626" style="background:#dc2626" aria-label="قرمز"></button>
     <button class="sw" data-color="#16a34a" style="background:#16a34a" aria-label="سبز"></button>
     <button class="sw" data-color="#d97706" style="background:#d97706" aria-label="نارنجی"></button>
+    <button class="sw" data-color="#111827" style="background:#111827" aria-label="مشکی"></button>
 
     <button class="tl" data-width="2">نازک</button>
     <button class="tl on" data-width="4">متوسط</button>
@@ -583,3 +613,4 @@
 <script src="app.js"></script>
 </body>
 </html>
+

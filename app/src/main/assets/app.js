@@ -142,6 +142,7 @@ const LEGACY1 = 'aqsat_v1';
 const DEFAULT_SETTINGS = {
   pinHash: '', masterHash: hash('563570'),
   sound: true, chqDays: 1, genDays: 3, theme: 'system', fontScale: 5, requirePin: true,
+  biometric: true,
   fails: 0, lockUntil: 0, lastBackup: null
 };
 
@@ -352,6 +353,12 @@ function drawDots() {
   }
 }
 
+function biometricAvailable() {
+  try {
+    return !!(window.AndroidAqsat && AndroidAqsat.hasBiometric && AndroidAqsat.hasBiometric());
+  } catch (e) { return false; }
+}
+
 function startLock(mode) {
   lockMode = mode;
   buf = '';
@@ -362,12 +369,36 @@ function startLock(mode) {
         : 'رمز ۶ رقمی';
   $('lockSub').textContent = sub;
   $('forgotBtn').classList.toggle('hidden', mode !== 'unlock');
+
+  const fp = $('fpBtn');
+  const canFp = mode === 'unlock' && S.d.settings.biometric !== false && biometricAvailable();
+  fp.classList.toggle('hidden', !canFp);
+
   lockErr.textContent = '';
   drawDots();
   lockEl.classList.remove('hide');
   $('app').classList.add('hidden');
   checkLockTimer();
 }
+
+$('fpBtn').addEventListener('click', () => {
+  if (!biometricAvailable()) { lockErr.textContent = 'این گوشی اثر انگشت ندارد'; return; }
+  try { AndroidAqsat.askBiometric(); } catch (e) { lockErr.textContent = 'اثر انگشت باز نشد'; }
+});
+
+window.onBiometricOk = function () {
+  if (lockMode !== 'unlock') return;
+  buf = '';
+  S.d.settings.fails = 0;
+  save();
+  endLock();
+  toast('خوش آمدی');
+};
+
+window.onBiometricFail = function () {
+  if (lockMode !== 'unlock') return;
+  lockErr.textContent = 'اثر انگشت شناسایی نشد';
+};
 
 function endLock() {
   lockEl.classList.add('hide');
@@ -572,6 +603,21 @@ function bucketOf(days) {
   return null;
 }
 
+function openOcc(o) {
+  $('occTitle').textContent = o.t;
+  $('occBody').textContent = o.d || 'توضیحی برای این مناسبت ثبت نشده است.';
+  const box = $('occHadith');
+  if (o.hadith) {
+    box.classList.remove('hidden');
+    box.textContent = o.hadith;
+  } else {
+    box.classList.add('hidden');
+  }
+  $('occDlg').showModal();
+}
+
+$('occOk').addEventListener('click', () => $('occDlg').close());
+
 /* ---------- یادآورهای تقویم ---------- */
 let remEditId = null;
 
@@ -668,6 +714,78 @@ $('remDelete').addEventListener('click', () => {
   scheduleNotifications();
   toast('حذف شد');
 });
+
+function markSeen(x) {
+  if (!x) return;
+  const base = baseIdOf(x);
+  S.d.settings.notifSeen = S.d.settings.notifSeen || {};
+  for (const s of NOTIF_SLOTS) {
+    S.d.settings.notifSeen[base + '-d' + s.d + '-h' + s.h] = 1;
+    S.d.settings.notifSeen[base + '-day'] = 1;
+    S.d.settings.notifSeen[base + '-lead'] = 1;
+  }
+  save();
+  scheduleNotifications();
+}
+
+/* ---------- خواندن اطلاعات چک از QR ---------- */
+function applyQrText(txt) {
+  const t = (txt || '').trim();
+  if (!t) { toast('QR خوانده نشد؛ عکس واضح‌تری بگیر'); return; }
+
+  let obj = null;
+  try { obj = JSON.parse(t); } catch (e) { obj = null; }
+
+  const set = (id, v) => { if (v !== undefined && v !== null && String(v) !== '') $(id).value = String(v); };
+
+  if (obj && typeof obj === 'object') {
+    set('cParty', obj.party || obj.name || obj.owner || obj.در_وجه || obj.طرف_حساب);
+    set('cNumber', obj.number || obj.no || obj.serial || obj.شماره);
+    set('cBank', obj.bank || obj.بانک);
+    set('cNid', obj.nid || obj.nationalId || obj.کد_ملی);
+    set('cReason', obj.reason || obj.بابت);
+    const amt = obj.amount || obj.value || obj.مبلغ;
+    if (amt) {
+      const n = Number(String(amt).replace(/[^\d]/g, ''));
+      if (n > 0) { $('cAmount').value = String(n); $('cAmountHint').textContent = money(n); }
+    }
+    toast('اطلاعات چک از QR خوانده شد');
+    return;
+  }
+
+  if (/^\d{5,20}$/.test(t)) {
+    set('cNumber', t);
+    toast('شمارهٔ چک از QR خوانده شد');
+    return;
+  }
+
+  set('cParty', t.slice(0, 60));
+  toast('متن QR در نام طرف حساب گذاشته شد');
+}
+
+function onQrFile(ev) {
+  const f = ev.target.files && ev.target.files[0];
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      const b64 = String(fr.result).split(',')[1] || '';
+      if (!window.AndroidAqsat || !AndroidAqsat.decodeQrBase64) {
+        toast('خواندن QR فقط در نسخهٔ نصبی کار می‌کند');
+        return;
+      }
+      const txt = AndroidAqsat.decodeQrBase64(b64);
+      applyQrText(txt);
+    } catch (e) {
+      toast('خطا در خواندن تصویر');
+    }
+  };
+  fr.readAsDataURL(f);
+  ev.target.value = '';
+}
+
+$('qrBtn').addEventListener('click', () => $('qrFile').click());
+$('qrFile').addEventListener('change', onQrFile);
 
 /* ---------- گزارش طلب / بدهی ---------- */
 let sideExpanded = false, sideKind = 'r';
@@ -864,6 +982,19 @@ const HIJRI_OCCASIONS = {
   '12-24': [{ t: 'مباهله', d: 'بیست‌وچهارم ذی‌الحجه؛ سالروز واقعهٔ مباهله پیامبر (ص) با مسیحیان نجران.' }]
 };
 
+/* حدیث کوتاه برای مناسبت‌های ولادت و شهادت */
+const HADITHS = {
+  '1-10': 'امام حسین (ع): «اگر دین ندارید، لااقل آزاده باشید.»',
+  '6-3': 'پیامبر (ص): «فاطمه پارهٔ تن من است؛ هر که او را بیازارد، مرا آزرده است.»',
+  '9-1': 'امام علی (ع): «عید کسی است که خداوند طاعتش را بپذیرد.»',
+  '12-18': 'پیامبر (ص): «هر که من مولای او هستم، علی مولای اوست.»',
+  '7-27': 'خداوند: «اقرأ باسم ربک الذی خلق» — آغاز بعثت پیامبر (ص).'
+};
+
+for (const k in HADITHS) {
+  if (HIJRI_OCCASIONS[k] && HIJRI_OCCASIONS[k][0]) HIJRI_OCCASIONS[k][0].hadith = HADITHS[k];
+}
+
 let FMT_HMD = null;
 try {
   FMT_HMD = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', { month: 'numeric', day: 'numeric' });
@@ -964,8 +1095,7 @@ function buildDateCard() {
 
   const right = el('div', 'dc-right');
   right.appendChild(el('div', 'dc-month', MONTHS[j.jm - 1]));
-  const gm = el('div', 'dc-gmonth', G_MONTHS[g.gm - 1] + ' ' + g.gy);
-  right.appendChild(gm);
+  right.appendChild(el('div', 'dc-gmonth', G_MONTHS[g.gm - 1] + ' ' + g.gy));
 
   const circle = el('div', 'dc-circle');
   circle.innerHTML = DECOR[season] +
@@ -986,7 +1116,7 @@ function buildDateCard() {
     const wrap = el('div', 'dc-occ-wrap');
     for (const o of occs) {
       const chip = el('div', 'dc-occ' + (o.h ? ' hol' : '') + (occs.length === 1 ? ' big' : ''), o.t);
-      chip.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(jdn); });
+      chip.addEventListener('click', ev => { ev.stopPropagation(); openOcc(o); });
       wrap.appendChild(chip);
     }
     card.appendChild(wrap);
@@ -1172,6 +1302,24 @@ function renderCal() {
       renderCal();
       renderDateInfo();
     });
+
+    // نگه‌داشتن انگشت روی روز = ثبت یادآوری سریع
+    let lp = null;
+    const cancelLp = () => { if (lp) { clearTimeout(lp); lp = null; } };
+    b.addEventListener('pointerdown', () => {
+      cancelLp();
+      lp = setTimeout(() => {
+        lp = null;
+        calSel = jdn;
+        renderCal();
+        renderDateInfo();
+        openRem(null);
+      }, 550);
+    });
+    b.addEventListener('pointerup', cancelLp);
+    b.addEventListener('pointerleave', cancelLp);
+    b.addEventListener('pointercancel', cancelLp);
+
     grid.appendChild(b);
   }
 
@@ -1390,6 +1538,7 @@ function dueRow(x) {
   row.append(ico, main, amt);
   row.addEventListener('click', () => {
     closeRing();
+    markSeen(x);
     if (x.kind === 'loan') { S.tab = 'obl'; S.oblTab = 'loans'; S.detailLoan = x.loan.id; render(); }
     else if (x.kind === 'cheque') { S.tab = 'obl'; S.oblTab = 'cheques'; render(); openCheque(x.cheque); }
     else { S.tab = 'obl'; S.oblTab = 'accounts'; render(); openAccount(x.account); }
@@ -2022,6 +2171,8 @@ function openLoan(loan) {
   $('lAmountHint').textContent = loan ? money(loan.defaultAmount) : '';
   const first = loan && loan.installments.length ? loan.installments[0] : todayJalali();
   setDP($('dpLoan'), first);
+  $('lPaidWrap').classList.toggle('hidden', !!loan);
+  $('lPaid').value = '0';
   $('loanDlg').showModal();
 }
 
@@ -2068,13 +2219,19 @@ $('loanFrm').addEventListener('submit', ev => {
   }
 
   const installments = [];
+  const paidCount = S.editLoan ? 0 : clamp(parseInt($('lPaid').value, 10) || 0, 0, count - 1);
   for (let i = 0; i < count; i++) {
     const d = addMonths(start.jy, start.jm, start.jd, i);
-    installments.push({ id: uid(), amount: amount, jy: d.jy, jm: d.jm, jd: d.jd, paid: false, custom: false });
+    installments.push({
+      id: uid(), amount: amount, jy: d.jy, jm: d.jm, jd: d.jd,
+      paid: i < paidCount, custom: false
+    });
   }
   S.d.loans.push(normalizeLoan({ id: uid(), title: title, note: note, defaultAmount: amount, installments: installments }));
   save(); $('loanDlg').close(); S.oblTab = 'loans'; render();
-  toast(fa(count) + ' قسط ساخته شد');
+  toast(paidCount
+    ? 'وام ثبت شد؛ ' + fa(paidCount) + ' قسط پرداخت‌شده و ' + fa(count - paidCount) + ' قسط باقی‌مانده'
+    : fa(count) + ' قسط ساخته شد');
 });
 
 $('loanCancel').addEventListener('click', () => $('loanDlg').close());
@@ -2422,6 +2579,10 @@ function setThemeSeg(value) {
 function openSettings() {
   const st = S.d.settings;
   $('soundChk').checked = st.sound !== false;
+
+  const bio = biometricAvailable();
+  $('bioRow').classList.toggle('hidden', !bio);
+  $('bioChk').checked = st.biometric !== false;
   $('chqDays').value = String(st.chqDays);
   $('genDays').value = String(st.genDays);
   setThemeSeg(st.theme || 'system');
@@ -2451,8 +2612,13 @@ $('fsRange').addEventListener('input', () => {
 });
 
 $('soundChk').addEventListener('change', () => {
-  S.d.settings.sound = $('soundChk').checked;
-  save(); scheduleNotifications();
+  S.d.settings.sound = $('soundChk').checked;  save(); scheduleNotifications();
+});
+
+$('bioChk').addEventListener('change', () => {
+  S.d.settings.biometric = $('bioChk').checked;
+  save();
+  toast($('bioChk').checked ? 'ورود با اثر انگشت روشن شد' : 'ورود با اثر انگشت خاموش شد');
 });
 
 $('chqDays').addEventListener('change', () => {
@@ -3028,6 +3194,13 @@ $('edRedo').addEventListener('click', () => {
   if (s) { currentStrokes().push(s); edRender(); }
 });
 
+$('edCustomColor').addEventListener('input', ev => {
+  ED.color = ev.target.value;
+  for (const b of document.querySelectorAll('.ed-tools .sw')) b.classList.remove('on');
+  $('edColorBtn').classList.add('on');
+  setTool('pen');
+});
+
 $('edFill').addEventListener('click', () => {
   ED.fill = !ED.fill;
   $('edFill').classList.toggle('on', ED.fill);
@@ -3089,35 +3262,6 @@ $('remindClear').addEventListener('click', () => {
 });
 
 /* ---------- ۱۴) اعلان‌ها ---------- */
-function upcomingReminders() {
-  const out = [];
-  const t = todayJdn();
-  for (const x of dueItems()) {
-    if (x.days < 0) continue;
-    if (x.days > 30) continue;
-
-    const leadDays = x.kind === 'cheque' && x.cheque.kind === 'out'
-      ? (S.d.settings.chqDays || 0)
-      : (S.d.settings.genDays || 0);
-
-    if (leadDays > 0 && x.days >= leadDays) {
-      out.push({
-        id: x.kind + '-' + (x.loan || x.cheque || x.account).id + '-lead',
-        title: 'یادآوری ' + x.label,
-        body: (x.kind === 'loan' ? x.loan.title : x.kind === 'cheque' ? x.cheque.party : x.account.name) + ' — ' + money(x.amount),
-        at: reminderTime(x.date, leadDays)
-      });
-    }
-    out.push({
-      id: x.kind + '-' + (x.loan || x.cheque || x.account).id + '-day',
-      title: 'سررسید امروز',
-      body: (x.kind === 'loan' ? x.loan.title : x.kind === 'cheque' ? x.cheque.party : x.account.name) + ' — ' + money(x.amount),
-      at: reminderTime(x.date, 0)
-    });
-  }
-  return out.filter(r => r.at > Date.now());
-}
-
 function noteReminders() {
   const out = [];
   for (const n of S.d.notes || []) {
@@ -3136,6 +3280,59 @@ function reminderTime(date, daysBefore) {
   const jdn = jdnOf(date) - daysBefore;
   const g = d2g(jdn);
   return new Date(g.gy, g.gm - 1, g.gd, 9, 0, 0).getTime();
+}
+
+/* زمان دقیق یک نوبت اعلان در ساعت مشخص */
+function slotTime(date, daysBefore, hour) {
+  const jdn = jdnOf(date) - daysBefore;
+  const g = d2g(jdn);
+  return new Date(g.gy, g.gm - 1, g.gd, hour, 0, 0).getTime();
+}
+
+/* نوبت‌های اعلان: دو روز قبل ۱۱ و ۱۸، روز قبل ۹ و ۱۱ و ۱۵ و ۱۸، روز موعد ۹ */
+const NOTIF_SLOTS = [
+  { d: 2, h: 11 }, { d: 2, h: 18 },
+  { d: 1, h: 9 }, { d: 1, h: 11 }, { d: 1, h: 15 }, { d: 1, h: 18 },
+  { d: 0, h: 9 }
+];
+
+function baseIdOf(x) {
+  return x.kind + '-' + (x.loan || x.cheque || x.account).id;
+}
+
+function nameOf(x) {
+  return x.kind === 'loan' ? x.loan.title : x.kind === 'cheque' ? x.cheque.party : x.account.name;
+}
+
+function upcomingReminders() {
+  const out = [];
+  const seen = S.d.settings.notifSeen || {};
+
+  for (const x of dueItems()) {
+    if (x.days < 0) continue;
+    if (x.days > 14) continue;
+
+    const base = baseIdOf(x);
+    const name = nameOf(x);
+    const when = dateLabel(x.date);
+
+    for (const s of NOTIF_SLOTS) {
+      const id = base + '-d' + s.d + '-h' + s.h;
+      if (seen[id]) continue;
+
+      const at = slotTime(x.date, s.d, s.h);
+      if (at <= Date.now()) continue;
+
+      const prefix = s.d === 0 ? 'سررسید امروز' : s.d === 1 ? 'فردا سررسید' : 'دو روز تا سررسید';
+      out.push({
+        id: id,
+        title: prefix + ' — ' + x.label,
+        body: name + ' · ' + money(x.amount) + ' · ' + when,
+        at: at
+      });
+    }
+  }
+  return out;
 }
 
 function scheduleNotifications() {
@@ -3213,13 +3410,7 @@ function handleSwipe(dir, target) {
     if (rings) { spinRings(dir, rings); return; }
 
     const card = target.closest('.datecard');
-    if (card) {
-      spinRings(dir, card);
-      const j = d2j(effToday());
-      const target2 = jdnOf(addMonths(j.jy, j.jm, j.jd, dir));
-      setTimeout(() => openDateDlg(target2), 260);
-      return;
-    }
+    if (card) { spinRings(dir, card); return; }
 
     const grid = target.closest('.grid2');
     if (grid) {
