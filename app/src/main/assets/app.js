@@ -405,6 +405,11 @@ function endLock() {
   $('app').classList.remove('hidden');
   if (lockTimer) { clearInterval(lockTimer); lockTimer = null; }
   render();
+
+  if (pendingResetAsk) {
+    pendingResetAsk = false;
+    setTimeout(askResetData, 500);
+  }
 }
 
 function shakeLock() {
@@ -784,8 +789,113 @@ function onQrFile(ev) {
   ev.target.value = '';
 }
 
-$('qrBtn').addEventListener('click', () => $('qrFile').click());
+$('qrBtn').addEventListener('click', () => {
+  try {
+    if (window.AndroidAqsat && AndroidAqsat.scanQr) { AndroidAqsat.scanQr(); return; }
+  } catch (e) { /* */ }
+  $('qrFile').click();
+});
+
+$('qrGal').addEventListener('click', () => $('qrFile').click());
+
+window.onQrResult = function (text) {
+  applyQrText(text || '');
+};
+
 $('qrFile').addEventListener('change', onQrFile);
+
+/* ---------- بررسی نسخه و تصمیم دربارهٔ دادهٔ قبلی ---------- */
+const APP_VER = 9;
+let pendingResetAsk = false;
+
+function backupToDocs() {
+  const stamp = new Date().toISOString().slice(0, 10);
+  const json = JSON.stringify({ v: 3, app: 'MyC', savedAt: new Date().toISOString(), data: S.d }, null, 1);
+  try {
+    if (window.AndroidAqsat && AndroidAqsat.saveDocs) {
+      return AndroidAqsat.saveDocs('Back_Miaad-' + stamp + '.json', json);
+    }
+    if (window.AndroidAqsat && AndroidAqsat.saveFile) {
+      return AndroidAqsat.saveFile('Back_Miaad-' + stamp + '.json', json);
+    }
+  } catch (e) { /* */ }
+  return false;
+}
+
+function wipeAllData() {
+  const st = S.d.settings;
+  st.seenVersion = APP_VER;
+  S.d = {
+    v: 3, settings: st,
+    loans: [], cheques: [], accounts: [], tx: [], notes: [], reminders: []
+  };
+  S.tab = 'home';
+  save();
+  render();
+}
+
+let rstStep = 0, rstTimer = null;
+
+function askResetData() {
+  rstStep = 1;
+  $('rstTitle').textContent = 'داده‌های نسخهٔ قبل';
+  $('rstBody').textContent = 'داده‌های قبلی روی این گوشی وجود دارد. می‌خواهی بمانند یا پاک شوند؟';
+  $('rstYes').textContent = 'پاک شود';
+  $('rstNo').textContent = 'بماند';
+  $('rstNo').classList.remove('hidden');
+  $('resetDlg').showModal();
+}
+
+$('rstNo').addEventListener('click', () => {
+  if (rstStep === 3) {
+    clearTimeout(rstTimer);
+    S.d.settings.seenVersion = APP_VER;
+    save();
+    $('resetDlg').close();
+    toast('داده‌های قبلی حفظ شد');
+    return;
+  }
+  S.d.settings.seenVersion = APP_VER;
+  save();
+  $('resetDlg').close();
+  toast('داده‌ها حفظ شدند');
+});
+
+$('rstYes').addEventListener('click', () => {
+  if (rstStep === 0) return;
+  if (rstStep === 1) {
+    rstStep = 2;
+    $('rstTitle').textContent = 'تأیید پاک‌کردن';
+    $('rstBody').textContent = 'همهٔ اطلاعات قبلی (وام، چک، حساب، تراکنش، یادداشت و یادآورها) پاک می‌شود. مطمئنی؟';
+    $('rstYes').textContent = 'بله، پاک کن';
+    $('rstNo').textContent = 'خیر';
+    return;
+  }
+
+  if (rstStep === 2) {
+    rstStep = 3;
+    $('rstTitle').textContent = 'در حال پاک‌کردن…';
+    $('rstBody').textContent = 'داده‌های قبلی پاک می‌شوند.';
+    $('rstYes').textContent = 'واگرد داده‌های قبلی';
+    $('rstNo').classList.add('hidden');
+
+    clearTimeout(rstTimer);
+    rstTimer = setTimeout(() => {
+      const ok = backupToDocs();
+      wipeAllData();
+      $('resetDlg').close();
+      toast(ok ? 'داده‌ها پاک شد و نسخهٔ پشتیبان در Documents/Back_Miaad ذخیره شد' : 'داده‌ها پاک شدند');
+    }, 5000);
+    return;
+  }
+
+  // واگرد
+  clearTimeout(rstTimer);
+  S.d.settings.seenVersion = APP_VER;
+  save();
+  $('resetDlg').close();
+  toast('پاک‌کردن لغو شد — داده‌ها سر جایشان هستند');
+});
 
 /* ---------- گزارش طلب / بدهی ---------- */
 let sideExpanded = false, sideKind = 'r';
@@ -3445,6 +3555,17 @@ function boot() {
   buildPad();
   buildRings();
   renderLockIcon();
+
+  // نسخه‌بندی: پرسش دربارهٔ دادهٔ قبلی فقط پس از به‌روزرسانی
+  const anyData = ['loans', 'cheques', 'accounts', 'tx', 'notes', 'reminders']
+    .some(k => (S.d[k] || []).length > 0);
+
+  if (!S.d.settings.seenVersion) {
+    S.d.settings.seenVersion = APP_VER;
+    save();
+  } else if (S.d.settings.seenVersion !== APP_VER && anyData) {
+    pendingResetAsk = true;
+  }
 
   if (window.matchMedia) {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');

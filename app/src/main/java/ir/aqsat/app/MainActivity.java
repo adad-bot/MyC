@@ -36,6 +36,8 @@ public class MainActivity extends Activity {
 
     private static final int REQ_PICK_FILE = 1001;
     private static final int REQ_NOTIF = 1002;
+    private static final int REQ_QR = 1003;
+    private Uri qrUri = null;
     private static final int ALARM_BASE = 4100;
     private static final int ALARM_MAX = 60;
 
@@ -197,6 +199,61 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> MainActivity.this.finish());
         }
 
+        /** باز کردن دوربین برای اسکن QR */
+        @JavascriptInterface
+        public void scanQr() {
+            runOnUiThread(() -> {
+                try {
+                    ContentValues v = new ContentValues();
+                    v.put(MediaStore.Images.Media.DISPLAY_NAME, "myc_qr_" + System.currentTimeMillis() + ".jpg");
+                    v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                    qrUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+
+                    Intent i = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                    if (qrUri != null) {
+                        i.putExtra(MediaStore.EXTRA_OUTPUT, qrUri);
+                        i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    }
+                    startActivityForResult(i, REQ_QR);
+                } catch (Exception e) {
+                    try {
+                        startActivityForResult(new Intent(MediaStore.ACTION_IMAGE_CAPTURE), REQ_QR);
+                    } catch (Exception ignored) { }
+                }
+            });
+        }
+
+        /** ذخیرهٔ فایل در Documents/Back_Miaad */
+        @JavascriptInterface
+        public boolean saveDocs(String fileName, String content) {
+            OutputStream out = null;
+            try {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                values.put(MediaStore.MediaColumns.MIME_TYPE, "application/json");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    values.put(MediaStore.MediaColumns.RELATIVE_PATH,
+                            Environment.DIRECTORY_DOCUMENTS + "/Back_Miaad");
+                }
+
+                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) return false;
+
+                out = getContentResolver().openOutputStream(uri);
+                if (out == null) return false;
+
+                out.write(content.getBytes(StandardCharsets.UTF_8));
+                out.flush();
+                return true;
+            } catch (Exception e) {
+                return false;
+            } finally {
+                if (out != null) {
+                    try { out.close(); } catch (Exception ignored) { }
+                }
+            }
+        }
+
         /** خواندن QR از تصویر (Base64) و برگرداندن متن */
         @JavascriptInterface
         public String decodeQrBase64(String b64) {
@@ -342,7 +399,63 @@ public class MainActivity extends Activity {
             }
             return;
         }
+
+        if (requestCode == REQ_QR) {
+            String text = "";
+            if (resultCode == RESULT_OK) {
+                Uri uri = qrUri;
+                if (uri == null && data != null && data.getData() != null) uri = data.getData();
+                if (uri != null) text = decodeQrUri(uri);
+            }
+            if (qrUri != null) {
+                try { getContentResolver().delete(qrUri, null, null); } catch (Exception ignored) { }
+                qrUri = null;
+            }
+            try {
+                String js = "window.onQrResult && window.onQrResult(" + JSONObject.quote(text) + ")";
+                runJs(js);
+            } catch (Exception ignored) { }
+            return;
+        }
+
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private String decodeQrUri(Uri uri) {
+        try {
+            java.io.InputStream in = getContentResolver().openInputStream(uri);
+            if (in == null) return "";
+
+            android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;
+            android.graphics.BitmapFactory.decodeStream(in, null, opts);
+            in.close();
+
+            int scale = 1;
+            int maxSide = Math.max(opts.outWidth, opts.outHeight);
+            while (maxSide / scale > 1400) scale *= 2;
+
+            android.graphics.BitmapFactory.Options o2 = new android.graphics.BitmapFactory.Options();
+            o2.inSampleSize = scale;
+
+            in = getContentResolver().openInputStream(uri);
+            android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeStream(in, null, o2);
+            if (in != null) in.close();
+            if (bmp == null) return "";
+
+            int w = bmp.getWidth(), h = bmp.getHeight();
+            int[] px = new int[w * h];
+            bmp.getPixels(px, 0, w, 0, 0, w, h);
+
+            com.google.zxing.LuminanceSource src = new com.google.zxing.RGBLuminanceSource(w, h, px);
+            com.google.zxing.BinaryBitmap bb =
+                    new com.google.zxing.BinaryBitmap(new com.google.zxing.common.HybridBinarizer(src));
+
+            com.google.zxing.Result r = new com.google.zxing.MultiFormatReader().decode(bb);
+            return r != null ? r.getText() : "";
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     @Override

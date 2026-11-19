@@ -22,7 +22,7 @@
 
 <!-- ================= قفل ================= -->
 <div class="lock hide" id="lock">
-  <div class="badge"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M17 45V21l15 15 15-15v24" fill="none" stroke="#fff" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="21" y="51" width="22" height="3.2" rx="1.6" fill="#fff" opacity=".92"/></svg></div>
+  <div class="badge"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M17 45V21l15 15 15-15v24" fill="none" stroke="#fff" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="19" y="50" width="26" height="4.2" rx="2.1" fill="#fff"/></svg></div>
   <h2 id="lockTitle">رمز ورود را وارد کن</h2>
   <p id="lockSub">رمز ۶ رقمی</p>
   <div class="dots" id="dots"></div>
@@ -46,7 +46,7 @@
 <div class="app" id="app">
 
   <header class="topbar">
-    <button class="logo" id="aboutBtn" aria-label="دربارهٔ MyC">M</button>
+    <button class="logo" id="aboutBtn" aria-label="دربارهٔ MyC"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M17 45V21l15 15 15-15v24" fill="none" stroke="#fff" stroke-width="7.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="19" y="50" width="26" height="4.2" rx="2.1" fill="#fff"/></svg></button>
     <div id="titleWrap" style="cursor:pointer">
       <h1>MyC</h1>
       <p class="sub brand-sub">علی دادمان</p>
@@ -203,7 +203,8 @@
       <span class="hint" id="cAmountHint"></span>
     </label>
     <fieldset><legend>تاریخ سررسید چک</legend><div class="drow" id="dpChq"></div></fieldset>
-    <button type="button" class="btn block" id="qrBtn" style="margin:2px 0 8px">📷 خواندن اطلاعات چک از QR</button>
+    <button type="button" class="btn block" id="qrBtn" style="margin:2px 0 4px">📷 اسکن QR با دوربین</button>
+    <button type="button" class="btn ghost block" id="qrGal" style="margin:0 0 8px;font-size:11.5px">انتخاب عکس از گالری</button>
     <input type="file" id="qrFile" accept="image/*" class="hidden">
     <label>نام طرف حساب
       <input id="cParty" type="text" maxlength="60" required placeholder="نام صاحب چک / در وجه">
@@ -275,6 +276,17 @@
 </dialog>
 
 <div class="ring-overlay hidden" id="ringOverlay"></div>
+
+<dialog id="resetDlg">
+  <form method="dialog">
+    <h2 id="rstTitle">داده‌های قبلی</h2>
+    <p id="rstBody" style="font-size:13px;line-height:2"></p>
+    <div class="dact">
+      <button type="button" class="primary" id="rstYes">بله</button>
+      <button type="button" id="rstNo">خیر</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="occDlg">
   <form method="dialog">
