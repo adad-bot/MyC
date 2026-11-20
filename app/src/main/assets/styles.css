@@ -1207,3 +1207,71 @@ input,textarea,select{-webkit-user-select:text;user-select:text}
   font-size:12px;color:var(--ink);
 }
 #helpDlg h2{font-size:15px}
+
+/* راهنمای مقایسه: ۴ مربع رنگی در دو ردیف */
+.legend{display:grid !important;grid-template-columns:1fr 1fr;gap:6px 12px;justify-items:start;margin-top:6px}
+.legend > span{font-size:11px;display:flex;align-items:center;gap:6px}
+.legend .lg-in::before,.legend .lg-out::before,
+.legend .lg-incprev::before,.legend .lg-expprev::before{
+  content:'';width:10px;height:10px;border-radius:3px;display:block;border:none;
+}
+.legend .lg-in::before{background:var(--green)}
+.legend .lg-out::before{background:var(--red)}
+.legend .lg-incprev::before{background:#2563eb}
+.legend .lg-expprev::before{background:#f59e0b}
+
+/* لوگو: بزرگ‌شدن با کلیک */
+.logo.boom{animation:logoBoom .45s cubic-bezier(.2,.9,.25,1.4)}
+@keyframes logoBoom{
+  0%{transform:scale(1)}
+  45%{transform:scale(1.28) rotate(-6deg)}
+  100%{transform:scale(1)}
+}
+
+/* عنوان وام در بالای جزئیات */
+.loan-hero{
+  text-align:center;margin:6px 0 10px;
+  font-size:20px;font-weight:900;color:var(--ink);
+  text-shadow:0 2px 6px rgba(0,0,0,.14);
+  letter-spacing:.2px;
+}
+
+/* قسط بعدی: پررنگ و سیاه */
+.next-inst{
+  text-align:center;font-size:13px;font-weight:900;color:#111827;
+  margin:2px 0 10px;
+}
+:root[data-theme="dark"] .next-inst{color:#f3f4f6}
+
+/* دکمهٔ خاموش‌شدهٔ اعلان */
+.rowacts .mini.off{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.35)}
+
+/* ===== رنگ‌بندی فصلی ===== */
+:root[data-season="spring"]{
+  --brand:#16a34a; --brand2:#22c55e; --brand-soft:rgba(34,197,94,.14);
+}
+:root[data-season="summer"]{
+  --brand:#ea8a00; --brand2:#f59e0b; --brand-soft:rgba(245,158,11,.16);
+}
+:root[data-season="autumn"]{
+  --brand:#b45309; --brand2:#d97706; --brand-soft:rgba(217,119,6,.16);
+}
+:root[data-season="winter"]{
+  --brand:#2563eb; --brand2:#38bdf8; --brand-soft:rgba(56,189,248,.16);
+}
+/* دکمه‌های اصلی هم هم‌رنگ فصل شوند */
+:root[data-season] .btn.primary,
+:root[data-season] .seg button.on,
+:root[data-season] .dact .primary{
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+}
+
+/* چیدمان ردیف‌ها با دکمه‌های اقدام */
+.item{display:flex;align-items:center;gap:8px}
+.item .main{flex:1;min-width:0}
+.item .amt{flex:0 0 auto}
+.rowacts{flex:0 0 auto;display:flex;gap:4px}
+.rowacts .mini{width:26px;height:26px;border-radius:9px;font-size:12px}
+
+.rowacts{margin-top:5px;justify-content:flex-start}
+.item .amt{font-size:12.5px}

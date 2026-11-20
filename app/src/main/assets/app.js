@@ -1096,45 +1096,63 @@ function applyQrText(txt) {
     return;
   }
 
-  /* --- QR استاندارد چک صیادی: چند خط جدا ---
-     نمونه:
+  /* --- QR استاندارد چک صیادی (چند خط یا با فاصله) ---
+     نمونهٔ واقعی:
      01
      1
-     4999686139                ← کد ملی
-     IR560130100000000171693980 ← شبا
-     13-305                    ← کد بانک/شعبه
-     847959                    ← شمارهٔ چک
-     7407040179757435          ← شناسهٔ صیاد
+     2093406950
+     IR300190000000102092051006
+     19_1900128
+     801394
+     3734010204848394
   */
-  const lines = t.split(/\r?\n/).map(x => x.trim()).filter(x => x.length);
+  const tokens = t.split(/\s+/).map(x => x.trim()).filter(x => x.length);
 
-  if (lines.length >= 4 && /^[0-9]{1,2}$/.test(lines[0])) {
-    const nid = lines.find(l => /^[0-9]{10}$/.test(l)) || '';
-    const iban = lines.find(l => /^IR[0-9]{24}$/i) || '';
-    const sayad = lines.find(l => /^[0-9]{16}$/.test(l)) || '';
-    const branch = lines.find(l => /^[0-9]{2,4}-[0-9]{2,4}$/.test(l)) || '';
-    const chq = lines.find(l => /^[0-9]{5,9}$/.test(l) && l !== nid && l !== sayad) || '';
+  if (tokens.length >= 5) {
+    let nid = '';
+    let iban = '';
+    let sayad = '';
+    let chq = '';
+    const extras = [];
+
+    for (const tk of tokens) {
+      if (/^IR[0-9]{24}$/i.test(tk)) { iban = tk.toUpperCase(); continue; }
+      if (/^[0-9]{16}$/.test(tk)) { sayad = tk; continue; }
+      if (/^[0-9]{10}$/.test(tk)) { nid = tk; continue; }
+      if (/^[0-9]{5,9}$/.test(tk)) { if (!chq) chq = tk; continue; }
+      if (/^[0-9]{1,2}$/.test(tk)) continue;
+      if (tk.length >= 3) extras.push(tk);
+    }
 
     let filled = 0;
-    if (nid) { set('cNid', nid); filled++; }
-    if (chq) { set('cNumber', chq); filled++; }
 
-    const parts = [];
-    if (sayad) parts.push('شناسه صیاد: ' + sayad);
-    if (iban) parts.push('شبا: ' + iban);
-    if (branch) parts.push('شعبه: ' + branch);
-    if (parts.length) { set('cReason', parts.join(' · ').slice(0, 80)); filled++; }
+    if (nid) { $('cNid').value = nid; filled++; }
+    if (chq) { $('cNumber').value = chq; filled++; }
+
+    if (iban) {
+      $('cIban').value = iban;
+      const bankName = bankFromIban(iban);
+      if (bankName) $('cBank').value = bankName;
+
+      const acc = iban.slice(7);
+      if (acc && $('cAccount')) $('cAccount').value = acc;
+
+      filled++;
+    }
+
+    const reasonParts = [];
+    if (sayad) reasonParts.push('شناسه صیاد: ' + sayad);
+    for (const ex of extras) reasonParts.push(ex);
+    if (reasonParts.length) {
+      $('cReason').value = reasonParts.join(' · ').slice(0, 80);
+      filled++;
+    }
 
     $('cParty').value = '';
-    $('cRaw').value = t.replace(/\s+/g, ' ').slice(0, 160);
-    if (iban) {
-      $('cIban').value = iban.toUpperCase();
-      const bn = bankFromIban(iban.toUpperCase());
-      if (bn) $('cBank').value = bn;
-      const acc = iban.toUpperCase().slice(7);
-      if (acc && $('cAccount')) $('cAccount').value = acc;
-    }
-    if (filled) { return; }
+
+    if ($('cRaw')) $('cRaw').value = tokens.join(' ').slice(0, 160);
+
+    if (filled) return;
   }
 
   /* حالت نامشخص: هیچ‌چیز در «نام طرف حساب» نوشته نمی‌شود */
@@ -1687,7 +1705,6 @@ function buildDateCard() {
 
   const circle = el('div', 'dc-circle');
   circle.innerHTML = DECOR[season] +
-    '<span class="dc-h">' + hijriDayNum(jdn) + '</span>' +
     '<span class="dc-day">' + fa(j.jd) + '</span>' +
     '<span class="dc-y">' + fa(j.jy) + '</span>';
   circle.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(jdn); });
@@ -2095,7 +2112,7 @@ function buildRings() {
 
   const defs = [
     ['red', 'red', 'امروز و گذشته'],
-    ['yellow', 'yellow', '۱ تا ۳ روز'],
+    ['yellow', 'yellow', '۲ تا ۳ روز'],
     ['orange', 'orange', '۴ تا ۵ روز']
   ];
 
@@ -2111,16 +2128,19 @@ function buildRings() {
   return box;
 }
 
+let currentRingBucket = 'red';
+
 function openRing(bucket) {
+  currentRingBucket = bucket;
   const items = dueItems().filter(x => bucketOf(x.days) === bucket);
   if (!items.length) return;
-  const titles = { red: 'امروز و گذشته', yellow: '۱ تا ۳ روز آینده', orange: '۴ تا ۵ روز آینده' };
+  const titles = { red: 'امروز، فردا و گذشته', yellow: '۲ تا ۳ روز آینده', orange: '۴ تا ۵ روز آینده' };
   $('ringTitle').textContent = titles[bucket] + ' — ' + fa(items.length) + ' مورد';
 
   const list = $('ringList');
   list.textContent = '';
   for (const x of items) {
-    list.appendChild(dueRow(x));
+    list.appendChild(dueRow(x, true));
   }
   $('ringOverlay').classList.remove('hidden');
   $('ringDlg').show();
@@ -2134,7 +2154,7 @@ function closeRing() {
 $('ringOverlay').addEventListener('click', closeRing);
 $('ringClose').addEventListener('click', closeRing);
 
-function dueRow(x) {
+function dueRow(x, withActs) {
   const row = el('div', 'item');
   const ico = el('div', 'ico ' + (x.kind === 'cheque' ? 'chq' : x.kind === 'loan' ? 'loan' : 'acc'),
     x.kind === 'cheque' ? '🧾' : x.kind === 'loan' ? '📄' : '👤');
@@ -2143,7 +2163,6 @@ function dueRow(x) {
   const m = el('div', 'm');
   m.appendChild(el('span', null, dateLabel(x.date)));
   const pill = el('span', 'pill ' + (x.days < 0 ? 'late' : x.days <= 3 ? 'due' : 'ok'), daysLabel(x.days));
-  pill.style.fontWeight = '800';
   m.appendChild(pill);
   m.appendChild(el('span', null, x.label));
   main.append(t, m);
@@ -2160,19 +2179,34 @@ function dueRow(x) {
     toast('این مورد دیگر اعلان نمی‌دهد');
   });
 
-  const bMute = el('button', 'mini', '🔕');
-  bMute.title = 'خاموش کردن اعلان';
+  S.d.settings.muted = S.d.settings.muted || {};
+  const mutedNow = !!S.d.settings.muted[baseIdOf(x)];
+
+  const bMute = el('button', 'mini' + (mutedNow ? ' off' : ''), mutedNow ? '🔔' : '🔕');
+  bMute.title = mutedNow ? 'روشن کردن اعلان' : 'خاموش کردن اعلان';
   bMute.addEventListener('click', ev => {
     ev.stopPropagation();
-    S.d.settings.muted = S.d.settings.muted || {};
-    S.d.settings.muted[baseIdOf(x)] = 1;
+
+    const key = baseIdOf(x);
+    if (S.d.settings.muted[key]) {
+      delete S.d.settings.muted[key];
+      toast('اعلان این مورد روشن شد');
+    } else {
+      S.d.settings.muted[key] = 1;
+      toast('اعلان این مورد خاموش شد');
+    }
+
     save();
     scheduleNotifications();
-    toast('اعلان این مورد خاموش شد');
+
+    if ($('ringDlg').open) openRing(currentRingBucket);
   });
 
-  acts.append(bSeen, bMute);
-  row.append(ico, main, amt, acts);
+  if (withActs) {
+    acts.append(bSeen, bMute);
+    main.appendChild(acts);
+  }
+  row.append(ico, main, amt);
 
   row.addEventListener('click', () => {
     closeRing();
@@ -3430,9 +3464,24 @@ $('demoReset').addEventListener('click', () => {
   $('aboutDlg').close();
   toast('داده‌های تست پاک شد — آمادهٔ استفاده');
 });
+let logoTimer = null;
+
 $('aboutBtn').addEventListener('click', () => {
+  const btn = $('aboutBtn');
+  btn.classList.remove('boom');
+  void btn.offsetWidth;
+  btn.classList.add('boom');
+
   try { petalShower(); } catch (e) { /* */ }
-  setTimeout(() => openAbout(), 420);
+
+  if (logoTimer) {
+    clearTimeout(logoTimer);
+    logoTimer = null;
+    openAbout();
+    return;
+  }
+
+  logoTimer = setTimeout(() => { logoTimer = null; }, 420);
 });
 $('titleWrap').addEventListener('click', openAbout);
 $('aboutClose').addEventListener('click', () => $('aboutDlg').close());
@@ -3488,6 +3537,15 @@ window.onAndroidBack = function () {
 };
 
 /* ---------- ۱۲) تنظیمات ---------- */
+function applySeason() {
+  try {
+    const on = S.d && S.d.settings && S.d.settings.seasonal !== false;
+    if (!on) { document.documentElement.dataset.season = 'off'; return; }
+    const j = todayJalali();
+    document.documentElement.dataset.season = seasonOf(j.jm);
+  } catch (e) { /* */ }
+}
+
 function applyTheme() {
   const pref = (S.d && S.d.settings ? S.d.settings.theme : 'system') || 'system';
   const sysDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -3495,6 +3553,8 @@ function applyTheme() {
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', dark ? '#0d1017' : '#f5f6fa');
+
+  applySeason();
 }
 
 function setThemeSeg(value) {
@@ -3510,6 +3570,7 @@ function openSettings() {
   const bio = biometricAvailable();
   $('bioRow').classList.toggle('hidden', !bio);
   $('bioChk').checked = st.biometric !== false;
+  $('seasonChk').checked = st.seasonal !== false;
   $('chqDays').value = String(st.chqDays);
   $('genDays').value = String(st.genDays);
   setThemeSeg(st.theme || 'system');
@@ -3540,6 +3601,13 @@ $('fsRange').addEventListener('input', () => {
 
 $('soundChk').addEventListener('change', () => {
   S.d.settings.sound = $('soundChk').checked;  save(); scheduleNotifications();
+});
+
+$('seasonChk').addEventListener('change', () => {
+  S.d.settings.seasonal = $('seasonChk').checked;
+  save();
+  applySeason();
+  toast($('seasonChk').checked ? 'رنگ‌بندی فصلی روشن شد' : 'رنگ‌بندی فصلی خاموش شد');
 });
 
 $('bioChk').addEventListener('change', () => {
