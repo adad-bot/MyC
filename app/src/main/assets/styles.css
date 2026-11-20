@@ -1109,3 +1109,101 @@ label .req{color:var(--red);font-weight:800;margin-inline-start:3px}
 .lock-foot{opacity:.9;padding-bottom:10px}
 .fp-btn{margin-top:auto}
 .lock .fp-btn{margin-bottom:6px}
+
+/* ===== اصلاحات کلی ===== */
+/* جلوگیری از انتخاب متن و منوی کپی */
+*{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input,textarea,select{-webkit-user-select:text;user-select:text}
+
+/* سال در دایره: درشت‌تر ولی جاش */
+.dc-y{font-size:15px !important;font-weight:900}
+
+/* اعداد قمری/میلادی زیر ماه‌ها در کارت تاریخ */
+.dc-subnum{
+  font-size:15px;font-weight:900;line-height:1.4;text-align:center;
+}
+.dc-subnum.latin{font-family:'Segoe UI',Tahoma,sans-serif;direction:ltr}
+.dc-subnum.arab{font-family:'Noto Naskh Arabic','Traditional Arabic',serif}
+
+/* نوار هفته در کارت تاریخ: سه عدد */
+.dc-week button .wd{font-size:13px;font-weight:800}
+.dc-week button .wh{font-size:8.5px;opacity:.7;font-family:'Noto Naskh Arabic',serif}
+.dc-week button .wg{font-size:8px;opacity:.65;direction:ltr;font-family:'Segoe UI',sans-serif}
+
+/* نشانگر ادامهٔ صفحه */
+.scroll-hint{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(150px + env(safe-area-inset-bottom));
+  width:36px;height:36px;border-radius:50%;
+  display:grid;place-items:center;z-index:38;
+  background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);
+  color:var(--brand);font-size:16px;font-weight:900;
+  animation:bounceHint 1.6s infinite;
+}
+.scroll-hint.hidden{display:none}
+@keyframes bounceHint{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,6px)}}
+
+/* برچسب‌های ردیف‌های خانه */
+.item .m .pill{font-size:10.5px}
+.item .m .pill.late{font-weight:800}
+.pill.red{background:rgba(239,68,68,.16);color:#b91c1c;font-weight:800}
+
+/* رنگ‌های مقایسه: دورهٔ قبل آبی (درآمد) و زرد (هزینه) */
+.linechart .spark.incPrev{stroke:#2563eb;opacity:.85}
+.linechart .spark.expPrev{stroke:#f59e0b;opacity:.85}
+.legend{flex-wrap:wrap;gap:10px;font-size:11.5px}
+.legend .lg-incprev{color:#2563eb;display:flex;align-items:center;gap:5px}
+.legend .lg-expprev{color:#f59e0b;display:flex;align-items:center;gap:5px}
+.legend .lg-incprev::before,.legend .lg-expprev::before{content:'';width:14px;height:0;border-top:2px dashed currentColor}
+.legend .lg-in::before,.legend .lg-out::before{width:10px;height:10px;border-radius:3px}
+
+/* فلش‌های بزرگ‌تر سرصفحهٔ گزارش */
+.navarrow{
+  width:40px;height:40px;border-radius:12px;
+  border:1px solid var(--line);background:var(--card);
+  color:var(--brand);font-size:20px;font-weight:900;line-height:1;
+  display:grid;place-items:center;flex:0 0 40px;
+}
+.navarrow:active{transform:scale(1.06)}
+.rep-head{gap:8px;justify-content:center}
+.rep-head select{text-align:center;flex:1;min-width:0}
+
+/* برچسب‌های ردیف‌های خانه: بزرگ‌تر و واضح */
+.item .m .pill{font-size:11px;font-weight:700}
+.pill.late{font-weight:900}
+
+/* ریزش گل */
+.petal{
+  position:fixed;z-index:300;pointer-events:none;
+  animation:petalFall var(--dur,1.8s) ease-in forwards;
+}
+@keyframes petalFall{
+  0%{opacity:1;transform:translate(0,0) rotate(0)}
+  100%{opacity:0;transform:translate(var(--dx,0),140px) rotate(220deg)}
+}
+
+/* تقویم غیرمودال */
+#dateDlg{
+  position:fixed;inset:0;margin:auto;left:0;right:0;top:0;bottom:0;
+  width:min(460px,94%);height:fit-content;max-height:90vh;
+  z-index:200;transform:none;
+}
+
+/* دکمه‌های کوچک اقدام روی اعلان‌ها */
+.rowacts{display:flex;gap:4px;margin-inline-start:4px}
+.rowacts .mini{
+  width:30px;height:30px;border-radius:10px;border:1px solid var(--line);
+  background:var(--card);font-size:13px;display:grid;place-items:center;color:var(--muted);
+}
+.rowacts .mini:active{transform:scale(1.08)}
+
+/* دیالوگ راهنما */
+#helpDlg .ask-icon{
+  background:rgba(239,68,68,.14);color:var(--red);
+  font-size:30px;font-weight:900;
+}
+#helpDlg #helpBody{
+  background:var(--soft);border-radius:12px;padding:10px 12px;
+  font-size:12px;color:var(--ink);
+}
+#helpDlg h2{font-size:15px}

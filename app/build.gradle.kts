@@ -44,4 +44,5 @@ android {
 
 dependencies {
     implementation(files("libs/core-3.5.3.jar"))
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
 }

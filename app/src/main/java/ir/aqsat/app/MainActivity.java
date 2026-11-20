@@ -37,6 +37,8 @@ public class MainActivity extends Activity {
     private static final int REQ_PICK_FILE = 1001;
     private static final int REQ_NOTIF = 1002;
     private static final int REQ_QR = 1003;
+    private static final int REQ_PHOTO = 1004;
+    private Uri photoUri = null;
     private Uri qrUri = null;
     private static final int ALARM_BASE = 4100;
     private static final int ALARM_MAX = 60;
@@ -197,6 +199,26 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void exitApp() {
             runOnUiThread(() -> MainActivity.this.finish());
+        }
+
+        /** گرفتن عکس از چک با دوربین سیستم و برگرداندن Base64 به جاوااسکریپت */
+        @JavascriptInterface
+        public void capturePhoto() {
+            runOnUiThread(() -> {
+                try {
+                    ContentValues v = new ContentValues();
+                    v.put(MediaStore.Images.Media.DISPLAY_NAME, "myc_chq_" + System.currentTimeMillis() + ".jpg");
+                    v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                    photoUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+
+                    Intent i = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                    if (photoUri != null) {
+                        i.putExtra(MediaStore.EXTRA_OUTPUT, photoUri);
+                        i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    }
+                    startActivityForResult(i, REQ_PHOTO);
+                } catch (Throwable ignored) { }
+            });
         }
 
         /** گرفتن عکس با دوربین سیستم و خواندن QR از عکس (مطمئن‌ترین راه) */
@@ -460,6 +482,40 @@ public class MainActivity extends Activity {
                         WebChromeClient.FileChooserParams.parseResult(resultCode, data));
                 pendingFileCallback = null;
             }
+            return;
+        }
+
+        if (requestCode == REQ_PHOTO) {
+            String b64 = "";
+            if (resultCode == RESULT_OK && photoUri != null) {
+                try {
+                    java.io.InputStream in = getContentResolver().openInputStream(photoUri);
+                    android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeStream(in);
+                    if (in != null) in.close();
+
+                    if (bmp != null) {
+                        int w = bmp.getWidth(), h = bmp.getHeight();
+                        int max = 1100;
+                        if (Math.max(w, h) > max) {
+                            float k = max / (float) Math.max(w, h);
+                            bmp = android.graphics.Bitmap.createScaledBitmap(
+                                    bmp, Math.round(w * k), Math.round(h * k), true);
+                        }
+                        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, bos);
+                        b64 = android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP);
+                    }
+                } catch (Throwable ignored) { }
+            }
+
+            if (photoUri != null) {
+                try { getContentResolver().delete(photoUri, null, null); } catch (Exception ignored) { }
+                photoUri = null;
+            }
+
+            try {
+                runJs("window.onPhotoResult && window.onPhotoResult(" + JSONObject.quote(b64) + ")");
+            } catch (Exception ignored) { }
             return;
         }
 

@@ -45,6 +45,8 @@
 </div>
 
 <!-- ================= اپ ================= -->
+<div class="scroll-hint hidden" id="scrollHint">▾</div>
+
 <div class="app" id="app">
 
   <header class="topbar">
@@ -319,6 +321,16 @@
       <button type="button" class="primary" id="imgDlgSave">دانلود تصویر</button>
       <button type="button" id="imgDlgClose">بستن</button>
     </div>
+  </form>
+</dialog>
+
+
+<dialog id="helpDlg">
+  <form method="dialog">
+    <div class="ask-icon">!</div>
+    <h2 id="helpTitle" style="text-align:center">راهنما</h2>
+    <div id="helpBody" class="hint" style="line-height:2;text-align:right;white-space:pre-line"></div>
+    <div class="dact"><button type="button" class="primary" id="helpOk">متوجه شدم</button></div>
   </form>
 </dialog>
 

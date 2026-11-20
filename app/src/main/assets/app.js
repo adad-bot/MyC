@@ -612,6 +612,17 @@ function submitPin() {
   drawDots();
   shakeLock();
 
+  if (st.fails === 2) {
+    try {
+      showHelp('رمز را فراموش کرده‌ای؟',
+        'رمز ۶ رقمی است که خودت هنگام نصب انتخاب کردی.\n\n' +
+        '• دقت کن اعداد فارسی/انگلیسی با هم فرقی ندارند.\n' +
+        '• اگر سه بار اشتباه بزنی، ورود ۳ دقیقه قفل می‌شود.\n' +
+        '• با دکمهٔ «فراموشی رمز» و کد مادر «۵۶۳۵۷۰» می‌توانی رمز تازه بگذاری.\n' +
+        '• اگر اثر انگشت فعال است، دکمهٔ پایین صفحه را بزن.');
+    } catch (e) { /* */ }
+  }
+
   if (st.fails >= 3) {
     st.fails = 0;
     st.lockUntil = Date.now() + 3 * 60 * 1000;
@@ -712,7 +723,7 @@ function dueItems() {
 }
 
 function bucketOf(days) {
-  if (days <= 0) return 'red';
+  if (days <= 1) return 'red';
   if (days <= 3) return 'yellow';
   if (days <= 5) return 'orange';
   return null;
@@ -942,7 +953,18 @@ function setChqPhoto(data) {
   }
 }
 
-$('chqPhotoBtn').addEventListener('click', () => $('chqPhotoFile').click());
+$('chqPhotoBtn').addEventListener('click', () => {
+  try {
+    if (window.AndroidAqsat && AndroidAqsat.capturePhoto) { AndroidAqsat.capturePhoto(); return; }
+  } catch (e) { /* */ }
+  $('chqPhotoFile').click();
+});
+
+window.onPhotoResult = function (b64) {
+  if (!b64) { toast('عکسی گرفته نشد'); return; }
+  setChqPhoto('data:image/jpeg;base64,' + b64);
+  toast('تصویر چک اضافه شد');
+};
 $('chqPhotoDel').addEventListener('click', () => setChqPhoto(''));
 
 let photoRot = 0;
@@ -1306,6 +1328,32 @@ function arrowSvg(incoming) {
   return s;
 }
 
+
+/* ---------- راهنمای فیلدهای لازم (بعد از دو تلاش) ---------- */
+const formFails = {};
+
+function showHelp(title, lines) {
+  $('helpTitle').textContent = title;
+  $('helpBody').textContent = lines;
+  $('helpDlg').showModal();
+}
+
+$('helpOk').addEventListener('click', () => $('helpDlg').close());
+
+function formError(key, title, lines, short) {
+  formFails[key] = (formFails[key] || 0) + 1;
+
+  if (formFails[key] >= 2) {
+    formFails[key] = 0;
+    showHelp(title, lines);
+    return;
+  }
+
+  toast(short || 'اطلاعات ناقص است');
+}
+
+function formOk(key) { formFails[key] = 0; }
+
 /* ---------- گزارش طلب / بدهی ---------- */
 let sideExpanded = false, sideKind = 'r';
 
@@ -1635,6 +1683,7 @@ function buildDateCard() {
   const right = el('div', 'dc-right');
   right.appendChild(el('div', 'dc-month', MONTHS[j.jm - 1]));
   right.appendChild(el('div', 'dc-gmonth', G_MONTHS[g.gm - 1] + ' ' + g.gy));
+  right.appendChild(el('div', 'dc-subnum latin', String(g.gd)));
 
   const circle = el('div', 'dc-circle');
   circle.innerHTML = DECOR[season] +
@@ -1646,6 +1695,7 @@ function buildDateCard() {
   const left = el('div', 'dc-left');
   left.appendChild(el('div', 'dc-weekday', wLabel(jdn)));
   left.appendChild(el('div', 'dc-hijri', hijriMonthLabel(jdn)));
+  left.appendChild(el('div', 'dc-subnum arab', hijriDayNum(jdn)));
 
   row.append(right, circle, left);
   card.appendChild(row);
@@ -1686,7 +1736,11 @@ function buildDateCard() {
     const b = document.createElement('button');
     b.type = 'button';
     if (i === idx) b.className = 'on';
-    b.innerHTML = '<span class="wn">' + WEEK_NAMES[i] + '</span><span class="wd">' + fa(jd.jd) + '</span>';
+    const gg2 = d2g(d);
+    b.innerHTML = '<span class="wn">' + WEEK_NAMES[i] + '</span>' +
+      '<span class="wd">' + fa(jd.jd) + '</span>' +
+      '<span class="wh">' + hijriDayNum(d) + '</span>' +
+      '<span class="wg">' + gg2.gd + '</span>';
     b.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(d); });
     strip.appendChild(b);
   }
@@ -1712,7 +1766,7 @@ function openDateDlg(jdn) {
   calSel = jdn;
   renderCal();
   renderDateInfo();
-  $('dateDlg').showModal();
+  if (!$('dateDlg').open) $('dateDlg').show();
 }
 
 let FMT_HD = null;
@@ -2089,12 +2143,37 @@ function dueRow(x) {
   const m = el('div', 'm');
   m.appendChild(el('span', null, dateLabel(x.date)));
   const pill = el('span', 'pill ' + (x.days < 0 ? 'late' : x.days <= 3 ? 'due' : 'ok'), daysLabel(x.days));
+  pill.style.fontWeight = '800';
   m.appendChild(pill);
   m.appendChild(el('span', null, x.label));
   main.append(t, m);
   const amt = el('div', 'amt', NUM.format(x.amount));
   amt.appendChild(el('small', null, ' تومان'));
-  row.append(ico, main, amt);
+  const acts = el('div', 'rowacts');
+
+  const bSeen = el('button', 'mini', '✓');
+  bSeen.title = 'دیده شد';
+  bSeen.addEventListener('click', ev => {
+    ev.stopPropagation();
+    markSeen(x);
+    if ($('ringDlg').open) closeRing();
+    toast('این مورد دیگر اعلان نمی‌دهد');
+  });
+
+  const bMute = el('button', 'mini', '🔕');
+  bMute.title = 'خاموش کردن اعلان';
+  bMute.addEventListener('click', ev => {
+    ev.stopPropagation();
+    S.d.settings.muted = S.d.settings.muted || {};
+    S.d.settings.muted[baseIdOf(x)] = 1;
+    save();
+    scheduleNotifications();
+    toast('اعلان این مورد خاموش شد');
+  });
+
+  acts.append(bSeen, bMute);
+  row.append(ico, main, amt, acts);
+
   row.addEventListener('click', () => {
     closeRing();
     markSeen(x);
@@ -2430,7 +2509,9 @@ function renderCheques() {
     main.appendChild(el('div', 't', c.party));
     const m = el('div', 'm');
     m.appendChild(el('span', null, dateLabel(c)));
-    m.appendChild(el('span', 'pill ' + (c.kind === 'in' ? 'ok' : 'info'), c.kind === 'in' ? 'دریافتی' : 'صادره'));
+    const kindPill = el('span', 'pill ' + (c.kind === 'in' ? 'ok' : 'late'), c.kind === 'in' ? 'دریافتی' : 'صادره');
+    kindPill.style.fontWeight = '800';
+    m.appendChild(kindPill);
     m.appendChild(el('span', 'pill info', CHQ_STATUS[c.status] || c.status));
     if (c.status === 'open') m.appendChild(el('span', null, daysLabel(jdnOf(c) - t)));
     main.appendChild(m);
@@ -2523,11 +2604,9 @@ function renderReport() {
   monthSel.addEventListener('change', go);
   yearSel.addEventListener('change', go);
 
-  const prev = el('button', 'btn ghost', '‹');
-  prev.style.padding = '2px 10px';
+  const prev = el('button', 'navarrow', '‹');
   prev.addEventListener('click', () => { S.reportYm = shiftYm(ym, -1); render(); });
-  const next = el('button', 'btn ghost', '›');
-  next.style.padding = '2px 10px';
+  const next = el('button', 'navarrow', '›');
   next.addEventListener('click', () => { S.reportYm = shiftYm(ym, 1); render(); });
 
   nav.append(prev, yearSel, monthSel, next);
@@ -2662,8 +2741,8 @@ function renderReport() {
 
   const paths = [];
   if (mode === 'cmp') {
-    paths.push(addPath('inc2', 'in prev', true));
-    paths.push(addPath('exp2', 'out prev', true));
+    paths.push(addPath('inc2', 'incPrev', true));
+    paths.push(addPath('exp2', 'expPrev', true));
   }
   paths.push(addPath('inc', 'in'));
   paths.push(addPath('exp', 'out'));
@@ -2710,10 +2789,15 @@ function renderReport() {
   });
 
   const lg = el('div', 'legend');
-  lg.append(el('span', 'lg-in', 'درآمد'), el('span', 'lg-out', 'هزینه'));
   if (mode === 'cmp') {
-    const pv = el('span', 'lg-prev', 'خط‌چین = دورهٔ مقایسه');
-    lg.appendChild(pv);
+    lg.append(
+      el('span', 'lg-in', 'درآمد این دوره'),
+      el('span', 'lg-out', 'هزینهٔ این دوره'),
+      el('span', 'lg-incprev', 'درآمد دورهٔ قبل'),
+      el('span', 'lg-expprev', 'هزینهٔ دورهٔ قبل')
+    );
+  } else {
+    lg.append(el('span', 'lg-in', 'درآمد'), el('span', 'lg-out', 'هزینه'));
   }
   view.appendChild(lg);
 
@@ -2909,7 +2993,17 @@ $('chqKindSeg').addEventListener('click', ev => {
 $('txFrm').addEventListener('submit', ev => {
   ev.preventDefault();
   const amount = Math.round(Number($('txAmount').value));
-  if (!Number.isFinite(amount) || amount <= 0) { toast('مبلغ را درست وارد کن'); return; }
+  if (!Number.isFinite(amount) || amount <= 0) {
+    formError('tx', 'برای ثبت تراکنش چه چیزهایی لازم است؟',
+      '۱) مبلغ را با عدد بنویس (فقط رقم)\n' +
+      '۲) نوع را انتخاب کن: هزینه یا درآمد\n' +
+      '۳) دسته را انتخاب یا بنویس (خوراک، قبض، حقوق ...)\n' +
+      '۴) تاریخ را بررسی کن\n\n' +
+      'برای مبلغ بزرگ، بدون جداکننده بنویس؛ خود اپ جدا می‌کند.',
+      'مبلغ را درست وارد کن');
+    return;
+  }
+  formOk('tx');
 
   const type = segValue($('txKindSeg'));
   const dt = getDP($('dpTx'));
@@ -2973,14 +3067,17 @@ $('loanFrm').addEventListener('submit', ev => {
   const title = $('lTitle').value.trim();
   const amount = Math.round(Number($('lAmount').value));
   const count = clamp(parseInt($('lCount').value, 10) || 1, 1, 360);
-  if (!title) {
-    openOcc({
-      t: 'فیلدهای لازم برای ثبت وام',
-      d: 'عنوان وام، مبلغ هر قسط، تعداد اقساط و تاریخ اولین قسط الزامی هستند (با ستارهٔ قرمز مشخص شده‌اند).'
-    });
+  if (!title || !(amount > 0)) {
+    formError('loan', 'برای ثبت وام چه چیزهایی لازم است؟',
+      '۱) عنوان وام (مثلاً وام مسکن)\n' +
+      '۲) مبلغ هر قسط به تومان\n' +
+      '۳) تعداد اقساط (۱ تا ۳۶۰)\n' +
+      '۴) تاریخ اولین قسط\n\n' +
+      'اگر وام قبلاً شروع شده، تعداد اقساط پرداخت‌شده را هم وارد کن.',
+      'عنوان و مبلغ قسط لازم است');
     return;
   }
-  if (!(amount > 0)) { toast('مبلغ را درست وارد کن'); return; }
+  formOk('loan');
 
   const start = getDP($('dpLoan'));
   const note = $('lNote').value.trim();
@@ -3053,7 +3150,16 @@ $('instFrm').addEventListener('submit', ev => {
   if (!inst) return;
 
   const amount = Math.round(Number($('iAmount').value));
-  if (!(amount >= 0)) { toast('مبلغ را درست وارد کن'); return; }
+  if (!(amount > 0)) {
+    formError('inst', 'برای ثبت قسط چه چیزهایی لازم است؟',
+      '۱) مبلغ قسط به تومان (بزرگ‌تر از صفر)\n' +
+      '۲) تاریخ پرداخت (سال / ماه / روز)\n' +
+      '۳) وضعیت پرداخت را مشخص کن\n\n' +
+      'اگر مبلغ این قسط با بقیه فرق دارد، همان‌جا تغییرش بده.',
+      'مبلغ قسط لازم است');
+    return;
+  }
+  formOk('inst');
   const dt = getDP($('dpInst'));
 
   if (amount !== loan.defaultAmount) inst.custom = true;
@@ -3110,14 +3216,16 @@ $('chqFrm').addEventListener('submit', ev => {
   ev.preventDefault();
   const amount = Math.round(Number($('cAmount').value));
   const party = $('cParty').value.trim();
-  if (!(amount > 0)) { toast('مبلغ را درست وارد کن'); return; }
-  if (!party) {
-    openOcc({
-      t: 'فیلدهای لازم برای ثبت چک',
-      d: 'برای ثبت چک، این سه مورد الزامی است (با ستارهٔ قرمز مشخص شده‌اند):\n• مبلغ\n• تاریخ سررسید\n• نام طرف حساب'
-    });
+  if (!(amount > 0) || !party) {
+    formError('chq', 'برای ثبت چک چه چیزهایی لازم است؟',
+      '۱) مبلغ چک را با عدد بنویس (مثلاً ۵٬۰۰۰٬۰۰۰)\n' +
+      '۲) تاریخ سررسید را از سه کادر سال / ماه / روز انتخاب کن\n' +
+      '۳) نام طرف حساب (صاحب چک یا در وجه) را بنویس\n\n' +
+      'موارد ستاره‌دار الزامی‌اند. بقیه (شماره چک، بانک، کد ملی، شبا) اختیاری است.',
+      'مبلغ و نام طرف حساب لازم است');
     return;
   }
+  formOk('chq');
 
   const dt = getDP($('dpChq'));
   const rec = {
@@ -3198,8 +3306,17 @@ $('accFrm').addEventListener('submit', ev => {
   ev.preventDefault();
   const name = $('aName').value.trim();
   const amount = Math.round(Number($('aAmount').value));
-  if (!name) { toast('نام شخص را بنویس'); return; }
-  if (!(amount > 0)) { toast('مبلغ را درست وارد کن'); return; }
+  if (!name || !(amount > 0)) {
+    formError('acc', 'برای ثبت طلب یا بدهی چه چیزهایی لازم است؟',
+      '۱) نام شخص یا شرکت\n' +
+      '۲) مبلغ به تومان\n' +
+      '۳) نوع را انتخاب کن: طلب من یا بدهی من\n' +
+      '۴) وعدهٔ تسویه (اختیاری ولی توصیه می‌شود)\n\n' +
+      'طلب = پولی که باید بگیری، بدهی = پولی که باید بدهی.',
+      'نام و مبلغ لازم است');
+    return;
+  }
+  formOk('acc');
 
   const dt = getDP($('dpAcc'));
   const due = S.accNoDue ? null : getDP($('dpAccDue'));
@@ -3313,7 +3430,10 @@ $('demoReset').addEventListener('click', () => {
   $('aboutDlg').close();
   toast('داده‌های تست پاک شد — آمادهٔ استفاده');
 });
-$('aboutBtn').addEventListener('click', openAbout);
+$('aboutBtn').addEventListener('click', () => {
+  try { petalShower(); } catch (e) { /* */ }
+  setTimeout(() => openAbout(), 420);
+});
 $('titleWrap').addEventListener('click', openAbout);
 $('aboutClose').addEventListener('click', () => $('aboutDlg').close());
 
@@ -4145,11 +4265,14 @@ function upcomingReminders() {
   const out = [];
   const seen = S.d.settings.notifSeen || {};
 
+  const muted = S.d.settings.muted || {};
+
   for (const x of dueItems()) {
     if (x.days < 0) continue;
     if (x.days > 14) continue;
 
     const base = baseIdOf(x);
+    if (muted[base]) continue;
     const name = nameOf(x);
     const when = dateLabel(x.date);
 
@@ -4232,6 +4355,16 @@ function spinRings(dir, node) {
 }
 
 function handleSwipe(dir, target) {
+  if ($('chqDlg') && $('chqDlg').open) {
+    const seg = $('chqKindSeg');
+    if (seg) {
+      const cur = segValue(seg);
+      setSeg(seg, cur === 'in' ? 'out' : 'in');
+      toast(cur === 'in' ? 'چک صادره' : 'چک دریافتی');
+    }
+    return;
+  }
+
   if ($('dateDlg').open) { shiftCalMonth(dir); return; }
   if ($('sideDlg').open || $('todayDlg').open) return;
   if (!$('editor').classList.contains('hide')) return;
@@ -4287,6 +4420,47 @@ document.addEventListener('touchend', ev => {
   if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
   handleSwipe(dx > 0 ? 1 : -1, target);
 }, { passive: true });
+
+
+/* ---------- نشانگر ادامهٔ صفحه ---------- */
+function updateScrollHint() {
+  const h = $('scrollHint');
+  if (!h) return;
+  const el2 = $('view');
+  const more = el2 && (el2.scrollHeight - el2.scrollTop - el2.clientHeight > 40);
+  const bodyMore = document.documentElement.scrollHeight - window.scrollY - window.innerHeight > 40;
+  h.classList.toggle('hidden', !(more || bodyMore));
+}
+
+window.addEventListener('scroll', updateScrollHint, { passive: true });
+
+try {
+  const vv = view;
+  if (vv && window.MutationObserver) {
+    new MutationObserver(() => setTimeout(updateScrollHint, 90)).observe(vv, { childList: true, subtree: true });
+  }
+} catch (e) { /* */ }
+window.addEventListener('resize', updateScrollHint);
+
+/* ---------- ریزش گل روی لوگو ---------- */
+function petalShower() {
+  const logo = $('aboutBtn');
+  if (!logo) return;
+  const r = logo.getBoundingClientRect();
+
+  for (let i = 0; i < 14; i++) {
+    const p = document.createElement('span');
+    p.className = 'petal';
+    p.textContent = ['🌸', '🌺', '🍃'][i % 3];
+    p.style.left = (r.left + r.width / 2) + 'px';
+    p.style.top = (r.top + r.height / 2) + 'px';
+    p.style.setProperty('--dx', (Math.random() * 220 - 110).toFixed(0) + 'px');
+    p.style.setProperty('--dur', (1.4 + Math.random() * 1.2).toFixed(2) + 's');
+    p.style.fontSize = (12 + Math.random() * 10).toFixed(0) + 'px';
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 2800);
+  }
+}
 
 /* ---------- ۱۵) شروع ---------- */
 function boot() {

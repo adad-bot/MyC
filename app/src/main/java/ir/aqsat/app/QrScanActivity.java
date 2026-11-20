@@ -17,6 +17,12 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
+import com.google.mlkit.vision.barcode.BarcodeScanner;
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
+import com.google.mlkit.vision.barcode.BarcodeScanning;
+import com.google.mlkit.vision.barcode.common.Barcode;
+import com.google.mlkit.vision.common.InputImage;
+
 import com.google.zxing.BinaryBitmap;
 import com.google.zxing.DecodeHintType;
 import com.google.zxing.MultiFormatReader;
@@ -41,6 +47,7 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
     private volatile boolean done = false;
     private volatile boolean ready = false;
     private volatile long lastDecode = 0;
+    private BarcodeScanner mlkit = null;
     private Runnable focusTick = null;
 
     private static final int PREVIEW_W = 1280;
@@ -120,6 +127,16 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
 
         setContentView(root);
         ui = new Handler(Looper.getMainLooper());
+
+        try {
+            BarcodeScannerOptions opts = new BarcodeScannerOptions.Builder()
+                    .setBarcodeFormats(Barcode.FORMAT_QR_CODE, Barcode.FORMAT_CODE_128,
+                            Barcode.FORMAT_CODE_39, Barcode.FORMAT_DATA_MATRIX)
+                    .build();
+            mlkit = BarcodeScanning.getClient(opts);
+        } catch (Throwable t) {
+            mlkit = null;
+        }
 
         if (checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             try {
@@ -309,32 +326,29 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
             @Override
             public void run() {
                 try {
-                    // فقط ناحیهٔ داخل کادر (مرکز تصویر) خوانده شود
-                    Map<DecodeHintType, Object> hints = new HashMap<>();
-                    hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
-                    hints.put(DecodeHintType.PURE_BARCODE, Boolean.FALSE);
+                    if (mlkit != null) {
+                        InputImage img = InputImage.fromByteArray(copy, w, h, displayRotation(),
+                                InputImage.IMAGE_FORMAT_NV21);
 
-                    // اول ناحیهٔ وسط (QR بزرگ‌تر دیده می‌شود)، بعد کل فریم
-                    int[] sides = { (int) (Math.min(w, h) * 0.75), Math.min(w, h) };
-
-                    for (int side : sides) {
-                        int left = (w - side) / 2;
-                        int top = (h - side) / 2;
-
-                        PlanarYUVLuminanceSource src =
-                                new PlanarYUVLuminanceSource(copy, w, h, left, top, side, side, false);
-                        BinaryBitmap bmp = new BinaryBitmap(new HybridBinarizer(src));
-
-                        try {
-                            Result r = new MultiFormatReader().decode(bmp, hints);
-                            if (r != null && r.getText() != null && looksLikeCheque(r.getText())) {
-                                finishWith(r.getText());
-                                return;
-                            }
-                        } catch (Throwable ignored) { }
+                        mlkit.process(img)
+                                .addOnSuccessListener((java.util.List<Barcode> codes) -> {
+                                    try {
+                                        for (Barcode b : codes) {
+                                            String v = b.getRawValue();
+                                            if (v != null && v.trim().length() > 3) {
+                                                finishWith(v);
+                                                return;
+                                            }
+                                        }
+                                    } catch (Throwable ignored) { }
+                                    busy = false;
+                                })
+                                .addOnFailureListener(e -> busy = false)
+                                .addOnCanceledListener(() -> busy = false);
+                    } else {
+                        busy = false;
                     }
                 } catch (Throwable ignored) {
-                } finally {
                     busy = false;
                 }
             }
@@ -367,6 +381,12 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
         if (surfaceView != null && surfaceView.getHolder().getSurface() != null && camera == null) {
             startCamera(surfaceView.getHolder());
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        try { if (mlkit != null) mlkit.close(); } catch (Throwable ignored) { }
+        super.onDestroy();
     }
 
     @Override
