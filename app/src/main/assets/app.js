@@ -262,14 +262,14 @@ function seedDemo(d) {
 
   d.settings.demo = true;
 
-  /* --- وام‌ها --- */
+  /* ---------- وام‌ها ---------- */
   function mkLoan(id, title, note, amount, count, startMonth, paidCount) {
     const list = [];
     for (let i = 0; i < count; i++) {
       const dt = at(startMonth + i);
       list.push({
         id: id + '-i' + i, amount: amount,
-        jy: dt.jy, jm: dt.jm, jd: Math.min(15 + (i % 10), monthLen(dt.jy, dt.jm)),
+        jy: dt.jy, jm: dt.jm, jd: Math.min(5 + (i % 20), monthLen(dt.jy, dt.jm)),
         paid: i < paidCount, custom: false
       });
     }
@@ -278,11 +278,12 @@ function seedDemo(d) {
     }));
   }
 
-  mkLoan('demo-l1', 'وام مسکن', 'بانک ملی', 4500000, 24, -14, 14);
-  mkLoan('demo-l2', 'قسط خودرو', 'بانک ملت', 3200000, 18, -6, 6);
-  mkLoan('demo-l3', 'وام لوازم خانگی', 'بانک رفاه', 1800000, 12, 2, 0);
+  mkLoan('demo-l1', 'وام مسکن', 'بانک ملی', 4500000, 24, -20, 20);
+  mkLoan('demo-l2', 'قسط خودرو', 'بانک ملت', 3200000, 18, -9, 9);
+  mkLoan('demo-l3', 'وام لوازم خانگی', 'بانک رفاه', 1800000, 12, 1, 0);
+  mkLoan('demo-l4', 'وام تعمیر خانه', 'بانک مسکن', 2500000, 10, -3, 3);
 
-  /* --- چک‌ها --- */
+  /* ---------- چک‌ها ---------- */
   const chq = (id, kind, amount, offset, party, number, bank, reason, status) => {
     const dt = plus(offset);
     d.cheques.push({
@@ -294,14 +295,17 @@ function seedDemo(d) {
     });
   };
 
-  chq('demo-c1', 'in', 12000000, -20, 'آقای رضایی', '452189', 'ملت', 'فروش کالا', 'cleared');
-  chq('demo-c2', 'out', 8000000, -12, 'شرکت پارس', '781233', 'صادرات', 'خرید مواد', 'cleared');
-  chq('demo-c3', 'in', 15000000, 2, 'شرکت آریا', '993311', 'رفاه', 'تسویه فاکتور', 'open');
-  chq('demo-c4', 'out', 6000000, 1, 'آقای کریمی', '990012', 'ملی', 'اجاره', 'open');
-  chq('demo-c5', 'out', 4500000, 9, 'مهندس صادقی', '552211', 'سامان', 'خرید تجهیزات', 'open');
-  chq('demo-c6', 'in', 22000000, 15, 'آقای موسوی', '110233', 'پاسارگاد', 'فروش خودرو', 'open');
+  chq('demo-c1', 'in', 12000000, -300, 'آقای رضایی', '452189', 'ملت', 'فروش کالا', 'cleared');
+  chq('demo-c2', 'out', 8000000, -260, 'شرکت پارس', '781233', 'صادرات', 'خرید مواد', 'cleared');
+  chq('demo-c3', 'in', 9800000, -120, 'شرکت آریا', '993311', 'رفاه', 'تسویه فاکتور', 'cleared');
+  chq('demo-c4', 'out', 7000000, -45, 'آقای کریمی', '990012', 'ملی', 'اجاره', 'cleared');
+  chq('demo-c5', 'in', 15000000, 2, 'شرکت آریا', '221144', 'رفاه', 'فاکتور جدید', 'open');
+  chq('demo-c6', 'out', 6000000, 1, 'آقای کریمی', '551122', 'ملی', 'اجاره', 'open');
+  chq('demo-c7', 'out', 4500000, 9, 'مهندس صادقی', '552211', 'سامان', 'خرید تجهیزات', 'open');
+  chq('demo-c8', 'in', 22000000, 15, 'آقای موسوی', '110233', 'پاسارگاد', 'فروش خودرو', 'open');
+  chq('demo-c9', 'out', 3500000, 24, 'شرکت پارس', '778899', 'صادرات', 'حمل بار', 'open');
 
-  /* --- طلب و بدهی --- */
+  /* ---------- طلب و بدهی ---------- */
   const acc = (id, name, amount, kind, dueOffset, settled, note) => {
     const due = plus(dueOffset);
     d.accounts.push({
@@ -317,32 +321,45 @@ function seedDemo(d) {
   acc('demo-a3', 'شرکت پارس', 9000000, 'receivable', 12, false, 'فاکتور ۱۰۲');
   acc('demo-a4', 'آقای نوری', 2500000, 'payable', 20, false, '');
   acc('demo-a5', 'خانم رضایی', 1200000, 'receivable', -15, true, 'تسویه شد');
+  acc('demo-a6', 'شرکت آریا', 5000000, 'payable', 5, false, 'بابت حمل');
+  acc('demo-a7', 'دایی رضا', 2000000, 'receivable', 30, false, '');
 
-  /* --- تراکنش‌ها: ۲۴ ماه برای نمودار و مقایسه --- */
-  const expCats = ['خوراک', 'قبض', 'حمل‌ونقل', 'اجاره', 'درمان', 'پوشاک', 'تفریح', 'آموزش', 'خانه'];
+  /* ---------- تراکنش‌ها: ۳۶ ماه (سه سال) ---------- */
+  const expCats = ['خوراک', 'قبض', 'حمل‌ونقل', 'اجاره', 'درمان', 'پوشاک',
+                   'تفریح', 'آموزش', 'خانه', 'هدیه', 'اینترنت', 'سوخت'];
   let seq = 0;
 
-  for (let m = 0; m < 24; m++) {
+  for (let m = 0; m < 36; m++) {
     const dt = at(-m);
     const dim = monthLen(dt.jy, dt.jm);
 
+    // حقوق (هر ماه، با رشد سالانه)
     d.tx.push({
-      id: 'demo-tx-s' + m, type: 'income', amount: 22000000 + (m % 6) * 1200000,
-      jy: dt.jy, jm: dt.jm, jd: 1, cat: 'حقوق', note: m === 0 ? 'حقوق این ماه' : ''
+      id: 'demo-tx-s' + m, type: 'income',
+      amount: 22000000 + (m % 12) * 900000 + Math.floor(m / 12) * 3000000,
+      jy: dt.jy, jm: dt.jm, jd: 1, cat: 'حقوق', note: ''
     });
 
-    if (m % 3 === 0) {
+    // درآمد جانبی
+    if (m % 2 === 0) {
       d.tx.push({
-        id: 'demo-tx-x' + m, type: 'income', amount: 4000000 + (m % 4) * 2500000,
+        id: 'demo-tx-x' + m, type: 'income', amount: 3500000 + (m % 5) * 1800000,
         jy: dt.jy, jm: dt.jm, jd: Math.min(12, dim), cat: 'فروش', note: ''
       });
     }
+    if (m % 7 === 0) {
+      d.tx.push({
+        id: 'demo-tx-y' + m, type: 'income', amount: 2000000 + (m % 3) * 700000,
+        jy: dt.jy, jm: dt.jm, jd: Math.min(20, dim), cat: 'سود بانکی', note: ''
+      });
+    }
 
-    const n = 4 + (m % 3);
+    // هزینه‌ها: ۵ تا ۸ مورد در هر ماه
+    const n = 5 + (m % 4);
     for (let i = 0; i < n; i++) {
-      const cat = expCats[(m * 3 + i) % expCats.length];
-      const amount = 120000 + ((m * 7 + i * 11) % 25) * 45000;
-      const day = Math.min(dim, 2 + ((m * 5 + i * 7) % (dim - 2)));
+      const cat = expCats[(m * 5 + i * 3) % expCats.length];
+      const amount = 90000 + ((m * 11 + i * 17) % 40) * 55000;
+      const day = Math.min(dim, 2 + ((m * 7 + i * 5) % (dim - 2)));
       d.tx.push({
         id: 'demo-tx-' + (seq++), type: 'expense', amount: amount,
         jy: dt.jy, jm: dt.jm, jd: day, cat: cat, note: ''
@@ -350,17 +367,19 @@ function seedDemo(d) {
     }
   }
 
-  /* --- یادداشت‌ها --- */
-  d.notes.push({
-    id: 'demo-n1', title: 'فهرست خرید',
-    page: { w: 794, h: 1123 }, pages: [{ strokes: [] }], thumb: '', reminder: null
-  });
-  d.notes.push({
-    id: 'demo-n2', title: 'یادآوری جلسه',
-    page: { w: 794, h: 559 }, pages: [{ strokes: [] }], thumb: '', reminder: null
-  });
+  /* ---------- یادداشت‌ها ---------- */
+  const note = (id, title, w, h) => {
+    d.notes.push({
+      id: id, title: title,
+      page: { w: w, h: h }, pages: [{ strokes: [] }], thumb: '', reminder: null
+    });
+  };
+  note('demo-n1', 'فهرست خرید', 794, 1123);
+  note('demo-n2', 'یادآوری جلسه', 794, 559);
+  note('demo-n3', 'طرح ایده‌ها', 559, 794);
+  note('demo-n4', 'گزارش دستی', 1123, 794);
 
-  /* --- یادآورها --- */
+  /* ---------- یادآورها ---------- */
   const rem = (id, title, offset, before, sound) => {
     const dt = plus(offset);
     d.reminders.push({
@@ -372,6 +391,8 @@ function seedDemo(d) {
   rem('demo-r1', 'پرداخت اجاره خانه', 3, 1, true);
   rem('demo-r2', 'تمدید بیمه خودرو', 6, 3, true);
   rem('demo-r3', 'جلسه با حسابدار', 1, 0, false);
+  rem('demo-r4', 'تسویه قبض برق', 9, 2, true);
+  rem('demo-r5', 'سالگرد ازدواج', 20, 7, true);
 }
 
 function save() {
