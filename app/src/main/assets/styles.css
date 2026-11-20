@@ -1458,3 +1458,111 @@ input,textarea,select{-webkit-user-select:text;user-select:text}
 /* روز انتخاب‌شده در تقویم: همهٔ اعداد سفید و خوانا */
 .cal-cell.sel,.cal-cell.sel *{color:#fff !important;-webkit-text-fill-color:#fff !important}
 .cal-cell.sel .cg,.cal-cell.sel .ch{opacity:.95 !important}
+
+/* ===== تقویم: اسکرول داخلی ===== */
+#dateDlg form{
+  max-height:86vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  padding-bottom:6px;
+}
+#dateDlg{max-height:92vh}
+
+/* ===== دکمهٔ + هنگام خواندن گزارش محو شود ===== */
+.fab.hidden-fab{opacity:0;transform:scale(.8);pointer-events:none;transition:opacity .18s ease}
+.fab{transition:opacity .18s ease,transform .18s ease}
+
+/* ===== تب‌های زیربخش‌ها کوچک‌تر ===== */
+.listtools > .seg{transform:scale(.86);transform-origin:right center;margin-bottom:-2px}
+.listtools > .seg button{font-size:11px;padding:6px 10px}
+
+/* ===== ردیف مرتب‌سازی درشت‌تر + فلش رنگی ===== */
+.sortrow{gap:8px}
+.sortbtn{
+  padding:8px 12px;border-radius:12px;font-size:12.5px;font-weight:800;
+}
+.sortbtn.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.sortbtn.dir{
+  min-width:auto;padding:8px 12px;font-size:13px;font-weight:900;
+  display:flex;align-items:center;gap:4px;
+}
+.sortbtn.dir.asc{color:#15803d;border-color:#22c55e;background:rgba(34,197,94,.12)}
+.sortbtn.dir.desc{color:#b91c1c;border-color:#ef4444;background:rgba(239,68,68,.12)}
+.sortbtn.dir::first-letter{font-size:18px}
+
+/* ===== جستجو هم‌رنگ فصل ===== */
+.listtools input[type="search"],#listSearch{
+  border:1.5px solid var(--brand) !important;
+  background:var(--brand-soft) !important;
+}
+.listtools input[type="search"]::placeholder,#listSearch::placeholder{color:var(--brand);opacity:.7}
+
+/* ===== گزارش: دکمهٔ حالت مقایسه باکس فصلی ===== */
+#view .seg button.on{
+  background:linear-gradient(135deg,var(--brand),var(--brand2)) !important;
+  color:#fff !important;
+  box-shadow:0 6px 14px rgba(0,0,0,.12);
+}
+
+/* دکمهٔ جهت: افقی و خوانا */
+.sortbtn.dir{white-space:nowrap;min-width:92px;justify-content:center;flex:0 0 auto}
+
+/* ===== فلش مرتب‌سازی: کلفت، رنگی، متن محو شونده ===== */
+.sortbtn.dir{
+  min-width:46px;width:46px;height:40px;padding:0;
+  font-size:24px;font-weight:900;line-height:1;
+  display:grid;place-items:center;
+  transform:scaleY(1.15);
+}
+.sortbtn.dir.asc{color:#16a34a;border-color:#16a34a;background:rgba(22,163,74,.12);text-shadow:0 0 6px rgba(22,163,74,.45)}
+.sortbtn.dir.desc{color:#dc2626;border-color:#dc2626;background:rgba(220,38,38,.12);text-shadow:0 0 6px rgba(220,38,38,.45)}
+.sortrow{position:relative;flex-wrap:wrap}
+.dirflash{
+  position:absolute;top:-2px;left:6px;
+  font-size:12px;font-weight:900;padding:2px 8px;border-radius:10px;
+  animation:dirFlash .95s ease forwards;pointer-events:none;
+}
+.dirflash.asc{color:#166534;background:rgba(34,197,94,.22)}
+.dirflash.desc{color:#991b1b;background:rgba(239,68,68,.22)}
+@keyframes dirFlash{
+  0%{opacity:0;transform:translateY(4px)}
+  25%{opacity:1;transform:translateY(0)}
+  100%{opacity:0;transform:translateY(-10px)}
+}
+
+/* برچسب‌های مرتب‌سازی درشت‌تر */
+.sortbtn{font-size:13.5px;font-weight:800;padding:8px 14px}
+
+/* ===== سال ۱۴۰۵ روی دایره: در تیره و روشن خوانا ===== */
+.dc-y{
+  color:#3b2a0e !important;
+  -webkit-text-fill-color:#3b2a0e !important;
+  opacity:1 !important;
+  text-shadow:0 1px 0 rgba(255,255,255,.5);
+}
+:root[data-theme="dark"] .dc-y{
+  color:#3b2a0e !important;
+  -webkit-text-fill-color:#3b2a0e !important;
+}
+
+/* ===== خدمات: فونت درشت‌تر و پررنگ ===== */
+#svcDlg h2{font-size:16px}
+.svc-title{font-size:15px !important;font-weight:900}
+.svc-line{font-size:13.5px !important;padding:8px 10px}
+.svc-line .svc-k{font-weight:700}
+.svc-line .svc-v{font-size:14px !important;font-weight:900;color:var(--brand) !important}
+.svc-info-t{font-size:13px !important}
+.svc-info div{font-size:12.5px !important;font-weight:600}
+.svc-small{opacity:1 !important;color:var(--ink)}
+#svcDlg .hint,.svc-out{color:var(--ink)}
+
+/* ===== چیپ‌های بازهٔ تاریخ (هم‌رنگ فصل) ===== */
+.rangerow{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.chip{
+  padding:6px 11px;border-radius:999px;border:1px solid var(--line);
+  background:var(--card);color:var(--muted);
+  font-size:11.5px;font-weight:700;white-space:nowrap;
+}
+.chip.on{
+  background:var(--brand-soft);color:var(--brand);
+  border-color:var(--brand);font-weight:800;
+}
+.chip:active{transform:scale(1.04)}

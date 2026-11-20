@@ -163,6 +163,13 @@ const S = {
   oblTab: 'cheques',
   txKind: 'expense',
   txFilter: 'all',
+  txSort: 'date',
+  txDir: -1,
+  txQuery: '',
+  txRange: 'all',
+  chqRange: 'all',
+  loanRange: 'all',
+  accRange: 'all',
   detailLoan: null,
   reportYm: null
 };
@@ -1538,9 +1545,13 @@ function renderTxList() {
     bar.appendChild(b);
   });
 
-  const dir = el('button', 'sortbtn dir', LIST.dir > 0 ? '↑' : '↓');
+  const dir = el('button', 'sortbtn dir ' + (LIST.dir > 0 ? 'asc' : 'desc'), LIST.dir > 0 ? '↑' : '↓');
   dir.type = 'button';
-  dir.addEventListener('click', () => { LIST.dir = -LIST.dir; renderTxList(); });
+  dir.addEventListener('click', () => {
+    flashDirText(bar, LIST.dir > 0 ? 'نزولی' : 'صعودی');
+    LIST.dir = -LIST.dir;
+    renderTxList();
+  });
   bar.appendChild(dir);
 
   const body = $('listBody');
@@ -1582,6 +1593,112 @@ $('listSearch').addEventListener('input', () => { LIST.query = $('listSearch').v
 $('listClose').addEventListener('click', () => $('listDlg').close());
 
 /* ---------- نوار ابزار لیست‌ها (فیلتر، مرتب‌سازی، جستجو) ---------- */
+
+
+/* ---------- بازهٔ تاریخ مشترک ---------- */
+function rangeOf(mode, custom) {
+  const t = todayJalali();
+  const tJ = todayJdn();
+
+  if (mode === 'custom' && custom && custom.from && custom.to) {
+    return { from: jdnOf(custom.from), to: jdnOf(custom.to), mode: mode };
+  }
+  if (mode === 'month') {
+    return { from: j2d(t.jy, t.jm, 1), to: j2d(t.jy, t.jm, monthLen(t.jy, t.jm)), mode: mode };
+  }
+  if (mode === 'prevMonth') {
+    const p = addMonths(t.jy, t.jm, 1, -1);
+    return { from: j2d(p.jy, p.jm, 1), to: j2d(p.jy, p.jm, monthLen(p.jy, p.jm)), mode: mode };
+  }
+  if (mode === 'year') {
+    return { from: j2d(t.jy, 1, 1), to: j2d(t.jy, 12, monthLen(t.jy, 12)), mode: mode };
+  }
+  if (mode === 'prevYear') {
+    return { from: j2d(t.jy - 1, 1, 1), to: j2d(t.jy - 1, 12, monthLen(t.jy - 1, 12)), mode: mode };
+  }
+  return { from: -9999999, to: 9999999, mode: 'all' };
+}
+
+function inRangeJ(jdn, r) {
+  if (!r || r.mode === 'all') return true;
+  return jdn >= r.from && jdn <= r.to;
+}
+
+/* پنجرهٔ بازهٔ دلخواه */
+let rangeTarget = 'tx';
+
+function openRangeDlg(target) {
+  rangeTarget = target;
+  mountDP($('dpFrom'), 110, 5);
+  mountDP($('dpTo'), 110, 5);
+
+  const t = todayJalali();
+  setDP($('dpFrom'), addMonths(t.jy, t.jm, 1, -1));
+  setDP($('dpTo'), t);
+  $('rangeDlg').showModal();
+}
+
+$('rangeCancel').addEventListener('click', () => $('rangeDlg').close());
+
+$('rangeApply').addEventListener('click', () => {
+  const from = getDP($('dpFrom'));
+  const to = getDP($('dpTo'));
+
+  const custom = { from: from, to: to };
+
+  if (rangeTarget === 'tx') { S.txRange = 'custom'; S.txCustom = custom; }
+  if (rangeTarget === 'chq') { S.chqRange = 'custom'; S.chqCustom = custom; }
+  if (rangeTarget === 'loan') { S.loanRange = 'custom'; S.loanCustom = custom; }
+  if (rangeTarget === 'acc') { S.accRange = 'custom'; S.accCustom = custom; }
+
+  $('rangeDlg').close();
+  render();
+  toast('بازه اعمال شد');
+});
+
+const RANGE_CHIPS = [
+  ['all', 'همه'],
+  ['month', 'این ماه'],
+  ['prevMonth', 'ماه قبل'],
+  ['year', 'این سال'],
+  ['prevYear', 'سال قبل']
+];
+
+function rangeChips(target, current) {
+  const row = el('div', 'rangerow');
+
+  for (const [key, label] of RANGE_CHIPS) {
+    const b = el('button', 'chip' + (current === key ? ' on' : ''), label);
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      if (target === 'tx') S.txRange = key;
+      if (target === 'chq') S.chqRange = key;
+      if (target === 'loan') S.loanRange = key;
+      if (target === 'acc') S.accRange = key;
+      render();
+    });
+    row.appendChild(b);
+  }
+
+  const cb = el('button', 'chip' + (current === 'custom' ? ' on' : ''), 'بازهٔ دلخواه');
+  cb.type = 'button';
+  cb.addEventListener('click', () => openRangeDlg(target));
+  row.appendChild(cb);
+
+  return row;
+}
+
+/* ---------- نمایش لحظه‌ای «صعودی/نزولی» ---------- */
+function flashDirText(row, text) {
+  try {
+    const sp = document.createElement('span');
+    sp.className = 'dirflash ' + (text === 'صعودی' ? 'asc' : 'desc');
+    sp.textContent = text;
+    row.appendChild(sp);
+    setTimeout(() => sp.remove(), 950);
+  } catch (e) { /* */ }
+}
+
 function listTools(cfg) {
   const box = el('div', 'listtools');
 
@@ -1605,14 +1722,19 @@ function listTools(cfg) {
       row.appendChild(b);
     }
 
-    const dir = el('button', 'sortbtn dir', cfg.dir > 0 ? '↑' : '↓');
+    const dir = el('button', 'sortbtn dir ' + (cfg.dir > 0 ? 'asc' : 'desc'), cfg.dir > 0 ? '↑' : '↓');
     dir.type = 'button';
     dir.title = 'صعودی / نزولی';
-    dir.addEventListener('click', () => { cfg.onDir(); });
+    dir.addEventListener('click', () => {
+      flashDirText(row, cfg.dir > 0 ? 'نزولی' : 'صعودی');
+      cfg.onDir();
+    });
     row.appendChild(dir);
 
     box.appendChild(row);
   }
+
+  if (cfg.range) box.appendChild(cfg.range);
 
   if (cfg.search) {
     const inp = document.createElement('input');
@@ -2521,6 +2643,40 @@ $('svcCalc').addEventListener('click', () => {
 });
 
 
+
+/* ---------- مخفی‌کردن دکمهٔ + هنگام خواندن گزارش ---------- */
+(function () {
+  let t = null;
+
+  const show = () => {
+    const f = $('fab');
+    if (f) f.classList.remove('hidden-fab');
+  };
+
+  const hide = () => {
+    const f = $('fab');
+    if (f) f.classList.add('hidden-fab');
+  };
+
+  document.addEventListener('pointerdown', ev => {
+    if (ev.target.closest('#fab')) return;
+
+    t = setTimeout(hide, 320);
+  }, { passive: true });
+
+  document.addEventListener('pointerup', () => {
+    if (t) { clearTimeout(t); t = null; }
+    show();
+  }, { passive: true });
+
+  document.addEventListener('pointercancel', () => {
+    if (t) { clearTimeout(t); t = null; }
+    show();
+  }, { passive: true });
+
+  document.addEventListener('scroll', show, { passive: true });
+})();
+
 /* ---------- رنگ نوار سیستم (دکمه‌های پایین) ---------- */
 function syncSystemBars() {
   try {
@@ -2773,15 +2929,20 @@ function renderHome() {
 function renderTx() {
   view.textContent = '';
 
-  const seg = el('div', 'seg');
-  const defs = [['all', 'همه'], ['expense', 'هزینه'], ['income', 'درآمد']];
-  for (const [k, lbl] of defs) {
-    const b = el('button', S.txFilter === k ? 'on' : '', lbl);
-    b.type = 'button';
-    b.addEventListener('click', () => { S.txFilter = k; render(); });
-    seg.appendChild(b);
-  }
-  view.appendChild(seg);
+  view.appendChild(listTools({
+    segs: [['all', 'همه'], ['expense', 'هزینه‌ها'], ['income', 'درآمدها']],
+    value: S.txFilter,
+    onSeg: v => { S.txFilter = v; render(); },
+    sorts: [['date', 'تاریخ'], ['amount', 'مبلغ'], ['cat', 'نام']],
+    sort: S.txSort,
+    dir: S.txDir,
+    onSort: v => { S.txSort = v; render(); },
+    onDir: () => { S.txDir = -S.txDir; render(); },
+    search: true,
+    query: S.txQuery,
+    onSearch: v => { S.txQuery = v; render(); },
+    range: rangeChips('tx', S.txRange)
+  }));
 
   const now = todayJalali();
   const mk = monthKey(now);
@@ -2802,8 +2963,22 @@ function renderTx() {
   view.appendChild(stats);
 
   let items = S.d.tx.slice();
+
   if (S.txFilter !== 'all') items = items.filter(x => x.type === S.txFilter);
-  items.sort((a, b) => jdnOf(b) - jdnOf(a));
+
+  const txR = rangeOf(S.txRange, S.txCustom);
+  items = items.filter(x => inRangeJ(jdnOf(x), txR));
+
+  if (S.txQuery && S.txQuery.trim()) {
+    const q = S.txQuery.trim();
+    items = items.filter(x => (x.cat || '').includes(q) || (x.note || '').includes(q) || String(x.amount).includes(q));
+  }
+
+  const catKey = x => (x.cat || '').charCodeAt(0) || 0;
+
+  if (S.txSort === 'amount') items.sort(sortBy(S.txDir, x => x.amount));
+  else if (S.txSort === 'cat') items.sort(sortBy(S.txDir, catKey));
+  else items.sort(sortBy(S.txDir, x => jdnOf(x)));
 
   if (!items.length) {
     const e = el('div', 'empty');
@@ -2877,7 +3052,8 @@ function renderLoans() {
     toggle: true,
     toggleLabel: 'فقط وام‌های تسویه‌شده',
     toggleValue: S.loanSettled,
-    onToggle: v => { S.loanSettled = v; render(); }
+    onToggle: v => { S.loanSettled = v; render(); },
+    range: rangeChips('loan', S.loanRange)
   }));
 
   if (!S.d.loans.length) {
@@ -2899,6 +3075,9 @@ function renderLoans() {
   };
 
   if (S.loanSettled) loans = loans.filter(l => info(l).settled);
+
+  const loanR = rangeOf(S.loanRange, S.loanCustom);
+  if (loanR.mode !== 'all') loans = loans.filter(l => inRangeJ(info(l).startJ, loanR) || inRangeJ(info(l).endJ, loanR));
 
   if (S.loanSort === "amount") loans.sort(sortBy(S.loanDir, l => info(l).totalAmt));
   else if (S.loanSort === "end") loans.sort(sortBy(S.loanDir, l => info(l).endJ));
@@ -3052,7 +3231,7 @@ const CHQ_STATUS = {
 
 function renderCheques() {
   view.appendChild(listTools({
-    segs: [['in', 'دریافتی‌ها'], ['out', 'صادره‌ها'], ['all', 'همه']],
+    segs: [['in', 'چک‌های دریافتی'], ['out', 'چک‌های صادره'], ['all', 'همهٔ چک‌ها']],
     value: S.chqFilter,
     onSeg: v => { S.chqFilter = v; render(); },
     sorts: [['date', 'تاریخ'], ['amount', 'مبلغ'], ['party', 'نام']],
@@ -3062,12 +3241,16 @@ function renderCheques() {
     onDir: () => { S.chqDir = -S.chqDir; render(); },
     search: true,
     query: S.chqQuery,
-    onSearch: v => { S.chqQuery = v; render(); }
+    onSearch: v => { S.chqQuery = v; render(); },
+    range: rangeChips('chq', S.chqRange)
   }));
 
   let items = S.d.cheques.slice();
 
   if (S.chqFilter !== 'all') items = items.filter(c => c.kind === S.chqFilter);
+
+  const chqR = rangeOf(S.chqRange, S.chqCustom);
+  items = items.filter(c => inRangeJ(jdnOf(c), chqR));
 
   if (S.chqQuery) {
     const q = S.chqQuery.trim();
@@ -3135,12 +3318,16 @@ function renderAccounts() {
     onDir: () => { S.accDir = -S.accDir; render(); },
     search: true,
     query: S.accQuery,
-    onSearch: v => { S.accQuery = v; render(); }
+    onSearch: v => { S.accQuery = v; render(); },
+    range: rangeChips('acc', S.accRange)
   }));
 
   let items = S.d.accounts.slice();
 
   if (S.accFilter !== 'all') items = items.filter(a => a.kind === S.accFilter);
+
+  const accR = rangeOf(S.accRange, S.accCustom);
+  items = items.filter(a => inRangeJ(a.due ? jdnOf(a.due) : jdnOf(a), accR));
 
   if (S.accQuery) {
     const q = S.accQuery.trim();
