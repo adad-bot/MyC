@@ -608,16 +608,61 @@ function bucketOf(days) {
   return null;
 }
 
+function isRedOcc(o) {
+  return !!o.h || /شهادت|ولادت/.test(o.t);
+}
+
 function openOcc(o) {
-  $('occTitle').textContent = o.t;
-  $('occBody').textContent = o.d || 'توضیحی برای این مناسبت ثبت نشده است.';
-  const box = $('occHadith');
-  if (o.hadith) {
-    box.classList.remove('hidden');
-    box.textContent = o.hadith;
-  } else {
-    box.classList.add('hidden');
+  $('occTitle').textContent = o.t || 'مناسبت';
+  const body = $('occBody');
+  body.textContent = '';
+  const d = document.createElement('div');
+  d.textContent = o.d || 'توضیحی برای این مناسبت ثبت نشده است.';
+  body.appendChild(d);
+  $('occHadith').classList.add('hidden');
+  $('occDlg').showModal();
+}
+
+function openOccDay(jdn) {
+  const list = allOcc(jdn);
+  if (!list.length) return;
+
+  $('occTitle').textContent = 'مناسبت‌های ' + dateLabel(d2j(jdn));
+
+  const body = $('occBody');
+  body.textContent = '';
+
+  for (const o of list) {
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '12px';
+
+    const t = document.createElement('div');
+    t.textContent = o.t;
+    t.style.fontWeight = '800';
+    t.style.fontSize = '14px';
+    t.style.color = isRedOcc(o) ? 'var(--red)' : 'var(--ink)';
+    wrap.appendChild(t);
+
+    const d = document.createElement('div');
+    d.textContent = o.d || '';
+    d.style.marginTop = '4px';
+    d.style.color = 'var(--ink)';
+    wrap.appendChild(d);
+
+    const hs = o.hadiths || (o.hadith ? [o.hadith] : []);
+    if (hs.length) {
+      const h = document.createElement('div');
+      h.className = 'hint';
+      h.style.marginTop = '6px';
+      h.style.lineHeight = '1.9';
+      h.textContent = hs[Math.floor(Math.random() * hs.length)];
+      wrap.appendChild(h);
+    }
+
+    body.appendChild(wrap);
   }
+
+  $('occHadith').classList.add('hidden');
   $('occDlg').showModal();
 }
 
@@ -733,6 +778,24 @@ function markSeen(x) {
   scheduleNotifications();
 }
 
+/* کد بانک از روی شبا (IR + ۲ رقم کنترلی + ۳ رقم کد بانک) */
+const IBAN_BANKS = {
+  '010': 'بانک مرکزی', '011': 'بانک صنعت و معدن', '012': 'بانک ملت',
+  '013': 'بانک رفاه کارگران', '014': 'بانک مسکن', '015': 'بانک سپه',
+  '016': 'بانک کشاورزی', '017': 'بانک ملی', '018': 'بانک تجارت',
+  '019': 'بانک صادرات', '020': 'بانک توسعه صادرات', '021': 'پست بانک',
+  '022': 'بانک توسعه تعاون', '054': 'بانک پارسیان', '055': 'بانک پاسارگاد',
+  '056': 'بانک سامان', '057': 'بانک پاسارگاد', '058': 'بانک سرمایه',
+  '059': 'بانک سینا', '061': 'بانک شهر', '062': 'بانک آینده',
+  '063': 'بانک انصار', '069': 'بانک ایران زمین', '070': 'بانک رسالت',
+  '078': 'بانک دی', '079': 'بانک مهر ایران'
+};
+
+function bankFromIban(iban) {
+  if (!iban || iban.length < 7) return '';
+  return IBAN_BANKS[iban.slice(4, 7)] || '';
+}
+
 /* ---------- خواندن اطلاعات چک از QR ---------- */
 function applyQrText(txt) {
   const t = (txt || '').trim();
@@ -805,7 +868,11 @@ function applyQrText(txt) {
 
     $('cParty').value = '';
     $('cRaw').value = t.replace(/\s+/g, ' ').slice(0, 160);
-    if (iban) $('cIban').value = iban.toUpperCase();
+    if (iban) {
+      $('cIban').value = iban.toUpperCase();
+      const bn = bankFromIban(iban.toUpperCase());
+      if (bn) $('cBank').value = bn;
+    }
     if (filled) { toast('شماره چک، کد ملی و شناسه صیاد خوانده شد — مبلغ و تاریخ را دستی وارد کن'); return; }
   }
 
@@ -943,7 +1010,7 @@ $('rstYes').addEventListener('click', () => {
       const ok = backupToDocs();
       wipeAllData();
       $('resetDlg').close();
-      toast(ok ? 'پاک شد — پشتیبان در Documents/Back_Miaad ذخیره شد' : 'داده‌ها پاک شدند ولی فایل پشتیبان ساخته نشد');
+      toast(ok ? 'پشتیبان‌گیری انجام شد' : 'داده‌ها پاک شدند ولی پشتیبان ساخته نشد');
     }, 5000);
     return;
   }
@@ -1160,8 +1227,27 @@ const HADITHS = {
   '7-27': 'خداوند: «اقرأ باسم ربک الذی خلق» — آغاز بعثت پیامبر (ص).'
 };
 
+/* احادیث تکمیلی برای انتخاب تصادفی */
+const MORE_HADITHS = {
+  '1-9': ['امام حسین (ع): «من را به‌جز خدا پناهی نیست.»'],
+  '1-10': ['امام حسین (ع): «من برای اصلاح امت جدم قیام کردم.»', 'امام حسین (ع): «مرگ در راه عزت، از زندگی در خواری بهتر است.»'],
+  '1-12': ['امام سجاد (ع): «حق کسی که به تو نیکی می‌کند، آن است که سپاسش گویی.»'],
+  '2-20': ['امام حسین (ع): «هر کس مرا زیارت کند، گویا خدا را در عرش زیارت کرده است.»'],
+  '2-30': ['امام رضا (ع): «هر کس به زیارت من بیاید، خداوند او را از آتش نجات می‌دهد.»'],
+  '3-17': ['امام صادق (ع): «هر کس دو روزش برابر باشد، مغبون است.»'],
+  '6-3': ['حضرت فاطمه (س): «خداوند نماز را برای پاک‌شدن از تکبر واجب کرد.»'],
+  '7-13': ['امام علی (ع): «ارزش هر کس به اندازهٔ دانش اوست.»', 'امام علی (ع): «عدالت، مایهٔ پایداری مردمان است.»'],
+  '8-15': ['امام مهدی (عج): «من مایهٔ امنیت اهل زمین هستم.»'],
+  '9-10': ['پیامبر (ص): «خدیجه بهترین یار من در رساندن پیام خدا بود.»'],
+  '9-21': ['امام علی (ع): «دنیا را سه طلاقه کن و از آن فقط به‌قدر آب شتر بساز.»'],
+  '10-25': ['امام صادق (ع): «کسی که دوست ما اهل بیت را شاد کند، گویا پیامبر را شاد کرده است.»'],
+  '12-10': ['امام علی (ع): «تقوا، نگهبان دین است.»']
+};
+
 for (const k in HADITHS) {
-  if (HIJRI_OCCASIONS[k] && HIJRI_OCCASIONS[k][0]) HIJRI_OCCASIONS[k][0].hadith = HADITHS[k];
+  if (HIJRI_OCCASIONS[k] && HIJRI_OCCASIONS[k][0]) {
+    HIJRI_OCCASIONS[k][0].hadiths = [HADITHS[k]].concat(MORE_HADITHS[k] || []);
+  }
 }
 
 let FMT_HMD = null;
@@ -1284,8 +1370,8 @@ function buildDateCard() {
   if (occs.length) {
     const wrap = el('div', 'dc-occ-wrap');
     for (const o of occs) {
-      const chip = el('div', 'dc-occ' + (o.h ? ' hol' : '') + (occs.length === 1 ? ' big' : ''), o.t);
-      chip.addEventListener('click', ev => { ev.stopPropagation(); openOcc(o); });
+      const chip = el('div', 'dc-occ' + (isRedOcc(o) ? ' hol' : '') + (occs.length === 1 ? ' big' : ''), o.t);
+      chip.addEventListener('click', ev => { ev.stopPropagation(); openOccDay(jdn); });
       wrap.appendChild(chip);
     }
     card.appendChild(wrap);
@@ -1506,11 +1592,20 @@ function renderDateInfo() {
 
   for (const o of list) {
     const wrap = el('div');
-    wrap.appendChild(el('div', null, o.t));
+    wrap.style.cursor = 'pointer';
+    wrap.style.marginBottom = '6px';
+
+    const t = el('div', null, o.t);
+    t.style.fontWeight = '700';
+    t.style.color = isRedOcc(o) ? 'var(--red)' : 'var(--ink)';
+    wrap.appendChild(t);
+
     const d = el('div', 'hint');
     d.style.marginTop = '3px';
     d.textContent = o.d;
     wrap.appendChild(d);
+
+    wrap.addEventListener('click', () => openOccDay(calSel));
     box.appendChild(wrap);
   }
 }
@@ -2179,24 +2274,198 @@ function renderReport() {
     return { m: m, inc: a, exp: b };
   });
 
-  const chart = el('div', 'chart');
-  for (const s of series) {
-    const col = el('div', 'colwrap');
-    const bars = el('div', 'bars');
-    const b1 = el('div', 'b1'); b1.style.height = Math.round(s.inc / max * 92) + '%'; b1.style.minHeight = s.inc ? '2px' : '0';
-    const b2 = el('div', 'b2'); b2.style.height = Math.round(s.exp / max * 92) + '%'; b2.style.minHeight = s.exp ? '2px' : '0';
-    bars.append(b1, b2);
-    const cl = el('div', 'cl', MONTHS[s.m % 100 - 1].slice(0, 4));
-    col.append(bars, cl);
-    chart.appendChild(col);
+  /* ---------- نمودار خطی زندهٔ ۶ ماه ---------- */
+  const NS = 'http://www.w3.org/2000/svg';
+  const LW = 320, LH = 140, PAD = 18;
+  const maxV = Math.max(1, ...series.map(s => Math.max(s.inc, s.exp)));
+  const px = i => PAD + i * (LW - PAD * 2) / Math.max(1, series.length - 1);
+  const py = v => LH - PAD - (v / maxV) * (LH - PAD * 2);
+
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 ' + LW + ' ' + LH);
+  svg.setAttribute('class', 'linechart');
+
+  // خطوط راهنما
+  for (let g = 0; g <= 3; g++) {
+    const y = PAD + g * (LH - PAD * 2) / 3;
+    const ln = document.createElementNS(NS, 'line');
+    ln.setAttribute('x1', PAD); ln.setAttribute('x2', LW - PAD);
+    ln.setAttribute('y1', y); ln.setAttribute('y2', y);
+    ln.setAttribute('class', 'gridline');
+    svg.appendChild(ln);
   }
-  view.appendChild(chart);
+
+  function makePath(key, cls) {
+    const d = series.map((s, i) => (i ? 'L' : 'M') + px(i).toFixed(1) + ' ' + py(s[key]).toFixed(1)).join(' ');
+    const p = document.createElementNS(NS, 'path');
+    p.setAttribute('d', d);
+    p.setAttribute('class', 'spark ' + cls);
+    svg.appendChild(p);
+    return p;
+  }
+
+  const p1 = makePath('inc', 'in');
+  const p2 = makePath('exp', 'out');
+
+  // نقطه‌ها
+  series.forEach((s, i) => {
+    const c1 = document.createElementNS(NS, 'circle');
+    c1.setAttribute('cx', px(i)); c1.setAttribute('cy', py(s.inc));
+    c1.setAttribute('r', 2.6); c1.setAttribute('class', 'dot in');
+    svg.appendChild(c1);
+
+    const c2 = document.createElementNS(NS, 'circle');
+    c2.setAttribute('cx', px(i)); c2.setAttribute('cy', py(s.exp));
+    c2.setAttribute('r', 2.6); c2.setAttribute('class', 'dot out');
+    svg.appendChild(c2);
+
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', px(i)); t.setAttribute('y', LH - 4);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('class', 'axlabel');
+    t.textContent = MONTHS[s.m % 100 - 1].slice(0, 4);
+    svg.appendChild(t);
+  });
+
+  const chartBox = el('div', 'card pad chartbox');
+  chartBox.appendChild(svg);
+  view.appendChild(chartBox);
+
+  requestAnimationFrame(() => {
+    for (const p of [p1, p2]) {
+      try {
+        const len = p.getTotalLength();
+        p.style.strokeDasharray = String(len);
+        p.style.strokeDashoffset = String(len);
+        requestAnimationFrame(() => {
+          p.style.transition = 'stroke-dashoffset 1.1s ease';
+          p.style.strokeDashoffset = '0';
+        });
+      } catch (e) { /* */ }
+    }
+  });
 
   const lg = el('div', 'legend');
-  const li = el('span', 'lg-in', 'درآمد');
-  const lo = el('span', 'lg-out', 'هزینه');
-  lg.append(li, lo);
+  lg.append(el('span', 'lg-in', 'درآمد'), el('span', 'lg-out', 'هزینه'));
   view.appendChild(lg);
+
+  /* ---------- حقایق سریع ---------- */
+  const nowJ = todayJalali();
+  const daysInMonth = nowJ.jy === Math.floor(ym / 100) && nowJ.jm === (ym % 100)
+    ? nowJ.jd
+    : monthLen(Math.floor(ym / 100), ym % 100);
+
+  const monthTx = S.d.tx.filter(x => monthKey(x) === ym);
+  let biggest = null;
+  for (const x of monthTx) {
+    if (x.type !== 'expense') continue;
+    if (!biggest || x.amount > biggest.amount) biggest = x;
+  }
+
+  const facts = el('div', 'stats');
+  const f1 = el('div', 'stat');
+  f1.append(el('div', 'k', 'میانگین هزینهٔ روزانه'), el('div', 'v', NUM.format(Math.round(exp / Math.max(1, daysInMonth)))));
+  const f2 = el('div', 'stat');
+  f2.append(el('div', 'k', 'بزرگ‌ترین هزینه'), el('div', 'v red', biggest ? NUM.format(biggest.amount) : '۰'));
+  const f3 = el('div', 'stat');
+  f3.append(el('div', 'k', 'تعداد تراکنش'), el('div', 'v', fa(monthTx.length)));
+  facts.append(f1, f2, f3);
+  view.appendChild(facts);
+
+  if (biggest) {
+    const bh = el('div', 'hint');
+    bh.style.textAlign = 'center';
+    bh.style.marginTop = '-2px';
+    bh.textContent = 'بزرگ‌ترین هزینه: ' + (biggest.cat || 'بدون دسته') +
+      (biggest.note ? ' — ' + biggest.note : '') + ' · ' + fa(biggest.jd) + ' ' + MONTHS[biggest.jm - 1];
+    view.appendChild(bh);
+  }
+
+  /* ---------- نمودار دایره‌ای دسته‌ها ---------- */
+  const PALETTE = ['#4f46e5', '#ef4444', '#f59e0b', '#10b981', '#06b6d4', '#a855f7', '#64748b'];
+
+  function donutChart(kind, title) {
+    const map = new Map();
+    for (const x of monthTx) {
+      if (x.type !== kind) continue;
+      const k = (x.cat || 'سایر').trim() || 'سایر';
+      map.set(k, (map.get(k) || 0) + x.amount);
+    }
+
+    const all = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+    if (!all.length) return;
+
+    const top = all.slice(0, 6);
+    const restSum = all.slice(6).reduce((s2, e) => s2 + e[1], 0);
+    if (restSum > 0) top.push(['سایر', restSum]);
+
+    const total = top.reduce((s2, e) => s2 + e[1], 0) || 1;
+
+    const R = 42, C = 2 * Math.PI * R;
+    const dsvg = document.createElementNS(NS, 'svg');
+    dsvg.setAttribute('viewBox', '0 0 120 120');
+    dsvg.setAttribute('class', 'donut');
+
+    const bgc = document.createElementNS(NS, 'circle');
+    bgc.setAttribute('cx', 60); bgc.setAttribute('cy', 60); bgc.setAttribute('r', R);
+    bgc.setAttribute('class', 'donut-bg');
+    dsvg.appendChild(bgc);
+
+    let acc = 0;
+    const arcs = [];
+    top.forEach(([name, val], idx) => {
+      const frac = val / total;
+      const arc = document.createElementNS(NS, 'circle');
+      arc.setAttribute('cx', 60); arc.setAttribute('cy', 60); arc.setAttribute('r', R);
+      arc.setAttribute('stroke', PALETTE[idx % PALETTE.length]);
+      arc.setAttribute('class', 'donut-arc');
+      arc.setAttribute('stroke-dasharray', (frac * C).toFixed(2) + ' ' + C.toFixed(2));
+      arc.setAttribute('stroke-dashoffset', (-acc * C).toFixed(2));
+      arc.setAttribute('transform', 'rotate(-90 60 60)');
+      dsvg.appendChild(arc);
+      arcs.push(arc);
+      acc += frac;
+    });
+
+    const card = el('div', 'card pad');
+    const h = el('div', 'mhead');
+    h.style.margin = '0 0 6px';
+    h.appendChild(el('span', null, title));
+    card.appendChild(h);
+
+    const wrap = el('div', 'donutwrap');
+    wrap.appendChild(dsvg);
+
+    const leg = el('div', 'donut-legend');
+    top.forEach(([name, val], idx) => {
+      const row = el('div', 'dleg-row');
+      const dot = el('i', 'dleg-dot');
+      dot.style.background = PALETTE[idx % PALETTE.length];
+      row.appendChild(dot);
+      row.appendChild(el('span', 'dleg-name', name));
+      row.appendChild(el('span', 'dleg-val', Math.round(val / total * 100) + '٪'));
+      leg.appendChild(row);
+    });
+
+    wrap.appendChild(leg);
+    card.appendChild(wrap);
+    view.appendChild(card);
+
+    // انیمیشن کشیده‌شدن کمان‌ها
+    requestAnimationFrame(() => {
+      for (const a of arcs) {
+        a.style.opacity = '0';
+        requestAnimationFrame(() => {
+          a.style.transition = 'opacity .5s ease';
+          a.style.opacity = '1';
+        });
+      }
+    });
+  }
+
+  donutChart('expense', 'سهم هزینه‌ها');
+  donutChart('income', 'سهم درآمدها');
+
 
   // بایگانی سالانه
   const years = new Map();

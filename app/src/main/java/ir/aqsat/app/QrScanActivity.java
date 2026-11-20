@@ -52,21 +52,14 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
         root.setBackgroundColor(Color.BLACK);
 
         // نسبت تصویر دوربین رعایت شود تا کشیده/بزرگ دیده نشود
-        // پیش‌نمایش کوچک و وسط‌چین: کل میدان دید دوربین دیده می‌شود
+        // پیش‌نمایش تمام‌صفحه (روشن‌تر و پایدارتر)
         int screenW = getResources().getDisplayMetrics().widthPixels;
         int screenH = getResources().getDisplayMetrics().heightPixels;
-
-        int boxH = (int) (screenH * 0.62);
-        int boxW = (int) (boxH * 9.0 / 16.0);
-        if (boxW > screenW * 0.92) {
-            boxW = (int) (screenW * 0.92);
-            boxH = (int) (boxW * 16.0 / 9.0);
-        }
+        int boxW = (int) (Math.min(screenW, screenH) * 0.8);
 
         surfaceView = new SurfaceView(this);
-        FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(boxW, boxH);
-        slp.gravity = Gravity.CENTER;
-        root.addView(surfaceView, slp);
+        root.addView(surfaceView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         surfaceView.getHolder().addCallback(this);
 
         // کادر راهنما
@@ -232,6 +225,19 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
         camera = null;
     }
 
+
+    /** آیا متن خوانده‌شده شبیه QR چک است؟ (شبا یا چند خط ساختاریافته) */
+    private boolean looksLikeCheque(String t) {
+        if (t == null) return false;
+        String s = t.trim();
+        if (s.length() < 10) return false;
+
+        if (s.matches("(?s).*IR[0-9]{24}.*")) return true;
+
+        int lines = 0;
+        for (String ln : s.split("\n")) if (ln.trim().length() > 0) lines++;
+        return lines >= 4;
+    }
     private void onFrame(byte[] data, Camera cam) {
         if (busy || done || !ready || data == null) return;
         busy = true;
@@ -265,9 +271,12 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
                     hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
 
                     Result r = new MultiFormatReader().decode(bmp, hints);
-                    if (r != null && r.getText() != null && r.getText().length() > 0) {
-                        finishWith(r.getText());
-                        return;
+                    if (r != null && r.getText() != null) {
+                        String txt = r.getText();
+                        if (looksLikeCheque(txt)) {
+                            finishWith(txt);
+                            return;
+                        }
                     }
                 } catch (Throwable ignored) {
                 } finally {
