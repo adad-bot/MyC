@@ -805,6 +805,7 @@ function applyQrText(txt) {
 
     $('cParty').value = '';
     $('cRaw').value = t.replace(/\s+/g, ' ').slice(0, 160);
+    if (iban) $('cIban').value = iban.toUpperCase();
     if (filled) { toast('شماره چک، کد ملی و شناسه صیاد خوانده شد — مبلغ و تاریخ را دستی وارد کن'); return; }
   }
 
@@ -942,7 +943,7 @@ $('rstYes').addEventListener('click', () => {
       const ok = backupToDocs();
       wipeAllData();
       $('resetDlg').close();
-      toast(ok ? 'داده‌ها پاک شد و نسخهٔ پشتیبان در Documents/Back_Miaad ذخیره شد' : 'داده‌ها پاک شدند');
+      toast(ok ? 'پاک شد — پشتیبان در Documents/Back_Miaad ذخیره شد' : 'داده‌ها پاک شدند ولی فایل پشتیبان ساخته نشد');
     }, 5000);
     return;
   }
@@ -1859,7 +1860,7 @@ function renderObl() {
   if (S.detailLoan) { renderLoanDetail(); return; }
 
   const seg = el('div', 'seg');
-  const defs = [['cheques', 'چک‌ها'], ['loans', 'اقساط'], ['accounts', 'حساب‌ها']];
+  const defs = [['cheques', 'چک‌ها'], ['loans', 'اقساط'], ['accounts', 'طلب و بدهی']];
   for (const [k, lbl] of defs) {
     const b = el('button', S.oblTab === k ? 'on' : '', lbl);
     b.type = 'button';
@@ -2469,6 +2470,7 @@ function openCheque(c) {
   $('cConfirmed').checked = c ? !!c.confirmed : false;
   $('cNote').value = c ? c.note : '';
   $('cRaw').value = c ? (c.raw || '') : '';
+  $('cIban').value = c ? (c.iban || '') : '';
   setDP($('dpChq'), c || todayJalali());
   $('chqDlg').showModal();
 }
@@ -2498,6 +2500,7 @@ $('chqFrm').addEventListener('submit', ev => {
     status: $('cStatus').value,
     depBank: $('cDepBank').value.trim(),
     confirmed: $('cConfirmed').checked,
+    iban: $('cIban').value.trim(),
     raw: $('cRaw').value.trim(),
     note: $('cNote').value.trim()
   };
@@ -2526,7 +2529,7 @@ $('chqDelete').addEventListener('click', () => {
 /* حساب */
 function openAccount(a) {
   S.editAcc = a ? a.id : null;
-  $('accTitle').textContent = a ? 'ویرایش حساب' : 'حساب جدید';
+  $('accTitle').textContent = a ? 'ویرایش طلب/بدهی' : 'طلب/بدهی جدید';
   $('accDelete').classList.toggle('hidden', !a);
   setSeg($('accKindSeg'), a ? a.kind : 'receivable');
   $('aName').value = a ? a.name : '';

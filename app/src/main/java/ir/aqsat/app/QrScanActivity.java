@@ -92,6 +92,15 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
         tlp.bottomMargin = 140;
         root.addView(hint, tlp);
 
+        // خط قرمز تراز، وسط کادر
+        View line = new View(this);
+        GradientDrawable lineBg = new GradientDrawable();
+        lineBg.setColor(0xFFEF4444);
+        line.setBackground(lineBg);
+        FrameLayout.LayoutParams llp = new FrameLayout.LayoutParams((int) (boxW * 0.8), 6);
+        llp.gravity = Gravity.CENTER;
+        root.addView(line, llp);
+
         TextView close = new TextView(this);
         close.setText("بستن");
         close.setTextColor(Color.WHITE);

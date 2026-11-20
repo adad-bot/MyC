@@ -234,6 +234,9 @@
       <input id="cDepBank" type="text" maxlength="40">
     </label>
     <label class="chk"><input type="checkbox" id="cConfirmed"> در سامانه (صیاد) تأیید شده</label>
+    <label>شبا (اختیاری)
+      <input id="cIban" type="text" maxlength="26" placeholder="IR..." style="direction:ltr;text-align:left">
+    </label>
     <label>اطلاعات روی چک / متن QR (اختیاری)
       <input id="cRaw" type="text" maxlength="160" placeholder="با اسکن QR خودکار پر می‌شود">
     </label>
@@ -250,7 +253,7 @@
 
 <dialog id="accDlg">
   <form id="accFrm" novalidate>
-    <h2 id="accTitle">حساب جدید</h2>
+    <h2 id="accTitle">طلب/بدهی جدید</h2>
     <div class="seg" id="accKindSeg">
       <button type="button" data-kind="receivable" class="on">طلب من</button>
       <button type="button" data-kind="payable">بدهی من</button>

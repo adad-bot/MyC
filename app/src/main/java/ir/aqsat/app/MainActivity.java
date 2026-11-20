@@ -224,20 +224,30 @@ public class MainActivity extends Activity {
             });
         }
 
-        /** ذخیرهٔ فایل در Documents/Back_Miaad */
+        /** ذخیرهٔ فایل پشتیبان در Documents/Back_Miaad (و در صورت خطا در Download/Back_Miaad) */
         @JavascriptInterface
         public boolean saveDocs(String fileName, String content) {
+            if (writeTo(MediaStore.Files.getContentUri("external"),
+                    Environment.DIRECTORY_DOCUMENTS + "/Back_Miaad", fileName, content)) return true;
+
+            if (writeTo(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    Environment.DIRECTORY_DOWNLOADS + "/Back_Miaad", fileName, content)) return true;
+
+            return writeTo(MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                    Environment.DIRECTORY_DOWNLOADS, fileName, content);
+        }
+
+        private boolean writeTo(Uri collection, String relativePath, String fileName, String content) {
             OutputStream out = null;
             try {
                 ContentValues values = new ContentValues();
                 values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
                 values.put(MediaStore.MediaColumns.MIME_TYPE, "application/json");
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    values.put(MediaStore.MediaColumns.RELATIVE_PATH,
-                            Environment.DIRECTORY_DOCUMENTS + "/Back_Miaad");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && relativePath != null) {
+                    values.put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath);
                 }
 
-                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                Uri uri = getContentResolver().insert(collection, values);
                 if (uri == null) return false;
 
                 out = getContentResolver().openOutputStream(uri);
