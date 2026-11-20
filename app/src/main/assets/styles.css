@@ -1025,3 +1025,9 @@ button:active, .cal-cell:active, .dc-circle:active,
 .dleg-dot{width:9px;height:9px;border-radius:3px;display:block;flex:0 0 9px}
 .dleg-name{color:var(--muted);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dleg-val{font-weight:700;color:var(--ink)}
+
+/* خط مقایسه (دورهٔ قبل) */
+.linechart .spark.prev{stroke-width:1.8;opacity:.75}
+.legend .lg-prev{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.legend .lg-prev::before{content:'';display:block;width:16px;height:0;border-top:2px dashed var(--muted)}
+.rep-head select:disabled{opacity:.45}

@@ -2259,23 +2259,29 @@ function renderAccounts() {
 }
 
 function renderReport() {
-  view.textContent = '';
-
   const now = todayJalali();
   const ym = S.reportYm || monthKey(now);
 
+  const y = Math.floor(ym / 100);
+  const m = ym % 100;
+
+  const period = S.repPeriod || 'month';   // month | year
+  const mode = S.repMode || 'none';        // none | cmp
+
+  /* ---------- سرصفحه ---------- */
   const nav = el('div', 'mhead rep-head');
 
   const monthSel = document.createElement('select');
-  MONTHS.forEach((mn, i) => monthSel.add(new Option(mn, String(i + 1))));
-  monthSel.value = String(ym % 100);
+  MONTHS.forEach((mn, idx) => monthSel.add(new Option(mn, String(idx + 1))));
+  monthSel.value = String(m);
+  monthSel.disabled = period === 'year';
 
   const yearsSet = new Set(S.d.tx.map(x => x.jy));
   yearsSet.add(now.jy);
   const yearOpts = Array.from(yearsSet).sort((a, b) => b - a);
   const yearSel = document.createElement('select');
-  yearOpts.forEach(y => yearSel.add(new Option(fa(y), String(y))));
-  yearSel.value = String(Math.floor(ym / 100));
+  yearOpts.forEach(v => yearSel.add(new Option(fa(v), String(v))));
+  yearSel.value = String(y);
 
   const go = () => { S.reportYm = (+yearSel.value) * 100 + (+monthSel.value); render(); };
   monthSel.addEventListener('change', go);
@@ -2291,145 +2297,159 @@ function renderReport() {
   nav.append(prev, yearSel, monthSel, next);
   view.appendChild(nav);
 
-  let inc = 0, exp = 0;
-  for (const x of S.d.tx) {
-    if (monthKey(x) !== ym) continue;
-    if (x.type === 'income') inc += x.amount; else exp += x.amount;
+  /* ---------- انتخاب بازه و حالت ---------- */
+  const perSeg = el('div', 'seg');
+  [['month', 'ماهانه'], ['year', 'سالانه']].forEach(([k, lbl]) => {
+    const b = el('button', period === k ? 'on' : '', lbl);
+    b.type = 'button';
+    b.addEventListener('click', () => { S.repPeriod = k; render(); });
+    perSeg.appendChild(b);
+  });
+  view.appendChild(perSeg);
+
+  const modeSeg = el('div', 'seg');
+  [['none', 'بدون مقایسه'], ['cmp', 'مقایسه']].forEach(([k, lbl]) => {
+    const b = el('button', mode === k ? 'on' : '', lbl);
+    b.type = 'button';
+    b.addEventListener('click', () => { S.repMode = k; render(); });
+    modeSeg.appendChild(b);
+  });
+  view.appendChild(modeSeg);
+
+  /* ---------- جمع‌ها ---------- */
+  const inRange = (x, yy, mm) => x.jy === yy && (mm === null || x.jm === mm);
+
+  function totals(pred) {
+    let inc = 0, exp = 0;
+    for (const x of S.d.tx) {
+      if (!pred(x)) continue;
+      if (x.type === 'income') inc += x.amount; else exp += x.amount;
+    }
+    return { inc, exp };
   }
+
+  const cmpYm = period === 'month' ? shiftYm(ym, -12) : ym - 100;
+  const cmpY = Math.floor(cmpYm / 100);
+  const cmpM = cmpYm % 100;
+
+  const cur = totals(x => period === 'month' ? inRange(x, y, m) : inRange(x, y, null));
+  const old = mode === 'cmp'
+    ? totals(x => period === 'month' ? inRange(x, cmpY, cmpM) : inRange(x, cmpY, null))
+    : { inc: 0, exp: 0 };
 
   const st = el('div', 'stats');
   const s1 = el('div', 'stat');
-  s1.append(el('div', 'k', 'درآمد'), el('div', 'v green', NUM.format(inc)));
+  s1.append(el('div', 'k', 'درآمد'), el('div', 'v green', NUM.format(cur.inc)));
   const s2 = el('div', 'stat');
-  s2.append(el('div', 'k', 'هزینه'), el('div', 'v red', NUM.format(exp)));
+  s2.append(el('div', 'k', 'هزینه'), el('div', 'v red', NUM.format(cur.exp)));
   const s3 = el('div', 'stat');
-  s3.append(el('div', 'k', 'مانده'), el('div', 'v ' + (inc - exp >= 0 ? 'green' : 'red'), NUM.format(inc - exp)));
+  s3.append(el('div', 'k', 'مانده'), el('div', 'v ' + (cur.inc - cur.exp >= 0 ? 'green' : 'red'), NUM.format(cur.inc - cur.exp)));
   st.append(s1, s2, s3);
   view.appendChild(st);
 
-  /* ---------- مقایسه ---------- */
-  S.cmp = S.cmp || 'none';
-  const cmpSeg = el('div', 'seg');
-  const cmpOpts = [['none', 'بدون مقایسه'], ['prev', 'ماه قبل'], ['year', 'سال قبل']];
-  for (const [k, lbl2] of cmpOpts) {
-    const b = el('button', S.cmp === k ? 'on' : '', lbl2);
-    b.type = 'button';
-    b.addEventListener('click', () => { S.cmp = k; render(); });
-    cmpSeg.appendChild(b);
-  }
-  view.appendChild(cmpSeg);
-
-  if (S.cmp !== 'none') {
-    const cym = S.cmp === 'prev' ? shiftYm(ym, -1) : shiftYm(ym, -12);
-    let inc2 = 0, exp2 = 0;
-    for (const x of S.d.tx) {
-      if (monthKey(x) !== cym) continue;
-      if (x.type === 'income') inc2 += x.amount; else exp2 += x.amount;
-    }
-
-    const cmpLabel = MONTHS[cym % 100 - 1] + ' ' + fa(Math.floor(cym / 100));
-    const maxV = Math.max(inc, exp, inc2, exp2, 1);
-
-    const cmpCard = el('div', 'card pad');
-    const cmpH = el('div', 'mhead');
-    cmpH.style.margin = '0 0 8px';
-    cmpH.appendChild(el('span', null, 'این ماه در برابر ' + cmpLabel));
-    cmpCard.appendChild(cmpH);
-
-    const rows = [
-      ['درآمد این ماه', inc, 'in'],
-      ['درآمد ' + cmpLabel, inc2, 'in2'],
-      ['هزینهٔ این ماه', exp, 'out'],
-      ['هزینهٔ ' + cmpLabel, exp2, 'out2']
-    ];
-
-    for (const [lbl3, v, cls] of rows) {
-      const line = el('div', 'cmpbar');
-      line.appendChild(el('span', 'cmpl', lbl3));
-      const track = el('div', 'cmp-track');
-      const fill = el('i', 'cmp-fill ' + cls);
-      fill.style.width = Math.max(2, Math.round(v / maxV * 100)) + '%';
-      track.appendChild(fill);
-      line.appendChild(track);
-      line.appendChild(el('span', 'cmpv', NUM.format(v)));
-      cmpCard.appendChild(line);
-    }
-
-    const dInc = inc2 ? Math.round((inc - inc2) / inc2 * 100) : 0;
-    const dExp = exp2 ? Math.round((exp - exp2) / exp2 * 100) : 0;
+  if (mode === 'cmp') {
+    const dInc = old.inc ? Math.round((cur.inc - old.inc) / old.inc * 100) : 0;
+    const dExp = old.exp ? Math.round((cur.exp - old.exp) / old.exp * 100) : 0;
     const sum = el('div', 'hint');
-    sum.style.marginTop = '8px';
-    sum.textContent = 'تغییر درآمد: ' + fa(Math.abs(dInc)) + '٪ ' + (dInc >= 0 ? 'بیشتر' : 'کمتر') +
-      ' · تغییر هزینه: ' + fa(Math.abs(dExp)) + '٪ ' + (dExp >= 0 ? 'بیشتر' : 'کمتر');
-    cmpCard.appendChild(sum);
-
-    view.appendChild(cmpCard);
+    sum.style.textAlign = 'center';
+    sum.textContent = 'در برابر ' + (period === 'month' ? MONTHS[cmpM - 1] + ' ' + fa(cmpY) : 'سال ' + fa(cmpY)) +
+      ' · درآمد ' + fa(Math.abs(dInc)) + '٪ ' + (dInc >= 0 ? 'بیشتر' : 'کمتر') +
+      ' · هزینه ' + fa(Math.abs(dExp)) + '٪ ' + (dExp >= 0 ? 'بیشتر' : 'کمتر');
+    view.appendChild(sum);
   }
 
-  // نمودار ۶ ماه
-  const months = [];
-  for (let i = 5; i >= 0; i--) months.push(shiftYm(ym, -i));
-  let max = 1;
-  const series = months.map(m => {
-    let a = 0, b = 0;
-    for (const x of S.d.tx) {
-      if (monthKey(x) !== m) continue;
-      if (x.type === 'income') a += x.amount; else b += x.amount;
-    }
-    max = Math.max(max, a, b);
-    return { m: m, inc: a, exp: b };
-  });
+  /* ---------- ساخت نقاط ---------- */
+  let points = [];
+  let labels = [];
 
-  /* ---------- نمودار خطی زندهٔ ۶ ماه ---------- */
+  if (period === 'month') {
+    const len = monthLen(y, m);
+    for (let d = 1; d <= len; d++) {
+      labels.push(d % 5 === 0 || d === 1 ? fa(d) : '');
+      points.push({
+        x: d,
+        inc: totals(x => inRange(x, y, m) && x.jd === d).inc,
+        exp: totals(x => inRange(x, y, m) && x.jd === d).exp,
+        inc2: mode === 'cmp' ? totals(x => inRange(x, cmpY, cmpM) && x.jd === d).inc : 0,
+        exp2: mode === 'cmp' ? totals(x => inRange(x, cmpY, cmpM) && x.jd === d).exp : 0
+      });
+    }
+  } else {
+    for (let mm = 1; mm <= 12; mm++) {
+      labels.push(MONTHS[mm - 1].slice(0, 4));
+      points.push({
+        x: mm,
+        inc: totals(x => inRange(x, y, mm)).inc,
+        exp: totals(x => inRange(x, y, mm)).exp,
+        inc2: mode === 'cmp' ? totals(x => inRange(x, cmpY, mm)).inc : 0,
+        exp2: mode === 'cmp' ? totals(x => inRange(x, cmpY, mm)).exp : 0
+      });
+    }
+  }
+
+  /* ---------- نمودار خطی ---------- */
   const NS = 'http://www.w3.org/2000/svg';
-  const LW = 320, LH = 140, PAD = 18;
-  const maxV = Math.max(1, ...series.map(s => Math.max(s.inc, s.exp)));
-  const px = i => PAD + i * (LW - PAD * 2) / Math.max(1, series.length - 1);
-  const py = v => LH - PAD - (v / maxV) * (LH - PAD * 2);
+  const LW = 340, LH = 160, PAD = 22;
+  const many = points.length;
+  const pxOf = idx => PAD + idx * (LW - PAD * 2) / Math.max(1, many - 1);
+
+  let maxV = 1;
+  for (const p of points) {
+    maxV = Math.max(maxV, p.inc, p.exp, p.inc2, p.exp2);
+  }
+  const pyOf = v => LH - PAD - (v / maxV) * (LH - PAD * 2);
 
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', '0 0 ' + LW + ' ' + LH);
   svg.setAttribute('class', 'linechart');
 
-  // خطوط راهنما
   for (let g = 0; g <= 3; g++) {
-    const y = PAD + g * (LH - PAD * 2) / 3;
+    const gy = PAD + g * (LH - PAD * 2) / 3;
     const ln = document.createElementNS(NS, 'line');
     ln.setAttribute('x1', PAD); ln.setAttribute('x2', LW - PAD);
-    ln.setAttribute('y1', y); ln.setAttribute('y2', y);
+    ln.setAttribute('y1', gy); ln.setAttribute('y2', gy);
     ln.setAttribute('class', 'gridline');
     svg.appendChild(ln);
   }
 
-  function makePath(key, cls) {
-    const d = series.map((s, i) => (i ? 'L' : 'M') + px(i).toFixed(1) + ' ' + py(s[key]).toFixed(1)).join(' ');
-    const p = document.createElementNS(NS, 'path');
-    p.setAttribute('d', d);
-    p.setAttribute('class', 'spark ' + cls);
-    svg.appendChild(p);
-    return p;
+  function addPath(key, cls, dash) {
+    const d = points.map((p, idx) => (idx ? 'L' : 'M') + pxOf(idx).toFixed(1) + ' ' + pyOf(p[key]).toFixed(1)).join(' ');
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('class', 'spark ' + cls);
+    if (dash) path.setAttribute('stroke-dasharray', '4 4');
+    svg.appendChild(path);
+    return path;
   }
 
-  const p1 = makePath('inc', 'in');
-  const p2 = makePath('exp', 'out');
+  const paths = [];
+  if (mode === 'cmp') {
+    paths.push(addPath('inc2', 'in prev', true));
+    paths.push(addPath('exp2', 'out prev', true));
+  }
+  paths.push(addPath('inc', 'in'));
+  paths.push(addPath('exp', 'out'));
 
-  // نقطه‌ها
-  series.forEach((s, i) => {
+  points.forEach((p, idx) => {
+    if (many > 16 && idx % 2) return;
     const c1 = document.createElementNS(NS, 'circle');
-    c1.setAttribute('cx', px(i)); c1.setAttribute('cy', py(s.inc));
-    c1.setAttribute('r', 2.6); c1.setAttribute('class', 'dot in');
+    c1.setAttribute('cx', pxOf(idx)); c1.setAttribute('cy', pyOf(p.inc));
+    c1.setAttribute('r', 2.2); c1.setAttribute('class', 'dot in');
     svg.appendChild(c1);
 
     const c2 = document.createElementNS(NS, 'circle');
-    c2.setAttribute('cx', px(i)); c2.setAttribute('cy', py(s.exp));
-    c2.setAttribute('r', 2.6); c2.setAttribute('class', 'dot out');
+    c2.setAttribute('cx', pxOf(idx)); c2.setAttribute('cy', pyOf(p.exp));
+    c2.setAttribute('r', 2.2); c2.setAttribute('class', 'dot out');
     svg.appendChild(c2);
+  });
 
+  points.forEach((p, idx) => {
+    if (!labels[idx]) return;
     const t = document.createElementNS(NS, 'text');
-    t.setAttribute('x', px(i)); t.setAttribute('y', LH - 4);
+    t.setAttribute('x', pxOf(idx)); t.setAttribute('y', LH - 5);
     t.setAttribute('text-anchor', 'middle');
     t.setAttribute('class', 'axlabel');
-    t.textContent = MONTHS[s.m % 100 - 1].slice(0, 4);
+    t.textContent = labels[idx];
     svg.appendChild(t);
   });
 
@@ -2438,13 +2458,13 @@ function renderReport() {
   view.appendChild(chartBox);
 
   requestAnimationFrame(() => {
-    for (const p of [p1, p2]) {
+    for (const p of paths) {
       try {
         const len = p.getTotalLength();
         p.style.strokeDasharray = String(len);
         p.style.strokeDashoffset = String(len);
         requestAnimationFrame(() => {
-          p.style.transition = 'stroke-dashoffset 1.1s ease';
+          p.style.transition = 'stroke-dashoffset 1s ease';
           p.style.strokeDashoffset = '0';
         });
       } catch (e) { /* */ }
@@ -2453,47 +2473,34 @@ function renderReport() {
 
   const lg = el('div', 'legend');
   lg.append(el('span', 'lg-in', 'درآمد'), el('span', 'lg-out', 'هزینه'));
+  if (mode === 'cmp') {
+    const pv = el('span', 'lg-prev', 'خط‌چین = دورهٔ مقایسه');
+    lg.appendChild(pv);
+  }
   view.appendChild(lg);
 
-  /* ---------- حقایق سریع ---------- */
-  const nowJ = todayJalali();
-  const daysInMonth = nowJ.jy === Math.floor(ym / 100) && nowJ.jm === (ym % 100)
-    ? nowJ.jd
-    : monthLen(Math.floor(ym / 100), ym % 100);
-
-  const monthTx = S.d.tx.filter(x => monthKey(x) === ym);
-  let biggest = null;
-  for (const x of monthTx) {
-    if (x.type !== 'expense') continue;
-    if (!biggest || x.amount > biggest.amount) biggest = x;
-  }
-
+  /* ---------- حقایق ---------- */
+  const daysCount = period === 'month' ? monthLen(y, m) : 365;
   const facts = el('div', 'stats');
   const f1 = el('div', 'stat');
-  f1.append(el('div', 'k', 'میانگین هزینهٔ روزانه'), el('div', 'v', NUM.format(Math.round(exp / Math.max(1, daysInMonth)))));
+  f1.append(el('div', 'k', 'میانگین هزینهٔ روزانه'), el('div', 'v', NUM.format(Math.round(cur.exp / Math.max(1, daysCount)))));
   const f2 = el('div', 'stat');
-  f2.append(el('div', 'k', 'بزرگ‌ترین هزینه'), el('div', 'v red', biggest ? NUM.format(biggest.amount) : '۰'));
+  f2.append(el('div', 'k', 'درآمد روزانه'), el('div', 'v green', NUM.format(Math.round(cur.inc / Math.max(1, daysCount)))));
   const f3 = el('div', 'stat');
-  f3.append(el('div', 'k', 'تعداد تراکنش'), el('div', 'v', fa(monthTx.length)));
+  f3.append(el('div', 'k', 'مانده'), el('div', 'v', NUM.format(cur.inc - cur.exp)));
   facts.append(f1, f2, f3);
   view.appendChild(facts);
 
-  if (biggest) {
-    const bh = el('div', 'hint');
-    bh.style.textAlign = 'center';
-    bh.style.marginTop = '-2px';
-    bh.textContent = 'بزرگ‌ترین هزینه: ' + (biggest.cat || 'بدون دسته') +
-      (biggest.note ? ' — ' + biggest.note : '') + ' · ' + fa(biggest.jd) + ' ' + MONTHS[biggest.jm - 1];
-    view.appendChild(bh);
-  }
-
-  /* ---------- نمودار دایره‌ای دسته‌ها ---------- */
+  /* ---------- نمودار دایره‌ای ---------- */
   const PALETTE = ['#4f46e5', '#ef4444', '#f59e0b', '#10b981', '#06b6d4', '#a855f7', '#64748b'];
 
   function donutChart(kind, title) {
     const map = new Map();
-    for (const x of monthTx) {
+    for (const x of S.d.tx) {
       if (x.type !== kind) continue;
+      if (period === 'month') { if (!(x.jy === y && x.jm === m)) continue; }
+      else if (x.jy !== y) continue;
+
       const k = (x.cat || 'سایر').trim() || 'سایر';
       map.set(k, (map.get(k) || 0) + x.amount);
     }
@@ -2518,7 +2525,6 @@ function renderReport() {
     dsvg.appendChild(bgc);
 
     let acc = 0;
-    const arcs = [];
     top.forEach(([name, val], idx) => {
       const frac = val / total;
       const arc = document.createElementNS(NS, 'circle');
@@ -2529,7 +2535,6 @@ function renderReport() {
       arc.setAttribute('stroke-dashoffset', (-acc * C).toFixed(2));
       arc.setAttribute('transform', 'rotate(-90 60 60)');
       dsvg.appendChild(arc);
-      arcs.push(arc);
       acc += frac;
     });
 
@@ -2556,51 +2561,51 @@ function renderReport() {
     wrap.appendChild(leg);
     card.appendChild(wrap);
     view.appendChild(card);
-
-    // انیمیشن کشیده‌شدن کمان‌ها
-    requestAnimationFrame(() => {
-      for (const a of arcs) {
-        a.style.opacity = '0';
-        requestAnimationFrame(() => {
-          a.style.transition = 'opacity .5s ease';
-          a.style.opacity = '1';
-        });
-      }
-    });
   }
 
   donutChart('expense', 'سهم هزینه‌ها');
   donutChart('income', 'سهم درآمدها');
 
-
-  // بایگانی سالانه
+  /* ---------- بایگانی سالانه ---------- */
   const years = new Map();
   for (const x of S.d.tx) {
-    const y = Math.floor(monthKey(x) / 100);
-    if (!years.has(y)) years.set(y, { inc: 0, exp: 0 });
-    const o = years.get(y);
+    if (!years.has(x.jy)) years.set(x.jy, { inc: 0, exp: 0 });
+    const o = years.get(x.jy);
     if (x.type === 'income') o.inc += x.amount; else o.exp += x.amount;
   }
 
   if (years.size) {
-    const h = el('div', 'mhead');
-    h.append(el('span', null, 'بایگانی سالانه'), el('span', null, ''));
-    view.appendChild(h);
+    const mhead = el('div', 'mhead');
+    mhead.appendChild(el('span', null, 'بایگانی سالانه'));
+    view.appendChild(mhead);
 
-    const list = el('div', 'list');
-    for (const [y, o] of Array.from(years.entries()).sort((a, b) => b[0] - a[0])) {
-      const row = el('div', 'item');
-      const main = el('div', 'main');
-      main.appendChild(el('div', 't', 'سال ' + fa(y)));
-      const m = el('div', 'm');
-      m.appendChild(el('span', 'green', 'درآمد ' + NUM.format(o.inc)));
-      m.appendChild(el('span', 'red', 'هزینه ' + NUM.format(o.exp)));
-      main.appendChild(m);
-      const amt = el('div', 'amt ' + (o.inc - o.exp >= 0 ? 'green' : 'red'), NUM.format(o.inc - o.exp));
-      row.append(main, amt);
-      list.appendChild(row);
+    for (const [yy, o] of Array.from(years.entries()).sort((a, b) => b[0] - a[0])) {
+      const row = el('div', 'card pad');
+      row.style.marginBottom = '8px';
+      row.style.cursor = 'pointer';
+
+      const top2 = el('div');
+      top2.style.display = 'flex';
+      top2.style.justifyContent = 'space-between';
+      top2.style.fontWeight = '800';
+      top2.appendChild(el('span', null, 'سال ' + fa(yy)));
+      top2.appendChild(el('span', null, NUM.format(o.inc - o.exp)));
+      row.appendChild(top2);
+
+      const line = el('div', 'm');
+      line.style.fontSize = '11px';
+      line.style.color = 'var(--muted)';
+      line.textContent = 'درآمد ' + NUM.format(o.inc) + ' · هزینه ' + NUM.format(o.exp);
+      row.appendChild(line);
+
+      row.addEventListener('click', () => {
+        S.reportYm = yy * 100 + 1;
+        S.repPeriod = 'year';
+        render();
+      });
+
+      view.appendChild(row);
     }
-    view.appendChild(list);
   }
 }
 

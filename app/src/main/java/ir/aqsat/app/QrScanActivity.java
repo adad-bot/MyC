@@ -40,6 +40,8 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
     private volatile boolean busy = false;
     private volatile boolean done = false;
     private volatile boolean ready = false;
+    private volatile long lastDecode = 0;
+    private Runnable focusTick = null;
 
     private static final int PREVIEW_W = 1280;
     private static final int PREVIEW_H = 720;
@@ -62,6 +64,10 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
         root.addView(surfaceView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         surfaceView.getHolder().addCallback(this);
+
+        surfaceView.setOnClickListener(v -> {
+            try { if (camera != null) camera.autoFocus(null); } catch (Throwable ignored) { }
+        });
 
         // کادر راهنما
         View frame = new View(this);
@@ -178,15 +184,56 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
             if (best != null) p.setPreviewSize(best.width, best.height);
 
             try { p.setZoom(0); } catch (Throwable ignored) { }
-            try { p.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE); } catch (Throwable ignored) { }
+
+            // انتخاب بهترین حالت فوکوس موجود روی دستگاه
+            try {
+                java.util.List<String> modes = p.getSupportedFocusModes();
+                String chosen = null;
+                String[] prefer = {
+                        Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE,
+                        Camera.Parameters.FOCUS_MODE_CONTINUOUS_VIDEO,
+                        Camera.Parameters.FOCUS_MODE_MACRO,
+                        Camera.Parameters.FOCUS_MODE_AUTO
+                };
+                for (String want : prefer) {
+                    if (modes != null && modes.contains(want)) { chosen = want; break; }
+                }
+                if (chosen != null) p.setFocusMode(chosen);
+            } catch (Throwable ignored) { }
             try { camera.setParameters(p); } catch (Throwable ignored) { }
 
             camera.setPreviewDisplay(holder);
             camera.setPreviewCallback((data, cam) -> onFrame(data, cam));
             camera.startPreview();
 
+            // زوم ملایم برای بزرگ‌تر شدن QR چک (اگر پشتیبانی شود)
+            try {
+                Camera.Parameters zp = camera.getParameters();
+                if (zp.isZoomSupported() && zp.getMaxZoom() > 0) {
+                    java.util.List<Integer> ratios = zp.getZoomRatios();
+                    int bestZ = 0;
+                    for (int zi = 0; zi < ratios.size(); zi++) {
+                        if (ratios.get(zi) <= 200) bestZ = zi;
+                    }
+                    zp.setZoom(Math.min(bestZ, zp.getMaxZoom()));
+                    camera.setParameters(zp);
+                }
+            } catch (Throwable ignored) { }
+
+            // فوکوس دوره‌ای: عامل اصلی تاری تصویر
+            if (focusTick == null) {
+                focusTick = new Runnable() {
+                    @Override public void run() {
+                        try { if (camera != null) camera.autoFocus(null); } catch (Throwable ignored) { }
+                        if (ui != null) ui.postDelayed(this, 1100);
+                    }
+                };
+            }
+            ui.removeCallbacks(focusTick);
+            ui.postDelayed(focusTick, 400);
+
             // کمی فرصت بده تا کاربر کد را داخل کادر قرار دهد
-            ui.postDelayed(() -> ready = true, 900);
+            ui.postDelayed(() -> ready = true, 700);
         } catch (Throwable t) {
             finishWith("ERR:NOCAMERA");
         }
@@ -241,6 +288,11 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
     }
     private void onFrame(byte[] data, Camera cam) {
         if (busy || done || !ready || data == null) return;
+
+        long nowMs = System.currentTimeMillis();
+        if (nowMs - lastDecode < 200) return;
+        lastDecode = nowMs;
+
         busy = true;
 
         final byte[] copy = data.clone();
@@ -260,24 +312,27 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
             public void run() {
                 try {
                     // فقط ناحیهٔ داخل کادر (مرکز تصویر) خوانده شود
-                    int side = Math.min(w, h);
-                    int left = (w - side) / 2;
-                    int top = (h - side) / 2;
-
-                    PlanarYUVLuminanceSource src =
-                            new PlanarYUVLuminanceSource(copy, w, h, left, top, side, side, false);
-                    BinaryBitmap bmp = new BinaryBitmap(new HybridBinarizer(src));
-
                     Map<DecodeHintType, Object> hints = new HashMap<>();
                     hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
 
-                    Result r = new MultiFormatReader().decode(bmp, hints);
-                    if (r != null && r.getText() != null) {
-                        String txt = r.getText();
-                        if (looksLikeCheque(txt)) {
-                            finishWith(txt);
-                            return;
-                        }
+                    // اول ناحیهٔ وسط (QR بزرگ‌تر دیده می‌شود)، بعد کل فریم
+                    int[] sides = { (int) (Math.min(w, h) * 0.75), Math.min(w, h) };
+
+                    for (int side : sides) {
+                        int left = (w - side) / 2;
+                        int top = (h - side) / 2;
+
+                        PlanarYUVLuminanceSource src =
+                                new PlanarYUVLuminanceSource(copy, w, h, left, top, side, side, false);
+                        BinaryBitmap bmp = new BinaryBitmap(new HybridBinarizer(src));
+
+                        try {
+                            Result r = new MultiFormatReader().decode(bmp, hints);
+                            if (r != null && r.getText() != null && looksLikeCheque(r.getText())) {
+                                finishWith(r.getText());
+                                return;
+                            }
+                        } catch (Throwable ignored) { }
                     }
                 } catch (Throwable ignored) {
                 } finally {
