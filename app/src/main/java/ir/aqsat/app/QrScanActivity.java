@@ -234,6 +234,9 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
 
             // کمی فرصت بده تا کاربر کد را داخل کادر قرار دهد
             ui.postDelayed(() -> ready = true, 700);
+
+            // اگر تا ۲۵ ثانیه چیزی خوانده نشد، راهنمایی بده
+            ui.postDelayed(() -> { if (!done) finishWith("ERR:TIMEOUT"); }, 25000);
         } catch (Throwable t) {
             finishWith("ERR:NOCAMERA");
         }
@@ -274,17 +277,10 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
     }
 
 
-    /** آیا متن خوانده‌شده شبیه QR چک است؟ (شبا یا چند خط ساختاریافته) */
+    /** هر متن معناداری از QR پذیرفته می‌شود؛ تفکیک فیلدها کارِ جاوااسکریپت است */
     private boolean looksLikeCheque(String t) {
         if (t == null) return false;
-        String s = t.trim();
-        if (s.length() < 10) return false;
-
-        if (s.matches("(?s).*IR[0-9]{24}.*")) return true;
-
-        int lines = 0;
-        for (String ln : s.split("\n")) if (ln.trim().length() > 0) lines++;
-        return lines >= 4;
+        return t.trim().length() >= 4;
     }
     private void onFrame(byte[] data, Camera cam) {
         if (busy || done || !ready || data == null) return;

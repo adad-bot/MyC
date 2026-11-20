@@ -199,6 +199,26 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> MainActivity.this.finish());
         }
 
+        /** گرفتن عکس با دوربین سیستم و خواندن QR از عکس (مطمئن‌ترین راه) */
+        @JavascriptInterface
+        public void captureQr() {
+            runOnUiThread(() -> {
+                try {
+                    ContentValues v = new ContentValues();
+                    v.put(MediaStore.Images.Media.DISPLAY_NAME, "myc_qr_" + System.currentTimeMillis() + ".jpg");
+                    v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                    qrUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+
+                    Intent i = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                    if (qrUri != null) {
+                        i.putExtra(MediaStore.EXTRA_OUTPUT, qrUri);
+                        i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    }
+                    startActivityForResult(i, REQ_QR);
+                } catch (Throwable ignored) { }
+            });
+        }
+
         /** باز کردن اسکنر زندهٔ QR */
         @JavascriptInterface
         public void scanQr() {
@@ -465,23 +485,64 @@ public class MainActivity extends Activity {
     private String decodeQrUri(Uri uri) {
         String lastErr = "unknown";
         try {
-            // سه تلاش: تصویر کامل، نصف، یک‌چهارم (برای QR کوچک و بزرگ)
             for (int sample : new int[]{1, 2, 4}) {
                 android.graphics.Bitmap bmp = loadScaled(uri, sample);
                 if (bmp == null) continue;
-                try {
-                    com.google.zxing.Result r = decodeBitmap(bmp);
-                    if (r != null && r.getText() != null && r.getText().length() > 0) {
-                        return r.getText();
+
+                android.graphics.Bitmap oriented = orientBitmap(bmp);
+
+                for (int rot = 0; rot < 360; rot += 90) {
+                    android.graphics.Bitmap cand = oriented;
+                    try {
+                        if (rot != 0) {
+                            android.graphics.Matrix mtx = new android.graphics.Matrix();
+                            mtx.postRotate(rot);
+                            cand = android.graphics.Bitmap.createBitmap(
+                                    oriented, 0, 0, oriented.getWidth(), oriented.getHeight(), mtx, true);
+                        }
+                        com.google.zxing.Result r = decodeBitmap(cand);
+                        if (r != null && r.getText() != null && r.getText().length() > 0) {
+                            return r.getText();
+                        }
+                    } catch (Throwable e) {
+                        lastErr = e.getClass().getSimpleName();
+                    } finally {
+                        if (cand != null && cand != oriented) {
+                            try { cand.recycle(); } catch (Exception ignored) { }
+                        }
                     }
-                } catch (Exception e) {
-                    lastErr = e.getClass().getSimpleName();
                 }
-                try { bmp.recycle(); } catch (Exception ignored) { }
+                try { oriented.recycle(); } catch (Exception ignored) { }
             }
             return "ERR:NOTFOUND:" + lastErr;
         } catch (Exception e) {
             return "ERR:" + e.getClass().getSimpleName();
+        }
+    }
+
+    /** چرخش تصویر بر اساس EXIF (دوربین معمولاً ۹۰ درجه می‌چرخاند) */
+    private android.graphics.Bitmap orientBitmap(android.graphics.Bitmap bmp) {
+        try {
+            java.io.InputStream in = getContentResolver().openInputStream(qrUri);
+            android.media.ExifInterface exif = new android.media.ExifInterface(in);
+            int o = exif.getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION,
+                    android.media.ExifInterface.ORIENTATION_NORMAL);
+            in.close();
+
+            int deg = 0;
+            if (o == android.media.ExifInterface.ORIENTATION_ROTATE_90) deg = 90;
+            else if (o == android.media.ExifInterface.ORIENTATION_ROTATE_180) deg = 180;
+            else if (o == android.media.ExifInterface.ORIENTATION_ROTATE_270) deg = 270;
+            if (deg == 0) return bmp;
+
+            android.graphics.Matrix mtx = new android.graphics.Matrix();
+            mtx.postRotate(deg);
+            android.graphics.Bitmap out = android.graphics.Bitmap.createBitmap(
+                    bmp, 0, 0, bmp.getWidth(), bmp.getHeight(), mtx, true);
+            try { bmp.recycle(); } catch (Exception ignored) { }
+            return out;
+        } catch (Throwable t) {
+            return bmp;
         }
     }
 

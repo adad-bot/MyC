@@ -898,7 +898,8 @@ function applyQrText(txt) {
     const map = {
       CANCELLED: 'اسکن لغو شد',
       NOIMAGE: 'عکسی گرفته نشد',
-      NOCAMERA: 'دوربین در دسترس نیست'
+      NOCAMERA: 'دوربین در دسترس نیست',
+      TIMEOUT: 'چیزی خوانده نشد — دوربین را نزدیک‌تر بگیر یا از دکمهٔ «عکس بگیر» استفاده کن'
     };
     if (code.startsWith('NOTFOUND')) {
       toast('در تصویر QR پیدا نشد — نزدیکتر و واضحتر عکس بگیر');
@@ -1005,9 +1006,17 @@ function onQrFile(ev) {
 
 $('qrBtn').addEventListener('click', () => {
   try {
+    if (window.AndroidAqsat && AndroidAqsat.captureQr) { AndroidAqsat.captureQr(); return; }
     if (window.AndroidAqsat && AndroidAqsat.scanQr) { AndroidAqsat.scanQr(); return; }
   } catch (e) { /* */ }
   $('qrFile').click();
+});
+
+$('qrLive').addEventListener('click', () => {
+  try {
+    if (window.AndroidAqsat && AndroidAqsat.scanQr) { AndroidAqsat.scanQr(); return; }
+  } catch (e) { /* */ }
+  toast('اسکنر زنده فقط در نسخهٔ نصبی کار می‌کند');
 });
 
 $('qrGal').addEventListener('click', () => $('qrFile').click());
