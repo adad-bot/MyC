@@ -266,6 +266,32 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** رنگ‌آمیزی نوار پایین و بالا (دکمه‌های سیستم) هماهنگ با اپ */
+        @JavascriptInterface
+        public void setBars(final String color, final boolean lightIcons) {
+            runOnUiThread(() -> {
+                try {
+                    int c = android.graphics.Color.parseColor(color);
+
+                    getWindow().setNavigationBarColor(c);
+                    getWindow().setStatusBarColor(c);
+
+                    android.view.View decor = getWindow().getDecorView();
+                    int flags = decor.getSystemUiVisibility();
+
+                    if (lightIcons) {
+                        flags |= android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                        flags |= android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                    } else {
+                        flags &= ~android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                        flags &= ~android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                    }
+
+                    decor.setSystemUiVisibility(flags);
+                } catch (Throwable ignored) { }
+            });
+        }
+
         /** ذخیرهٔ تصویر (Base64) در Download */
         @JavascriptInterface
         public boolean saveImage(String base64, String fileName) {

@@ -325,6 +325,31 @@
 </dialog>
 
 
+
+<dialog id="listDlg">
+  <form method="dialog">
+    <h2 id="listTitle">لیست</h2>
+    <div class="sortrow" id="listSort" style="margin-bottom:8px"></div>
+    <input id="listSearch" type="search" placeholder="جستجو…" style="width:100%;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--soft);font-size:12px;margin-bottom:8px">
+    <div class="list" id="listBody" style="max-height:52vh;overflow:auto"></div>
+    <div class="dact"><button type="button" class="primary" id="listClose">بستن</button></div>
+  </form>
+</dialog>
+
+<dialog id="pinGateDlg">
+  <form id="pinGateFrm">
+    <div class="ask-icon">🔒</div>
+    <h2 id="pinGateTitle" style="text-align:center;font-size:15px">رمز را وارد کن</h2>
+    <p class="hint" style="text-align:center">برای این کار باید رمز ۶ رقمی را وارد کنی.</p>
+    <input id="pinGateInput" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"
+           style="width:100%;text-align:center;letter-spacing:8px;font-size:20px;padding:12px;border-radius:14px;border:1px solid var(--line);background:var(--soft)">
+    <div class="dact">
+      <button type="submit" class="primary">تأیید</button>
+      <button type="button" id="pinGateCancel">انصراف</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="helpDlg">
   <form method="dialog">
     <div class="ask-icon">!</div>
@@ -339,9 +364,10 @@
     <div class="ask-icon">⏰</div>
     <h2 id="askRemTitle" style="text-align:center">یادآوری ثبت شود؟</h2>
     <p id="askRemBody" class="hint" style="text-align:center"></p>
-    <div class="dact">
-      <button type="button" class="primary" id="askRemYes">بله، ثبت یادآور</button>
-      <button type="button" id="askRemNo">خیر</button>
+    <div class="dact" style="flex-direction:column;gap:8px">
+      <button type="button" class="primary block" id="askRemYes">ثبت یادآوری برای این روز</button>
+      <button type="button" class="btn block" id="askSetDate">تغییر تاریخ برنامه به این روز</button>
+      <button type="button" class="block" id="askRemNo">بستن</button>
     </div>
   </form>
 </dialog>
@@ -439,6 +465,7 @@
     <label class="chk"><input type="checkbox" id="soundChk"> اعلان با صدا</label>
     <label class="chk hidden" id="bioRow"><input type="checkbox" id="bioChk"> ورود با اثر انگشت</label>
     <label class="chk"><input type="checkbox" id="seasonChk"> رنگ‌بندی فصلی (بهار/تابستان/پاییز/زمستان)</label>
+    <label class="chk"><input type="checkbox" id="fxChk"> گرافیک و انیمیشن (ریزش گل، برگ، برف)</label>
     <div>
       <div class="k" style="display:flex;justify-content:space-between">
         <span>اندازهٔ فونت</span>
@@ -469,7 +496,8 @@
     <div class="card pad" style="text-align:center;margin-top:6px">
       <div class="k">درباره ما</div>
       <div class="v sm" style="margin-top:4px">گروه فناوری کرانه ماندگار</div>
-      <div class="hint" style="direction:ltr;text-align:center;margin-top:2px">09394711049</div>
+      <div class="about-name">علی دادمان</div>
+      <div class="about-phone" dir="ltr">09394711049</div>
     </div>
     <div class="dact"><button type="button" class="primary" id="settingsClose">بستن</button></div>
   </form>
@@ -502,7 +530,7 @@
       <div class="creator">
         <div class="cr-title">پدیدآورنده</div>
         <div class="cr-main">گروه فناوری کرانه ماندگار</div>
-        <div class="cr-sub">مدیریت دکتر علی دادمان</div>
+        <div class="cr-sub">علی دادمان</div>
         <div class="cr-phone" dir="ltr">09394711049</div>
       </div>
       <p><b>چه کارهایی میکند؟</b></p>
@@ -558,6 +586,16 @@
       <div id="upRemList" class="list"></div>
     </div>
 
+    <div class="appdate">
+      <div class="mhead" style="margin:10px 4px 6px"><span>تاریخ برنامه</span></div>
+      <div class="drow" id="dpApp"></div>
+      <div class="row-btns" style="margin-top:8px">
+        <button type="button" class="btn primary" id="applyDate" style="flex:1">این تاریخ را اعمال کن</button>
+        <button type="button" class="btn" id="backToday" style="flex:1">امروز</button>
+      </div>
+      <p class="hint" style="margin:6px 4px 0">تا وقتی از برنامه خارج نشوی، اپ با همین تاریخ کار می‌کند؛ با ورود بعدی به تاریخ واقعی برمی‌گردد.</p>
+    </div>
+
     <div class="dayrem">
       <div class="mhead" style="margin:10px 4px 6px"><span>یادآور این روز</span></div>
       <div id="dayRemList" class="list"></div>
@@ -571,11 +609,54 @@
   </form>
 </dialog>
 
+
+<dialog id="svcDlg">
+  <form method="dialog">
+    <h2>خدمات — سن و روز خاص</h2>
+
+    <div class="seg" id="svcSeg" style="margin-bottom:10px">
+      <button type="button" data-svc="age" class="on">سن من</button>
+      <button type="button" data-svc="day">یک روز خاص</button>
+    </div>
+
+    <div id="svcAge">
+      <div class="hint" style="margin-bottom:6px">تاریخ تولد</div>
+      <div class="drow" id="dpBirth"></div>
+    </div>
+
+    <div id="svcDay" class="hidden">
+      <div class="hint" style="margin-bottom:6px">تاریخ مورد نظر</div>
+      <div class="drow" id="dpSpecial"></div>
+    </div>
+
+    <button type="button" class="btn primary block" id="svcCalc" style="margin-top:10px">محاسبه</button>
+
+    <div id="svcOut" class="svc-out"></div>
+
+    <div class="dact"><button type="button" id="svcClose">بستن</button></div>
+  </form>
+</dialog>
+
+<dialog id="ayahDlg">
+  <form method="dialog">
+    <h2>آیه‌ای از قرآن</h2>
+    <p class="hint">با نیت قلبی، «آیهٔ دیگر» را بزن.</p>
+    <div class="ayah-ar" id="ayahAr"></div>
+    <div class="ayah-fa" id="ayahFa"></div>
+    <div class="ayah-ref" id="ayahRef"></div>
+    <div class="dact">
+      <button type="button" class="primary" id="ayahAgain">آیهٔ دیگر</button>
+      <button type="button" id="ayahClose">بستن</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="falDlg">
   <form method="dialog">
     <h2>فال حافظ</h2>
     <p class="hint">نیت کن، بعد «فال دوباره» را بزن.</p>
     <div class="fal" id="falText"></div>
+    <div class="fal-note" id="falNote"></div>
     <div class="dact">
       <button type="button" class="primary" id="falAgain">فال دوباره</button>
       <button type="button" id="falClose">بستن</button>
@@ -694,6 +775,8 @@
 
 <noscript><p style="padding:20px;text-align:center">برای استفاده باید جاوااسکریپت مرورگر فعال باشد.</p></noscript>
 
+<script src="fal-data.js"></script>
+<script src="quran-data.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

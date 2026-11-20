@@ -1275,3 +1275,186 @@ input,textarea,select{-webkit-user-select:text;user-select:text}
 
 .rowacts{margin-top:5px;justify-content:flex-start}
 .item .amt{font-size:12.5px}
+
+/* ===== کارت تاریخ: سال پایین‌تر و درشت‌تر، عدد قمری درشت ===== */
+.dc-y{bottom:6px !important;font-size:16px !important;font-weight:900}
+.dc-subnum.arab{font-size:16px !important;font-weight:900}
+.dc-subnum.latin{font-size:16px !important;font-weight:900}
+
+/* ===== سرصفحهٔ تقویم: باکس هم‌رنگ فصل ===== */
+.cal-head #calTitle{
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  color:#fff;padding:6px 18px;border-radius:14px;
+  font-weight:900;font-size:15px;
+  box-shadow:0 6px 14px rgba(0,0,0,.12);
+}
+.cal-head button{
+  width:44px;height:44px;border-radius:14px;font-size:24px;font-weight:900;
+}
+
+/* خط ماه‌های قمری/میلادی: دو پله درشت‌تر و مشکی */
+.cal-sub{
+  font-size:12.5px !important;color:var(--ink) !important;font-weight:700;
+  margin:4px 0 10px !important;
+}
+
+/* روزهای هفته: هم‌اندازه با خط بالا */
+.cal-week > div{font-size:11px !important;color:var(--ink);font-weight:800}
+.cal-week{font-size:11px !important}
+
+/* بخش تاریخ برنامه */
+.appdate{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
+.appdate .drow{gap:6px}
+
+/* روز انتخاب‌شده: دقیقاً اندازهٔ خانهٔ خودش */
+.cal-cell{overflow:hidden}
+.cal-cell.sel{
+  transform:none !important;
+  background:var(--brand) !important;
+  color:#fff !important;
+  border-radius:12px;
+  width:100%;height:100%;
+  box-shadow:none;
+}
+.cal-cell.sel .cd,.cal-cell.sel .cg,.cal-cell.sel .ch,.cal-cell.sel .ctag *{color:#fff !important}
+
+/* خانه‌های تقویم: بدون سرریز */
+.cal-grid{grid-auto-flow:row}
+.cal-cell{padding:0 !important;box-sizing:border-box;border-radius:12px !important}
+.cal-cell.today{box-shadow:inset 0 0 0 2px var(--brand)}
+
+/* ===== گرافیک فصلی دائمی روی کارت تاریخ ===== */
+.datecard{position:relative;overflow:hidden}
+.season-fx{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1;border-radius:inherit}
+.season-fx i{
+  position:absolute;top:-26px;display:block;line-height:1;
+  animation-name:fxFall;animation-timing-function:linear;animation-iteration-count:infinite;
+  will-change:transform;
+}
+@keyframes fxFall{
+  0%{transform:translate3d(0,-24px,0) rotate(0deg)}
+  100%{transform:translate3d(18px,260px,0) rotate(320deg)}
+}
+/* تابستان: درخشش خورشید */
+.season-fx.summer i{color:#f59e0b;text-shadow:0 0 10px rgba(245,158,11,.8);animation-name:fxGlow;top:auto;bottom:12px}
+@keyframes fxGlow{
+  0%,100%{transform:scale(.9);opacity:.35}
+  50%{transform:scale(1.35);opacity:.95}
+}
+/* زمستان: برف آرام‌تر */
+.season-fx.winter i{animation-duration:11s}
+
+/* گل‌ریزان لوگو: تاخیر */
+.petal{animation-delay:var(--delay,0s)}
+
+/* نوار ابزار لیست‌ها */
+.listtools{display:flex;flex-direction:column;gap:8px;margin:0 0 10px}
+.listtools .seg{margin:0}
+.sortrow{display:flex;gap:6px;flex-wrap:wrap}
+.sortbtn{
+  padding:6px 10px;border-radius:10px;border:1px solid var(--line);
+  background:var(--card);color:var(--muted);font-size:11px;font-weight:700;
+}
+.sortbtn.on{background:var(--brand-soft);color:var(--brand);border-color:var(--brand)}
+.sortbtn.dir{width:36px;font-size:14px;color:var(--brand);font-weight:900}
+.listtools input[type="search"]{
+  width:100%;padding:9px 12px;border-radius:12px;border:1px solid var(--line);
+  background:var(--soft);font-size:12px;
+}
+
+/* نشانگر تصویر چک */
+.camico{
+  flex:0 0 auto;font-size:15px;margin-inline-start:6px;position:relative;
+  opacity:.95;
+}
+.camico.no{opacity:.5}
+.camico.no::after{
+  content:'';position:absolute;left:-2px;right:-2px;top:50%;height:2px;
+  background:var(--red);transform:rotate(-45deg);border-radius:2px;
+}
+
+/* دو دونات کنار هم (حالت مقایسه) */
+.donut-row{display:flex;gap:10px;justify-content:space-around;flex-wrap:wrap}
+.donut-block{flex:1;min-width:140px;display:flex;flex-direction:column;align-items:center}
+.donut-block .donut{width:118px;height:118px}
+.donut-cap{font-size:10.5px;font-weight:800;color:var(--brand);margin-bottom:2px}
+.donut-block .donut-legend{width:100%;margin-top:6px}
+
+/* دکمهٔ حالت مقایسه: باکس هم‌رنگ فصل */
+.seg button.on{
+  background:linear-gradient(135deg,var(--brand),var(--brand2)) !important;
+  color:#fff !important;border-color:transparent !important;
+}
+.seg button{transition:transform .15s ease}
+.seg button:active{transform:scale(1.03)}
+
+/* درباره ما: هم‌رنگ فصل + نام و شماره */
+.cr-main{color:var(--brand)}
+.cr-sub{color:var(--ink);font-weight:700}
+.about-name{
+  font-size:14px;font-weight:900;color:var(--ink);
+  text-align:center;margin-top:2px;
+}
+.about-phone{
+  font-size:17px;font-weight:900;color:var(--brand);
+  text-align:center;margin-top:4px;letter-spacing:1px;
+}
+.about-head{background:linear-gradient(135deg,var(--brand),var(--brand2)) !important}
+.about-head *{color:#fff !important}
+
+/* دروازهٔ رمز */
+#pinGate .ask-icon{background:var(--brand-soft);color:var(--brand)}
+
+/* درباره: خوانایی روی پس‌زمینهٔ فصلی */
+.cr-main{color:#fff !important;opacity:1 !important;font-weight:900 !important}
+.cr-sub{color:#fff !important;opacity:.95 !important;font-weight:800 !important;font-size:13px !important}
+.cr-phone{color:#fff !important;opacity:1 !important;font-weight:900 !important;font-size:16px !important;margin-top:4px}
+
+/* فال حافظ و آیهٔ قرآن */
+.fal{max-height:44vh;overflow:auto;text-align:center;line-height:2.1}
+.fal .beyt{font-size:13.5px;font-weight:600}
+.fal-note{
+  margin-top:8px;padding:8px 10px;border-radius:12px;
+  background:var(--brand-soft);color:var(--ink);
+  font-size:11.5px;line-height:1.9;text-align:center;
+}
+.ayah-ar{
+  font-family:'Noto Naskh Arabic','Traditional Arabic',serif;
+  font-size:19px;line-height:2.4;text-align:center;direction:rtl;
+  padding:10px;border-radius:14px;background:var(--brand-soft);color:var(--ink);
+}
+.ayah-fa{font-size:12.5px;line-height:2;text-align:center;margin-top:10px;color:var(--ink)}
+.ayah-ref{font-size:10.5px;color:var(--muted);text-align:center;margin-top:6px}
+
+/* خدمات: سن و روز خاص */
+.svc-row{margin-top:8px}
+.svc-btn{
+  width:100%;padding:10px;border-radius:14px;border:1px dashed var(--brand);
+  background:var(--brand-soft);color:var(--brand);font-weight:800;font-size:12.5px;
+}
+.svc-btn:active{transform:scale(1.02)}
+.svc-out{display:none;margin-top:10px}
+.svc-out.show{display:block;animation:fadeIn .3s ease both}
+.svc-title{
+  font-size:13px;font-weight:900;color:var(--brand);text-align:center;margin-bottom:8px;
+}
+.svc-line{
+  display:flex;justify-content:space-between;gap:8px;
+  font-size:12px;padding:5px 8px;border-radius:10px;background:var(--soft);margin-bottom:5px;
+}
+.svc-k{color:var(--muted)}
+.svc-v{font-weight:800;color:var(--ink);direction:ltr}
+.svc-info{margin-top:10px;padding:10px;border-radius:12px;background:var(--brand-soft)}
+.svc-info-t{font-weight:900;color:var(--brand);margin-bottom:4px;font-size:12px}
+.svc-info div{font-size:11.5px;line-height:1.95;color:var(--ink)}
+.svc-small{opacity:.85}
+#svcDlg .drow{gap:6px}
+
+/* نتیجهٔ خدمات: بدون محو شدن */
+.svc-out.show{display:block;animation:none;opacity:1}
+.svc-out .svc-line,.svc-out .svc-info{opacity:1 !important}
+.svc-v{direction:rtl;text-align:left}
+
+/* روز انتخاب‌شده در تقویم: همهٔ اعداد سفید و خوانا */
+.cal-cell.sel,.cal-cell.sel *{color:#fff !important;-webkit-text-fill-color:#fff !important}
+.cal-cell.sel .cg,.cal-cell.sel .ch{opacity:.95 !important}

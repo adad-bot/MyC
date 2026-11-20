@@ -148,6 +148,17 @@ const DEFAULT_SETTINGS = {
 
 const S = {
   d: null,
+  chqFilter: 'in',
+  chqSort: 'date',
+  chqDir: -1,
+  chqQuery: '',
+  loanSort: 'date',
+  loanDir: -1,
+  loanSettled: false,
+  accFilter: 'all',
+  accSort: 'date',
+  accDir: -1,
+  accQuery: '',
   tab: 'home',
   oblTab: 'cheques',
   txKind: 'expense',
@@ -644,13 +655,15 @@ function fillDays(y, m, d, keep) {
   d.value = String(cur);
 }
 
-function mountDP(box) {
+function mountDP(box, backYears, fwdYears) {
   box.textContent = '';
   const y = document.createElement('select');
   const m = document.createElement('select');
   const d = document.createElement('select');
   const now = todayJalali().jy;
-  for (let yy = now - 10; yy <= now + 20; yy++) y.add(new Option(fa(yy), String(yy)));
+  const back = (backYears === undefined) ? 10 : backYears;
+  const fwd = (fwdYears === undefined) ? 20 : fwdYears;
+  for (let yy = now - back; yy <= now + fwd; yy++) y.add(new Option(fa(yy), String(yy)));
   MONTHS.forEach((nm, i) => m.add(new Option(nm, String(i + 1))));
   y.addEventListener('change', () => fillDays(y, m, d));
   m.addEventListener('change', () => fillDays(y, m, d));
@@ -799,6 +812,45 @@ function askRemind(jdn) {
 }
 
 $('askRemNo').addEventListener('click', () => $('askRemDlg').close());
+
+$('askSetDate').addEventListener('click', () => {
+  $('askRemDlg').close();
+  VIEW_DATE = askRemJdn;
+  calSel = askRemJdn;
+  applySeason();
+  renderCal();
+  renderDateInfo();
+  render();
+  toast('تاریخ برنامه تغییر کرد');
+});
+
+function applyAppDate() {
+  const dt = getDP($('dpApp'));
+  VIEW_DATE = jdnOf(dt);
+  calY = dt.jy;
+  calM = dt.jm;
+  calSel = VIEW_DATE;
+  applySeason();
+  renderCal();
+  renderDateInfo();
+  render();
+  toast('تاریخ برنامه: ' + dateLabel(dt));
+}
+
+$('applyDate').addEventListener('click', applyAppDate);
+
+$('backToday').addEventListener('click', () => {
+  VIEW_DATE = null;
+  const j = todayJalali();
+  calY = j.jy;
+  calM = j.jm;
+  calSel = todayJdn();
+  applySeason();
+  renderCal();
+  renderDateInfo();
+  render();
+  toast('به امروز برگشت');
+});
 
 $('askRemYes').addEventListener('click', () => {
   $('askRemDlg').close();
@@ -1248,21 +1300,25 @@ function wipeAllData() {
 let rstStep = 0, rstTimer = null;
 
 $('demoSeedBtn').addEventListener('click', () => {
-  if (!confirm('دادهٔ نمونه برای تست اضافه شود؟')) return;
-  if ((S.d.loans || []).some(l => l.id === 'demo-l1')) {
-    toast('دادهٔ نمونه قبلاً اضافه شده است');
-    return;
-  }
-  seedDemo(S.d);
-  save();
-  $('settingsDlg').close();
-  render();
-  toast('دادهٔ نمونه اضافه شد');
+  askPinGate('بارگذاری دادهٔ نمونه', () => {
+    if (!confirm('دادهٔ نمونه برای تست اضافه شود؟')) return;
+    if ((S.d.loans || []).some(l => l.id === 'demo-l1')) {
+      toast('دادهٔ نمونه قبلاً اضافه شده است');
+      return;
+    }
+    seedDemo(S.d);
+    save();
+    $('settingsDlg').close();
+    render();
+    toast('دادهٔ نمونه اضافه شد');
+  });
 });
 
 $('resetDataBtn').addEventListener('click', () => {
-  $('settingsDlg').close();
-  askResetData();
+  askPinGate('پاک کردن داده‌های قبلی', () => {
+    $('settingsDlg').close();
+    askResetData();
+  });
 });
 
 function askResetData() {
@@ -1347,6 +1403,37 @@ function arrowSvg(incoming) {
 }
 
 
+
+/* ---------- دروازهٔ رمز برای عملیات حساس ---------- */
+let pinGateCb = null;
+
+function askPinGate(title, cb) {
+  pinGateCb = cb;
+  $('pinGateTitle').textContent = title;
+  $('pinGateInput').value = '';
+  $('pinGateDlg').showModal();
+  setTimeout(() => { try { $('pinGateInput').focus(); } catch (e) { } }, 150);
+}
+
+$('pinGateCancel').addEventListener('click', () => { pinGateCb = null; $('pinGateDlg').close(); });
+
+$('pinGateFrm').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const code = $('pinGateInput').value.trim();
+
+  if (!/^\d{6}$/.test(code)) { toast('رمز باید ۶ رقم باشد'); return; }
+  if (hash(code) !== S.d.settings.pinHash) {
+    $('pinGateInput').value = '';
+    toast('رمز درست نیست');
+    return;
+  }
+
+  const cb = pinGateCb;
+  pinGateCb = null;
+  $('pinGateDlg').close();
+  if (cb) cb();
+});
+
 /* ---------- راهنمای فیلدهای لازم (بعد از دو تلاش) ---------- */
 const formFails = {};
 
@@ -1371,6 +1458,186 @@ function formError(key, title, lines, short) {
 }
 
 function formOk(key) { formFails[key] = 0; }
+
+
+/* ---------- گرافیک فصلی دائمی روی کارت تاریخ ---------- */
+function addSeasonFx(card, season) {
+  try {
+    if (!S.d || !S.d.settings) return;
+    if (S.d.settings.seasonal === false || S.d.settings.fx === false) return;
+
+    const fx = document.createElement('div');
+    fx.className = 'season-fx ' + season;
+
+    const icons = {
+      spring: ['🌸', '🌷', '❀'],
+      summer: ['☀', '✷', '✦'],
+      autumn: ['🍂', '🍁', '🍃'],
+      winter: ['❄', '❅', '✻']
+    }[season] || [];
+
+    const n = season === 'summer' ? 8 : 12;
+
+    for (let i = 0; i < n; i++) {
+      const it = document.createElement('i');
+      it.textContent = icons[i % icons.length];
+      it.style.left = (Math.random() * 96).toFixed(1) + '%';
+      it.style.fontSize = (10 + Math.random() * 10).toFixed(0) + 'px';
+      it.style.animationDuration = (7 + Math.random() * 8).toFixed(1) + 's';
+      it.style.animationDelay = (-Math.random() * 10).toFixed(1) + 's';
+      it.style.opacity = (0.35 + Math.random() * 0.45).toFixed(2);
+      fx.appendChild(it);
+    }
+
+    card.appendChild(fx);
+  } catch (e) { /* */ }
+}
+
+
+
+/* ---------- لیست درآمد/هزینه با مرتب‌سازی و جستجو ---------- */
+const LIST = { kind: 'income', sort: 'date', dir: -1, query: '', y: 0, m: 0, period: 'month' };
+
+function openTxList(kind, y, m, period) {
+  LIST.kind = kind;
+  LIST.y = y; LIST.m = m; LIST.period = period;
+  LIST.sort = 'date';
+  LIST.dir = -1;
+  LIST.query = '';
+
+  $('listTitle').textContent = kind === 'income' ? 'لیست درآمدها' : 'لیست هزینه‌ها';
+  $('listSearch').value = '';
+  renderTxList();
+  $('listDlg').showModal();
+}
+
+function renderTxList() {
+  const kind = LIST.kind;
+
+  let items = S.d.tx.filter(x => x.type === kind);
+  if (LIST.period === 'month') {
+    items = items.filter(x => x.jy === LIST.y && x.jm === LIST.m);
+  } else {
+    items = items.filter(x => x.jy === LIST.y);
+  }
+
+  if (LIST.query.trim()) {
+    const q = LIST.query.trim();
+    items = items.filter(x => (x.cat || '').includes(q) || (x.note || '').includes(q));
+  }
+
+  if (LIST.sort === 'amount') items.sort(sortBy(LIST.dir, x => x.amount));
+  else items.sort(sortBy(LIST.dir, x => jdnOf(x)));
+
+  const bar = $('listSort');
+  bar.textContent = '';
+  [['date', 'تاریخ'], ['amount', 'مبلغ']].forEach(([k, lbl]) => {
+    const b = el('button', 'sortbtn' + (LIST.sort === k ? ' on' : ''), lbl);
+    b.type = 'button';
+    b.addEventListener('click', () => { LIST.sort = k; renderTxList(); });
+    bar.appendChild(b);
+  });
+
+  const dir = el('button', 'sortbtn dir', LIST.dir > 0 ? '↑' : '↓');
+  dir.type = 'button';
+  dir.addEventListener('click', () => { LIST.dir = -LIST.dir; renderTxList(); });
+  bar.appendChild(dir);
+
+  const body = $('listBody');
+  body.textContent = '';
+
+  if (!items.length) {
+    const e = el('div', 'empty');
+    e.innerHTML = '<b>موردی نیست</b>فیلتر یا جستجو را عوض کن.';
+    body.appendChild(e);
+    return;
+  }
+
+  const total = items.reduce((s2, x) => s2 + x.amount, 0);
+  const sum = el('div', 'hint');
+  sum.style.margin = '0 0 8px';
+  sum.textContent = fa(items.length) + ' مورد · جمع: ' + money(total);
+  body.appendChild(sum);
+
+  for (const x of items) {
+    const row = el('div', 'item');
+    const ico = el('div', 'ico arrow ' + (kind === 'income' ? 'green' : 'red'));
+    ico.appendChild(arrowSvg(kind === 'income'));
+
+    const main = el('div', 'main');
+    main.appendChild(el('div', 't', (x.cat || 'بدون دسته') + (x.note ? ' — ' + x.note : '')));
+    const m2 = el('div', 'm');
+    m2.appendChild(el('span', null, dateLabel(x)));
+    main.appendChild(m2);
+
+    const amt = el('div', 'amt ' + (kind === 'income' ? 'green' : 'red'), NUM.format(x.amount));
+    row.append(ico, main, amt);
+    row.addEventListener('click', () => { $('listDlg').close(); openTx(x); });
+
+    body.appendChild(row);
+  }
+}
+
+$('listSearch').addEventListener('input', () => { LIST.query = $('listSearch').value; renderTxList(); });
+$('listClose').addEventListener('click', () => $('listDlg').close());
+
+/* ---------- نوار ابزار لیست‌ها (فیلتر، مرتب‌سازی، جستجو) ---------- */
+function listTools(cfg) {
+  const box = el('div', 'listtools');
+
+  if (cfg.segs) {
+    const seg = el('div', 'seg');
+    for (const [val, label] of cfg.segs) {
+      const b = el('button', cfg.value === val ? 'on' : '', label);
+      b.type = 'button';
+      b.addEventListener('click', () => { cfg.onSeg(val); });
+      seg.appendChild(b);
+    }
+    box.appendChild(seg);
+  }
+
+  if (cfg.sorts) {
+    const row = el('div', 'sortrow');
+    for (const [val, label] of cfg.sorts) {
+      const b = el('button', 'sortbtn' + (cfg.sort === val ? ' on' : ''), label);
+      b.type = 'button';
+      b.addEventListener('click', () => { cfg.onSort(val); });
+      row.appendChild(b);
+    }
+
+    const dir = el('button', 'sortbtn dir', cfg.dir > 0 ? '↑' : '↓');
+    dir.type = 'button';
+    dir.title = 'صعودی / نزولی';
+    dir.addEventListener('click', () => { cfg.onDir(); });
+    row.appendChild(dir);
+
+    box.appendChild(row);
+  }
+
+  if (cfg.search) {
+    const inp = document.createElement('input');
+    inp.type = 'search';
+    inp.placeholder = 'جستجو…';
+    inp.value = cfg.query || '';
+    inp.addEventListener('input', () => cfg.onSearch(inp.value));
+    box.appendChild(inp);
+  }
+
+  if (cfg.toggle) {
+    const l = el('label', 'chk');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = !!cfg.toggleValue;
+    cb.addEventListener('change', () => cfg.onToggle(cb.checked));
+    l.appendChild(cb);
+    l.appendChild(document.createTextNode(' ' + cfg.toggleLabel));
+    box.appendChild(l);
+  }
+
+  return box;
+}
+
+function sortBy(dir, fn) { return (a, b) => dir * (fn(a) - fn(b)); }
 
 /* ---------- گزارش طلب / بدهی ---------- */
 let sideExpanded = false, sideKind = 'r';
@@ -1695,6 +1962,7 @@ function buildDateCard() {
   const season = seasonOf(j.jm);
 
   const card = el('div', 'datecard ' + season);
+  addSeasonFx(card, season);
 
   const row = el('div', 'dc-row');
 
@@ -1766,9 +2034,18 @@ function buildDateCard() {
   const act = el('div', 'dc-act');
   const bFal = el('button', null, 'فال حافظ');
   bFal.addEventListener('click', ev => { ev.stopPropagation(); openFal(); });
+  const bAyah = el('button', null, 'آیه‌ای از قرآن');
+  bAyah.addEventListener('click', ev => { ev.stopPropagation(); openAyah(); });
   const bCal = el('button', null, 'تقویم و روزها');
   bCal.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(effToday()); });
-  act.append(bFal, bCal);
+  act.append(bFal, bAyah, bCal);
+
+  const svcRow = el('div', 'svc-row');
+  const svcBtn = el('button', 'svc-btn', '🧮 خدمات — سن / یک روز خاص');
+  svcBtn.type = 'button';
+  svcBtn.addEventListener('click', ev => { ev.stopPropagation(); openSvc(); });
+  svcRow.appendChild(svcBtn);
+  card.appendChild(svcRow);
   card.appendChild(act);
 
   return card;
@@ -1777,6 +2054,7 @@ function buildDateCard() {
 let calY = 0, calM = 0, calSel = 0;
 
 function openDateDlg(jdn) {
+  try { mountDP($('dpApp')); setDP($('dpApp'), d2j(jdn)); } catch (e) { /* */ }
   const j = d2j(jdn);
   calY = j.jy;
   calM = j.jm;
@@ -2039,16 +2317,226 @@ function openFal() {
 }
 
 function showFal() {
-  const f = FAL[Math.floor(Math.random() * FAL.length)];
+  const data = window.FAL_DATA || [];
   const box = $('falText');
+  const note = $('falNote');
   box.textContent = '';
-  box.appendChild(el('div', 'beyt', f[0]));
-  box.appendChild(el('div', 'beyt', f[1]));
-  box.appendChild(el('div', 'mean', f[2]));
+  if (note) note.textContent = '';
+
+  if (!data.length) {
+    box.appendChild(el('div', 'beyt', 'دادهٔ فال در دسترس نیست.'));
+    return;
+  }
+
+  const item = data[Math.floor(Math.random() * data.length)];
+  const verses = item.v || [];
+  verses.slice(0, 16).forEach(line => box.appendChild(el('div', 'beyt', line)));
+
+  if (note) {
+    note.textContent = (item.t || '') || ('غزل شمارهٔ ' + fa(item.n) + ' از دیوان حافظ');
+  }
+}
+
+/* ---------- آیهٔ قرآن ---------- */
+function showAyah() {
+  const data = window.QURAN_DATA || [];
+  if (!data.length) { toast('دادهٔ قرآن در دسترس نیست'); return; }
+
+  const a = data[Math.floor(Math.random() * data.length)];
+  $('ayahAr').textContent = a.ar;
+  $('ayahFa').textContent = a.fa;
+  $('ayahRef').textContent = a.s + ' — آیهٔ ' + fa(a.n);
+}
+
+function openAyah() {
+  showAyah();
+  $('ayahDlg').showModal();
 }
 
 $('falAgain').addEventListener('click', showFal);
 $('falClose').addEventListener('click', () => $('falDlg').close());
+$('ayahAgain').addEventListener('click', showAyah);
+$('ayahClose').addEventListener('click', () => $('ayahDlg').close());
+
+
+/* ---------- خدمات: سن و روز خاص ---------- */
+const ANIMALS = ['موش', 'گاو', 'پلنگ', 'خرگوش', 'نهنگ', 'مار',
+                 'اسب', 'گوسفند', 'میمون', 'مرغ', 'سگ', 'خوک'];
+
+const ANIMAL_DESC = {
+  'موش': 'نماد هوشمندی، زیرکی و سازگاری سریع با شرایط است.',
+  'گاو': 'نماد صبر، پشتکار و تلاش آرام ولی پیوسته است.',
+  'پلنگ': 'نماد شجاعت، جسارت و قدرت رهبری است.',
+  'خرگوش': 'نماد مهربانی، احتیاط و آرامش‌طلبی است.',
+  'نهنگ': 'نماد بزرگی، عمق اندیشه و آرامش در طوفان است.',
+  'مار': 'نماد فراست، خرد پنهان و تغییر هوشمندانه است.',
+  'اسب': 'نماد آزادی، انرژی، سفر و پیشرفت است.',
+  'گوسفند': 'نماد مهر، همراهی و آرامش در زندگی است.',
+  'میمون': 'نماد خلاقیت، بازیگوشی و یادگیری سریع است.',
+  'مرغ': 'نماد بیداری، نظم و آغاز به‌موقع است.',
+  'سگ': 'نماد وفاداری، مسئولیت‌پذیری و نگهبانی است.',
+  'خوک': 'نماد رفاه، کوشش در تأمین معاش و بخشندگی است.'
+};
+
+const MONTH_NOTE = [
+  'فروردین: آغاز سال و بیداری؛ معمولاً پرانرژی و پیش‌قدم در کارها.',
+  'اردیبهشت: فصل اعتدال؛ اهل نظم و وفاداری در روابط.',
+  'خرداد: فصل گرما؛ پرشور و مصمم، ولی گاهی عجول.',
+  'تیر: اوج تابستان؛ پایدار و مقاوم در سختی‌ها.',
+  'مرداد: گرم و پربار؛ اهل عمل و نتیجه‌گیری.',
+  'شهریور: پایان تابستان؛ دقیق، صبور و اهل محاسبه.',
+  'مهر: شروع پاییز؛ مهربان، مهرطلب و اهل یادگیری.',
+  'آبان: میانهٔ پاییز؛ درون‌گرا، خلاق و اهل اندیشه.',
+  'آذر: سردی و سکوت؛ اهل تمرکز و تصمیم‌های جدی.',
+  'دی: شب‌های بلند؛ صبور، عمیق و اهل خانواده.',
+  'بهمن: نزدیک به بهار؛ امیدوار و اهل تغییر.',
+  'اسفند: پایان و آغاز؛ اهل خانه‌تکانی و آمادهٔ شروع تازه.'
+];
+
+function animalOfYear(jy) {
+  const idx = ((jy - 1399) % 12 + 12) % 12;
+  return ANIMALS[idx];
+}
+
+function ageYMD(fromJdn, toJdn) {
+  const a = d2j(fromJdn);
+  const b = d2j(toJdn);
+
+  let y = b.jy - a.jy;
+  let m = b.jm - a.jm;
+  let d = b.jd - a.jd;
+
+  if (d < 0) {
+    m -= 1;
+    const pm = b.jm === 1 ? 12 : b.jm - 1;
+    const py = b.jm === 1 ? b.jy - 1 : b.jy;
+    d += monthLen(py, pm);
+  }
+  if (m < 0) { y -= 1; m += 12; }
+
+  return { y: y, m: m, d: d };
+}
+
+function noonDate(jdn) {
+  const g = d2g(jdn);
+  return new Date(g.gy, g.gm - 1, g.gd, 12, 0, 0);
+}
+
+function openSvc() {
+  mountDP($('dpBirth'), 110, 0);
+  mountDP($('dpSpecial'), 110, 5);
+  const j = todayJalali();
+  setDP($('dpBirth'), addMonths(j.jy, j.jm, j.jd, -30 * 12));
+  setDP($('dpSpecial'), j);
+  $('svcOut').textContent = '';
+  $('svcOut').classList.remove('show');
+  svcMode = 'age';
+  setSvcMode('age');
+  $('svcDlg').showModal();
+}
+
+let svcMode = 'age';
+
+function setSvcMode(mode) {
+  svcMode = mode;
+  for (const b of $('svcSeg').children) {
+    b.classList.toggle('on', b.dataset.svc === mode);
+  }
+  $('svcAge').classList.toggle('hidden', mode !== 'age');
+  $('svcDay').classList.toggle('hidden', mode !== 'day');
+}
+
+$('svcSeg').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-svc]');
+  if (!b) return;
+  setSvcMode(b.dataset.svc);
+});
+
+$('svcClose').addEventListener('click', () => $('svcDlg').close());
+
+$('svcCalc').addEventListener('click', () => {
+  const box = $('svcOut');
+  box.textContent = '';
+  box.classList.add('show');
+
+  const dt = svcMode === 'age' ? getDP($('dpBirth')) : getDP($('dpSpecial'));
+  const fromJdn = jdnOf(dt);
+
+  if (fromJdn > todayJdn()) {
+    box.appendChild(el('div', 'svc-line', 'تاریخ انتخابی در آینده است.'));
+    return;
+  }
+
+  const now = new Date();
+  const start = noonDate(fromJdn);
+  const ms = now - start;
+  const days = Math.floor(ms / 86400000);
+  const age = ageYMD(fromJdn, todayJdn());
+
+  const totalSec = Math.floor(ms / 1000);
+  const totalMin = Math.floor(totalSec / 60);
+
+  const mk = (k, v) => {
+    const row = el('div', 'svc-line');
+    row.appendChild(el('span', 'svc-k', k));
+    row.appendChild(el('span', 'svc-v', v));
+    return row;
+  };
+
+  const title = el('div', 'svc-title');
+  title.textContent = svcMode === 'age'
+    ? 'سن شما'
+    : 'گذشته از ' + dateLabel(dt);
+  box.appendChild(title);
+
+  if (svcMode === 'age') {
+    box.appendChild(mk('سن', fa(age.y) + ' سال و ' + fa(age.m) + ' ماه و ' + fa(age.d) + ' روز'));
+  } else {
+    box.appendChild(mk('مدت', fa(age.y) + ' سال و ' + fa(age.m) + ' ماه و ' + fa(age.d) + ' روز'));
+  }
+
+  box.appendChild(mk('روزها', NUM.format(days) + ' روز'));
+  box.appendChild(mk('دقیقه‌ها', NUM.format(totalMin) + ' دقیقه'));
+  box.appendChild(mk('ثانیه‌ها', NUM.format(totalSec) + ' ثانیه'));
+
+  if (svcMode === 'age') {
+    const leap = isLeapJalali(dt.jy);
+    const animal = animalOfYear(dt.jy);
+
+    const info = el('div', 'svc-info');
+    info.appendChild(el('div', 'svc-info-t', 'دربارهٔ سال تولد'));
+    info.appendChild(el('div', null,
+      'سال ' + fa(dt.jy) + (leap ? ' کبیسه بود (۳۶۶ روز).' : ' کبیسه نبود (۳۶۵ روز).')));
+    info.appendChild(el('div', null, 'نماد سال در گاه‌شماری ایرانی: ' + animal));
+    info.appendChild(el('div', 'svc-small', ANIMAL_DESC[animal] || ''));
+    info.appendChild(el('div', 'svc-small', MONTH_NOTE[dt.jm - 1] || ''));
+    box.appendChild(info);
+  } else {
+    const info = el('div', 'svc-info');
+    info.appendChild(el('div', 'svc-info-t', 'یادآوری'));
+    info.appendChild(el('div', 'svc-small',
+      'مبنا: ساعت ۱۲ ظهر همان روز. زمان طی‌شده با همین مبنا محاسبه شده است.'));
+    box.appendChild(info);
+  }
+});
+
+
+/* ---------- رنگ نوار سیستم (دکمه‌های پایین) ---------- */
+function syncSystemBars() {
+  try {
+    if (!window.AndroidAqsat || !AndroidAqsat.setBars) return;
+
+    const cs = getComputedStyle(document.documentElement);
+    const brand = (cs.getPropertyValue('--brand') || '#4f46e5').trim();
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+
+    // در حالت تیره نوار تیره‌تر، در روشن از رنگ برند استفاده می‌شود
+    const barColor = dark ? '#0d1017' : brand;
+
+    // آیکن‌های روشن روی پس‌زمینهٔ رنگی (سفید) و در تیره هم سفید
+    AndroidAqsat.setBars(barColor, false);
+  } catch (e) { /* */ }
+}
 
 /* ---------- اندازهٔ فونت ---------- */
 function applyFontScale() {
@@ -2111,9 +2599,9 @@ function buildRings() {
   }
 
   const defs = [
-    ['red', 'red', 'امروز و گذشته'],
-    ['yellow', 'yellow', '۲ تا ۳ روز'],
-    ['orange', 'orange', '۴ تا ۵ روز']
+    ['red', 'red', 'فردا، امروز و گذشته'],
+    ['yellow', 'yellow', '۲ تا ۳ روز آینده'],
+    ['orange', 'orange', '۴ تا ۵ روز آینده']
   ];
 
   if (!counts.red && !counts.yellow && !counts.orange) box.classList.add('hide');
@@ -2380,13 +2868,51 @@ function renderObl() {
 }
 
 function renderLoans() {
+  view.appendChild(listTools({
+    sorts: [['date', 'تاریخ شروع'], ['amount', 'مبلغ'], ['end', 'تاریخ پایان'], ['bank', 'بانک']],
+    sort: S.loanSort,
+    dir: S.loanDir,
+    onSort: v => { S.loanSort = v; render(); },
+    onDir: () => { S.loanDir = -S.loanDir; render(); },
+    toggle: true,
+    toggleLabel: 'فقط وام‌های تسویه‌شده',
+    toggleValue: S.loanSettled,
+    onToggle: v => { S.loanSettled = v; render(); }
+  }));
+
   if (!S.d.loans.length) {
     const e = el('div', 'empty');
     e.innerHTML = '<b>وامی ثبت نشده</b>با دکمهٔ + اولین وام را بساز.';
     view.appendChild(e);
     return;
   }
-  for (const loan of S.d.loans) {
+  let loans = S.d.loans.slice();
+
+  const info = l => {
+    const inst = l.installments || [];
+    const startJ = inst.length ? Math.min.apply(null, inst.map(jdnOf)) : 0;
+    const endJ = inst.length ? Math.max.apply(null, inst.map(jdnOf)) : 0;
+    const totalAmt = inst.reduce((s2, i) => s2 + i.amount, 0);
+    const settled = inst.length > 0 && inst.every(i => i.paid);
+    const bank = (l.note || "").trim();
+    return { startJ: startJ, endJ: endJ, totalAmt: totalAmt, settled: settled, bank: bank };
+  };
+
+  if (S.loanSettled) loans = loans.filter(l => info(l).settled);
+
+  if (S.loanSort === "amount") loans.sort(sortBy(S.loanDir, l => info(l).totalAmt));
+  else if (S.loanSort === "end") loans.sort(sortBy(S.loanDir, l => info(l).endJ));
+  else if (S.loanSort === "bank") loans.sort(sortBy(S.loanDir, l => (info(l).bank.charCodeAt(0) || 0)));
+  else loans.sort(sortBy(S.loanDir, l => info(l).startJ));
+
+  if (!loans.length) {
+    const e = el("div", "empty");
+    e.innerHTML = "<b>وامی با این فیلتر نیست</b>فیلتر یا مرتب‌سازی را عوض کن.";
+    view.appendChild(e);
+    return;
+  }
+
+  for (const loan of loans) {
     const total = loan.installments.length;
     const paid = loan.installments.filter(i => i.paid);
     const remain = loan.installments.filter(i => !i.paid).reduce((s, i) => s + i.amount, 0);
@@ -2525,7 +3051,39 @@ const CHQ_STATUS = {
 };
 
 function renderCheques() {
-  const items = S.d.cheques.slice().sort((a, b) => jdnOf(a) - jdnOf(b));
+  view.appendChild(listTools({
+    segs: [['in', 'دریافتی‌ها'], ['out', 'صادره‌ها'], ['all', 'همه']],
+    value: S.chqFilter,
+    onSeg: v => { S.chqFilter = v; render(); },
+    sorts: [['date', 'تاریخ'], ['amount', 'مبلغ'], ['party', 'نام']],
+    sort: S.chqSort,
+    dir: S.chqDir,
+    onSort: v => { S.chqSort = v; render(); },
+    onDir: () => { S.chqDir = -S.chqDir; render(); },
+    search: true,
+    query: S.chqQuery,
+    onSearch: v => { S.chqQuery = v; render(); }
+  }));
+
+  let items = S.d.cheques.slice();
+
+  if (S.chqFilter !== 'all') items = items.filter(c => c.kind === S.chqFilter);
+
+  if (S.chqQuery) {
+    const q = S.chqQuery.trim();
+    items = items.filter(c =>
+      (c.party || '').includes(q) || (c.number || '').includes(q) ||
+      (c.bank || '').includes(q) || String(c.amount).includes(q));
+  }
+
+  const byDate = c => jdnOf(c);
+  const byAmount = c => c.amount;
+  const byName = c => (c.party || '').charCodeAt(0) || 0;
+
+  if (S.chqSort === 'amount') items.sort(sortBy(S.chqDir, byAmount));
+  else if (S.chqSort === 'party') items.sort(sortBy(S.chqDir, byName));
+  else items.sort(sortBy(S.chqDir, byDate));
+
   if (!items.length) {
     const e = el('div', 'empty');
     e.innerHTML = '<b>چکی ثبت نشده</b>با دکمهٔ + چک دریافتی یا صادره را اضافه کن.';
@@ -2552,13 +3110,12 @@ function renderCheques() {
     const amt = el('div', 'amt', NUM.format(c.amount));
     row.append(ico, main, amt);
 
+    const cam = el('span', 'camico' + (c.photo ? ' has' : ' no'), '📷');
+    cam.title = c.photo ? 'تصویر چک موجود است' : 'تصویر چک ندارد';
     if (c.photo) {
-      const btnImg = el('button', 'btn ghost', '📷');
-      btnImg.type = 'button';
-      btnImg.style.cssText = 'padding:4px 7px;font-size:12px;margin-inline-start:6px';
-      btnImg.addEventListener('click', ev => { ev.stopPropagation(); openImage(c.photo); });
-      row.appendChild(btnImg);
+      cam.addEventListener('click', ev => { ev.stopPropagation(); openImage(c.photo); });
     }
+    row.appendChild(cam);
 
     row.addEventListener('click', () => openCheque(c));
     list.appendChild(row);
@@ -2567,7 +3124,36 @@ function renderCheques() {
 }
 
 function renderAccounts() {
-  const items = S.d.accounts.slice().sort((a, b) => (a.settled === b.settled) ? 0 : (a.settled ? 1 : -1));
+  view.appendChild(listTools({
+    segs: [['all', 'همه'], ['receivable', 'طلب‌ها'], ['payable', 'بدهی‌ها']],
+    value: S.accFilter,
+    onSeg: v => { S.accFilter = v; render(); },
+    sorts: [['date', 'تاریخ'], ['amount', 'مبلغ'], ['name', 'نام']],
+    sort: S.accSort,
+    dir: S.accDir,
+    onSort: v => { S.accSort = v; render(); },
+    onDir: () => { S.accDir = -S.accDir; render(); },
+    search: true,
+    query: S.accQuery,
+    onSearch: v => { S.accQuery = v; render(); }
+  }));
+
+  let items = S.d.accounts.slice();
+
+  if (S.accFilter !== 'all') items = items.filter(a => a.kind === S.accFilter);
+
+  if (S.accQuery) {
+    const q = S.accQuery.trim();
+    items = items.filter(a => (a.name || '').includes(q) || String(a.amount).includes(q));
+  }
+
+  const dueJ = a => (a.due ? jdnOf(a.due) : 0);
+  const nameKey = a => (a.name || '').charCodeAt(0) || 0;
+
+  if (S.accSort === 'amount') items.sort(sortBy(S.accDir, a => a.amount));
+  else if (S.accSort === 'name') items.sort(sortBy(S.accDir, nameKey));
+  else items.sort(sortBy(S.accDir, dueJ));
+
   if (!items.length) {
     const e = el('div', 'empty');
     e.innerHTML = '<b>حسابی ثبت نشده</b>طلب یا بدهی خود را با دکمهٔ + اضافه کن.';
@@ -2850,19 +3436,17 @@ function renderReport() {
   /* ---------- نمودار دایره‌ای ---------- */
   const PALETTE = ['#4f46e5', '#ef4444', '#f59e0b', '#10b981', '#06b6d4', '#a855f7', '#64748b'];
 
-  function donutChart(kind, title) {
+  function donutFor(kind, yy, mm, isYear) {
     const map = new Map();
     for (const x of S.d.tx) {
       if (x.type !== kind) continue;
-      if (period === 'month') { if (!(x.jy === y && x.jm === m)) continue; }
-      else if (x.jy !== y) continue;
-
+      if (isYear ? x.jy !== yy : !(x.jy === yy && x.jm === mm)) continue;
       const k = (x.cat || 'سایر').trim() || 'سایر';
       map.set(k, (map.get(k) || 0) + x.amount);
     }
 
     const all = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
-    if (!all.length) return;
+    if (!all.length) return null;
 
     const top = all.slice(0, 6);
     const restSum = all.slice(6).reduce((s2, e) => s2 + e[1], 0);
@@ -2894,15 +3478,6 @@ function renderReport() {
       acc += frac;
     });
 
-    const card = el('div', 'card pad');
-    const h = el('div', 'mhead');
-    h.style.margin = '0 0 6px';
-    h.appendChild(el('span', null, title));
-    card.appendChild(h);
-
-    const wrap = el('div', 'donutwrap');
-    wrap.appendChild(dsvg);
-
     const leg = el('div', 'donut-legend');
     top.forEach(([name, val], idx) => {
       const row = el('div', 'dleg-row');
@@ -2914,8 +3489,50 @@ function renderReport() {
       leg.appendChild(row);
     });
 
-    wrap.appendChild(leg);
-    card.appendChild(wrap);
+    return { svg: dsvg, legend: leg };
+  }
+
+  function donutChart(kind, title) {
+    const isYear = period === 'year';
+    const cur = donutFor(kind, y, m, isYear);
+    const prev = mode === 'cmp' ? donutFor(kind, cmpY, cmpM, isYear) : null;
+
+    if (!cur && !prev) return;
+
+    const card = el('div', 'card pad');
+    const h = el('div', 'mhead');
+    h.style.margin = '0 0 6px';
+    h.appendChild(el('span', null, title));
+    card.appendChild(h);
+
+    const rowWrap = el('div', 'donut-row');
+
+    const mkBlock = (data, label) => {
+      if (!data) return null;
+      const blk = el('div', 'donut-block');
+      if (label) blk.appendChild(el('div', 'donut-cap', label));
+      blk.appendChild(data.svg);
+      blk.appendChild(data.legend);
+      return blk;
+    };
+
+    const curLabel = isYear ? ('سال ' + fa(y)) : (MONTHS[m - 1] + ' ' + fa(y));
+    const prevLabel = isYear ? ('سال ' + fa(cmpY)) : (MONTHS[cmpM - 1] + ' ' + fa(cmpY));
+
+    const b1 = mkBlock(cur, mode === 'cmp' ? curLabel : '');
+    if (b1) rowWrap.appendChild(b1);
+
+    const b2 = mkBlock(prev, prevLabel);
+    if (b2) rowWrap.appendChild(b2);
+
+    card.appendChild(rowWrap);
+
+    const btn = el('button', 'btn block', kind === 'income' ? 'لیست درآمدها' : 'لیست هزینه‌ها');
+    btn.type = 'button';
+    btn.style.marginTop = '10px';
+    btn.addEventListener('click', () => openTxList(kind, y, m, period));
+    card.appendChild(btn);
+
     view.appendChild(card);
   }
 
@@ -3541,7 +4158,7 @@ function applySeason() {
   try {
     const on = S.d && S.d.settings && S.d.settings.seasonal !== false;
     if (!on) { document.documentElement.dataset.season = 'off'; return; }
-    const j = todayJalali();
+    const j = d2j(effToday());
     document.documentElement.dataset.season = seasonOf(j.jm);
   } catch (e) { /* */ }
 }
@@ -3551,6 +4168,7 @@ function applyTheme() {
   const sysDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const dark = pref === 'dark' || (pref === 'system' && sysDark);
   document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  setTimeout(syncSystemBars, 30);
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute('content', dark ? '#0d1017' : '#f5f6fa');
 
@@ -3571,6 +4189,7 @@ function openSettings() {
   $('bioRow').classList.toggle('hidden', !bio);
   $('bioChk').checked = st.biometric !== false;
   $('seasonChk').checked = st.seasonal !== false;
+  $('fxChk').checked = st.fx !== false;
   $('chqDays').value = String(st.chqDays);
   $('genDays').value = String(st.genDays);
   setThemeSeg(st.theme || 'system');
@@ -3607,7 +4226,15 @@ $('seasonChk').addEventListener('change', () => {
   S.d.settings.seasonal = $('seasonChk').checked;
   save();
   applySeason();
+  render();
   toast($('seasonChk').checked ? 'رنگ‌بندی فصلی روشن شد' : 'رنگ‌بندی فصلی خاموش شد');
+});
+
+$('fxChk').addEventListener('change', () => {
+  S.d.settings.fx = $('fxChk').checked;
+  save();
+  render();
+  toast($('fxChk').checked ? 'گرافیک و انیمیشن روشن شد' : 'گرافیک و انیمیشن خاموش شد');
 });
 
 $('bioChk').addEventListener('change', () => {
@@ -3651,7 +4278,17 @@ $('pinFrm').addEventListener('submit', ev => {
   const st = S.d.settings;
 
   const okCur = pinChangeMode === 'master' ? hash(cur) === st.masterHash : hash(cur) === st.pinHash;
-  if (!okCur) { toast('رمز فعلی درست نیست'); return; }
+  if (!okCur) {
+    $('pinDlg').close();
+    showHelp(
+      pinChangeMode === 'master' ? 'امکان تغییر کد مادر نیست' : 'امکان تغییر رمز نیست',
+      'کد فعلی که وارد کردی درست نیست.\n\n' +
+      'برای تغییر ' + (pinChangeMode === 'master' ? 'کد مادر' : 'رمز') +
+      ' ابتدا باید کد فعلی را دقیق وارد کنی.\n' +
+      'اگر آن را فراموش کرده‌ای، از دکمهٔ «فراموشی رمز» در صفحهٔ قفل و کد مادر استفاده کن.'
+    );
+    return;
+  }
   if (!/^\d{6}$/.test(a)) { toast('رمز جدید باید ۶ رقم باشد'); return; }
   if (a !== b) { toast('رمزها یکسان نیستند'); return; }
 
@@ -3713,7 +4350,9 @@ function doBackup() {
   $('backupDlg').showModal();
 }
 
-$('exportBtn').addEventListener('click', doBackup);
+$('exportBtn').addEventListener('click', () => {
+  askPinGate('پشتیبان‌گیری', () => { doBackup(); });
+});
 $('closeBackupBtn').addEventListener('click', () => $('backupDlg').close());
 $('copyBackupBtn').addEventListener('click', async () => {
   const box = $('backupText');
@@ -3730,13 +4369,15 @@ $('copyBackupBtn').addEventListener('click', async () => {
 });
 
 $('importBtn').addEventListener('click', () => {
-  $('settingsDlg').close();
-  if (IN_APP) {
-    $('restoreText').value = '';
-    $('restoreDlg').showModal();
-  } else {
-    $('importFile').click();
-  }
+  askPinGate('بازیابی از فایل پشتیبان', () => {
+    $('settingsDlg').close();
+    if (IN_APP) {
+      $('restoreText').value = '';
+      $('restoreDlg').showModal();
+    } else {
+      $('importFile').click();
+    }
+  });
 });
 
 $('pickFileBtn').addEventListener('click', () => $('importFile').click());
@@ -4516,17 +5157,22 @@ function petalShower() {
   if (!logo) return;
   const r = logo.getBoundingClientRect();
 
-  for (let i = 0; i < 14; i++) {
+  const icons = ['🌹', '🌸', '🌺', '🍃', '❀'];
+  const total = 46;
+
+  for (let i = 0; i < total; i++) {
     const p = document.createElement('span');
     p.className = 'petal';
-    p.textContent = ['🌸', '🌺', '🍃'][i % 3];
-    p.style.left = (r.left + r.width / 2) + 'px';
+    p.textContent = icons[i % icons.length];
+    p.style.left = (r.left + r.width / 2 + (Math.random() * 40 - 20)) + 'px';
     p.style.top = (r.top + r.height / 2) + 'px';
-    p.style.setProperty('--dx', (Math.random() * 220 - 110).toFixed(0) + 'px');
-    p.style.setProperty('--dur', (1.4 + Math.random() * 1.2).toFixed(2) + 's');
-    p.style.fontSize = (12 + Math.random() * 10).toFixed(0) + 'px';
+    p.style.setProperty('--dx', (Math.random() * 340 - 170).toFixed(0) + 'px');
+    const dur = 2 + Math.random() * 2;
+    p.style.setProperty('--dur', dur.toFixed(2) + 's');
+    p.style.setProperty('--delay', (Math.random() * 1.2).toFixed(2) + 's');
+    p.style.fontSize = (12 + Math.random() * 14).toFixed(0) + 'px';
     document.body.appendChild(p);
-    setTimeout(() => p.remove(), 2800);
+    setTimeout(() => p.remove(), (dur + 1.4) * 1000);
   }
 }
 
