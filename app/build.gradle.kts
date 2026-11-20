@@ -43,5 +43,5 @@ android {
 }
 
 dependencies {
-    implementation("com.google.zxing:core:3.5.3")
+    implementation(files("libs/core-3.5.3.jar"))
 }

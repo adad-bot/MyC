@@ -173,34 +173,37 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
         busy = true;
 
         final byte[] copy = data.clone();
-        final int w;
-        final int h;
+
+        int pw = 640;
+        int ph = 480;
         try {
             Camera.Size s = cam.getParameters().getPreviewSize();
-            w = s.width;
-            h = s.height;
-        } catch (Exception e) {
-            busy = false;
-            return;
-        }
+            if (s != null) { pw = s.width; ph = s.height; }
+        } catch (Exception ignored) { }
 
-        new Thread(() -> {
-            try {
-                PlanarYUVLuminanceSource src =
-                        new PlanarYUVLuminanceSource(copy, w, h, 0, 0, w, h, false);
-                BinaryBitmap bmp = new BinaryBitmap(new HybridBinarizer(src));
+        final int w = pw;
+        final int h = ph;
 
-                Map<DecodeHintType, Object> hints = new HashMap<>();
-                hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    PlanarYUVLuminanceSource src =
+                            new PlanarYUVLuminanceSource(copy, w, h, 0, 0, w, h, false);
+                    BinaryBitmap bmp = new BinaryBitmap(new HybridBinarizer(src));
 
-                Result r = new MultiFormatReader().decode(bmp, hints);
-                if (r != null && r.getText() != null && r.getText().length() > 0) {
-                    finishWith(r.getText());
-                    return;
+                    Map<DecodeHintType, Object> hints = new HashMap<>();
+                    hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+
+                    Result r = new MultiFormatReader().decode(bmp, hints);
+                    if (r != null && r.getText() != null && r.getText().length() > 0) {
+                        finishWith(r.getText());
+                        return;
+                    }
+                } catch (Throwable ignored) {
+                } finally {
+                    busy = false;
                 }
-            } catch (Throwable ignored) {
-            } finally {
-                busy = false;
             }
         }).start();
     }
