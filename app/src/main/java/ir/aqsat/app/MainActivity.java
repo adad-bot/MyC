@@ -499,13 +499,6 @@ public class MainActivity extends Activity {
 
         java.util.Map<com.google.zxing.DecodeHintType, Object> hints = new java.util.HashMap<>();
         hints.put(com.google.zxing.DecodeHintType.TRY_HARDER, Boolean.TRUE);
-        hints.put(com.google.zxing.DecodeHintType.ALSO_INVERTED, Boolean.TRUE);
-        hints.put(com.google.zxing.DecodeHintType.POSSIBLE_FORMATS, java.util.Arrays.asList(
-                com.google.zxing.BarcodeFormat.QR_CODE,
-                com.google.zxing.BarcodeFormat.DATA_MATRIX,
-                com.google.zxing.BarcodeFormat.PDF417,
-                com.google.zxing.BarcodeFormat.AZTEC,
-                com.google.zxing.BarcodeFormat.CODE_128));
 
         return new com.google.zxing.MultiFormatReader().decode(bb, hints);
     }
