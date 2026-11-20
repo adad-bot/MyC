@@ -2272,6 +2272,7 @@ function renderCal() {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'cal-cell';
+    b.dataset.jdn = String(jdn);
 
     const isFri = weekIndex(jdn) === 6;
     const isHol = isFri || allOcc(jdn).some(o => o.h);
@@ -2308,44 +2309,77 @@ function renderCal() {
     }
 
     let clicks = 0, clickTimer = null;
-    b.addEventListener('click', () => {
-      calSel = jdn;
-      renderCal();
-      renderDateInfo();
 
-      clicks++;
-      if (clicks >= 2) {
-        clicks = 0;
-        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
-        askRemind(jdn);
-        return;
-      }
-      if (clickTimer) clearTimeout(clickTimer);
-      clickTimer = setTimeout(() => { clicks = 0; clickTimer = null; }, 420);
-    });
-
-    // نگه‌داشتن انگشت روی روز = ثبت یادآوری سریع
-    let lp = null;
-    const cancelLp = () => { if (lp) { clearTimeout(lp); lp = null; } };
-    b.addEventListener('pointerdown', () => {
-      cancelLp();
-      lp = setTimeout(() => {
-        lp = null;
-        calSel = jdn;
-        renderCal();
-        renderDateInfo();
-        askRemind(jdn);
-      }, 1000);
-    });
-    b.addEventListener('pointerup', cancelLp);
-    b.addEventListener('pointerleave', cancelLp);
-    b.addEventListener('pointercancel', cancelLp);
 
     grid.appendChild(b);
   }
 
   renderDayRem();
   renderUpcomingRems();
+  bindCalGrid(grid);
+}
+
+/* ---------- تعامل با خانه‌های تقویم (سطح گرید، پایدار) ---------- */
+let calHold = null;
+let calLastTap = { jdn: 0, t: 0 };
+
+function bindCalGrid(grid) {
+  if (grid.dataset.bound === '1') return;
+  grid.dataset.bound = '1';
+
+  const cellOf = ev => {
+    const c = ev.target.closest('.cal-cell');
+    if (!c || c.classList.contains('empty') || !c.dataset.jdn) return null;
+    return c;
+  };
+
+  grid.addEventListener('pointerdown', ev => {
+    const c = cellOf(ev);
+    if (!c) return;
+
+    if (calHold) { clearTimeout(calHold); calHold = null; }
+
+    calHold = setTimeout(() => {
+      calHold = null;
+      const j = Number(c.dataset.jdn);
+      calSel = j;
+      applySeason();
+      renderCal();
+      renderDateInfo();
+      askRemind(j);
+    }, 1000);
+  });
+
+  const cancelHold = () => {
+    if (calHold) { clearTimeout(calHold); calHold = null; }
+  };
+
+  grid.addEventListener('pointerup', cancelHold);
+  grid.addEventListener('pointercancel', cancelHold);
+  grid.addEventListener('pointerleave', cancelHold);
+
+  grid.addEventListener('click', ev => {
+    const c = cellOf(ev);
+    if (!c) return;
+
+    const j = Number(c.dataset.jdn);
+    const now = Date.now();
+
+    if (calLastTap.jdn === j && now - calLastTap.t < 480) {
+      calLastTap = { jdn: 0, t: 0 };
+      calSel = j;
+      applySeason();
+      renderCal();
+      renderDateInfo();
+      askRemind(j);
+      return;
+    }
+
+    calLastTap = { jdn: j, t: now };
+    calSel = j;
+    renderCal();
+    renderDateInfo();
+  });
 }
 
 function renderDateInfo() {
