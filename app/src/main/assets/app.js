@@ -472,6 +472,15 @@ function startLock(mode) {
   lockEl.classList.remove('hide');
   $('app').classList.add('hidden');
   checkLockTimer();
+
+  // اجرای خودکار اثر انگشت در اولین نمایش قفل
+  if (canFp && !bioAutoDone) {
+    bioAutoDone = true;
+    setTimeout(() => {
+      if (lockMode !== 'unlock') return;
+      try { AndroidAqsat.askBiometric(); } catch (e) { /* */ }
+    }, 450);
+  }
 }
 
 $('fpBtn').addEventListener('click', () => {
@@ -490,7 +499,15 @@ window.onBiometricOk = function () {
 
 window.onBiometricFail = function () {
   if (lockMode !== 'unlock') return;
-  lockErr.textContent = 'اثر انگشت شناسایی نشد';
+
+  bioTries++;
+  if (bioTries >= 2) {
+    $('fpBtn').classList.add('hidden');
+    lockErr.textContent = 'اثر انگشت شناسایی نشد — رمز ۶ رقمی را وارد کن';
+    return;
+  }
+
+  lockErr.textContent = 'اثر انگشت شناسایی نشد (' + fa(bioTries) + ' از ۲)';
 };
 
 function endLock() {
@@ -928,6 +945,46 @@ function setChqPhoto(data) {
 $('chqPhotoBtn').addEventListener('click', () => $('chqPhotoFile').click());
 $('chqPhotoDel').addEventListener('click', () => setChqPhoto(''));
 
+let photoRot = 0;
+
+function redrawPhoto(img, w, h, filter, rot, cropPct) {
+  let sw = w, sh = h, sx = 0, sy = 0;
+
+  if (cropPct > 0) {
+    sw = Math.round(w * (1 - cropPct * 2));
+    sh = Math.round(h * (1 - cropPct * 2));
+    sx = Math.round(w * cropPct);
+    sy = Math.round(h * cropPct);
+  }
+
+  const rot90 = (rot % 180) !== 0;
+  const c = document.createElement('canvas');
+  c.width = rot90 ? sh : sw;
+  c.height = rot90 ? sw : sh;
+
+  const g = c.getContext('2d');
+  if (filter) { try { g.filter = filter; } catch (e) { /* */ } }
+  g.translate(c.width / 2, c.height / 2);
+  g.rotate(rot * Math.PI / 180);
+  g.drawImage(img, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
+  return c.toDataURL('image/jpeg', 0.62);
+}
+
+function editPhoto(filter, cropPct) {
+  if (!chqPhotoData) return;
+  const img = new Image();
+  img.onload = () => {
+    try { setChqPhoto(redrawPhoto(img, img.width, img.height, filter, photoRot, cropPct || 0)); }
+    catch (e) { toast('ویرایش تصویر ممکن نشد'); }
+  };
+  img.src = chqPhotoData;
+}
+
+$('photoBright').addEventListener('click', () => editPhoto('brightness(1.18)', 0));
+$('photoDark').addEventListener('click', () => editPhoto('brightness(0.85)', 0));
+$('photoRot').addEventListener('click', () => { photoRot = (photoRot + 90) % 360; editPhoto('', 0); });
+$('photoCrop').addEventListener('click', () => { editPhoto('', 0.07); toast('حاشیهٔ تصویر حذف شد'); });
+
 $('chqPhotoFile').addEventListener('change', ev => {
   const f = ev.target.files && ev.target.files[0];
   ev.target.value = '';
@@ -1052,8 +1109,10 @@ function applyQrText(txt) {
       $('cIban').value = iban.toUpperCase();
       const bn = bankFromIban(iban.toUpperCase());
       if (bn) $('cBank').value = bn;
+      const acc = iban.toUpperCase().slice(7);
+      if (acc && $('cAccount')) $('cAccount').value = acc;
     }
-    if (filled) { toast('شماره چک، کد ملی و شناسه صیاد خوانده شد — مبلغ و تاریخ را دستی وارد کن'); return; }
+    if (filled) { return; }
   }
 
   /* حالت نامشخص: هیچ‌چیز در «نام طرف حساب» نوشته نمی‌شود */
@@ -1099,19 +1158,11 @@ function onQrFile(ev) {
   ev.target.value = '';
 }
 
-$('qrBtn').addEventListener('click', () => {
-  try {
-    if (window.AndroidAqsat && AndroidAqsat.captureQr) { AndroidAqsat.captureQr(); return; }
-    if (window.AndroidAqsat && AndroidAqsat.scanQr) { AndroidAqsat.scanQr(); return; }
-  } catch (e) { /* */ }
-  $('qrFile').click();
-});
-
 $('qrLive').addEventListener('click', () => {
   try {
     if (window.AndroidAqsat && AndroidAqsat.scanQr) { AndroidAqsat.scanQr(); return; }
   } catch (e) { /* */ }
-  toast('اسکنر زنده فقط در نسخهٔ نصبی کار می‌کند');
+  $('qrFile').click();
 });
 
 $('qrGal').addEventListener('click', () => $('qrFile').click());
@@ -1125,6 +1176,8 @@ $('qrFile').addEventListener('change', onQrFile);
 /* ---------- بررسی نسخه و تصمیم دربارهٔ دادهٔ قبلی ---------- */
 const APP_VER = 9;
 let pendingResetAsk = false;
+let bioTries = 0;
+let bioAutoDone = false;
 
 function backupToDocs() {
   const stamp = new Date().toISOString().slice(0, 10);
@@ -1783,10 +1836,21 @@ function renderCal() {
       b.appendChild(tag);
     }
 
+    let clicks = 0, clickTimer = null;
     b.addEventListener('click', () => {
       calSel = jdn;
       renderCal();
       renderDateInfo();
+
+      clicks++;
+      if (clicks >= 2) {
+        clicks = 0;
+        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+        askRemind(jdn);
+        return;
+      }
+      if (clickTimer) clearTimeout(clickTimer);
+      clickTimer = setTimeout(() => { clicks = 0; clickTimer = null; }, 420);
     });
 
     // نگه‌داشتن انگشت روی روز = ثبت یادآوری سریع
@@ -1800,7 +1864,7 @@ function renderCal() {
         renderCal();
         renderDateInfo();
         askRemind(jdn);
-      }, 2000);
+      }, 1000);
     });
     b.addEventListener('pointerup', cancelLp);
     b.addEventListener('pointerleave', cancelLp);
@@ -3031,6 +3095,7 @@ function openCheque(c) {
   $('cNote').value = c ? c.note : '';
   $('cRaw').value = c ? (c.raw || '') : '';
   $('cIban').value = c ? (c.iban || '') : '';
+  if ($('cAccount')) $('cAccount').value = c ? (c.account || '') : '';
   setChqPhoto(c ? (c.photo || '') : '');
   setDP($('dpChq'), c || todayJalali());
   $('chqDlg').showModal();
@@ -3068,6 +3133,7 @@ $('chqFrm').addEventListener('submit', ev => {
     depBank: $('cDepBank').value.trim(),
     confirmed: $('cConfirmed').checked,
     iban: $('cIban').value.trim(),
+    account: ($('cAccount') ? $('cAccount').value.trim() : ''),
     photo: chqPhotoData || '',
     raw: $('cRaw').value.trim(),
     note: $('cNote').value.trim()

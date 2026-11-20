@@ -288,7 +288,7 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
         if (busy || done || !ready || data == null) return;
 
         long nowMs = System.currentTimeMillis();
-        if (nowMs - lastDecode < 200) return;
+        if (nowMs - lastDecode < 110) return;
         lastDecode = nowMs;
 
         busy = true;
@@ -312,6 +312,7 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
                     // فقط ناحیهٔ داخل کادر (مرکز تصویر) خوانده شود
                     Map<DecodeHintType, Object> hints = new HashMap<>();
                     hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+                    hints.put(DecodeHintType.PURE_BARCODE, Boolean.FALSE);
 
                     // اول ناحیهٔ وسط (QR بزرگ‌تر دیده می‌شود)، بعد کل فریم
                     int[] sides = { (int) (Math.min(w, h) * 0.75), Math.min(w, h) };
