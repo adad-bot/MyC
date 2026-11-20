@@ -774,14 +774,51 @@ function applyQrText(txt) {
     return;
   }
 
-  if (/^\d{5,20}$/.test(t)) {
-    set('cNumber', t);
-    toast('شمارهٔ چک از QR خوانده شد');
+  /* --- QR استاندارد چک صیادی: چند خط جدا ---
+     نمونه:
+     01
+     1
+     4999686139                ← کد ملی
+     IR560130100000000171693980 ← شبا
+     13-305                    ← کد بانک/شعبه
+     847959                    ← شمارهٔ چک
+     7407040179757435          ← شناسهٔ صیاد
+  */
+  const lines = t.split(/\r?\n/).map(x => x.trim()).filter(x => x.length);
+
+  if (lines.length >= 4 && /^[0-9]{1,2}$/.test(lines[0])) {
+    const nid = lines.find(l => /^[0-9]{10}$/.test(l)) || '';
+    const iban = lines.find(l => /^IR[0-9]{24}$/i) || '';
+    const sayad = lines.find(l => /^[0-9]{16}$/.test(l)) || '';
+    const branch = lines.find(l => /^[0-9]{2,4}-[0-9]{2,4}$/.test(l)) || '';
+    const chq = lines.find(l => /^[0-9]{5,9}$/.test(l) && l !== nid && l !== sayad) || '';
+
+    let filled = 0;
+    if (nid) { set('cNid', nid); filled++; }
+    if (chq) { set('cNumber', chq); filled++; }
+
+    const parts = [];
+    if (sayad) parts.push('شناسه صیاد: ' + sayad);
+    if (iban) parts.push('شبا: ' + iban);
+    if (branch) parts.push('شعبه: ' + branch);
+    if (parts.length) { set('cReason', parts.join(' · ').slice(0, 80)); filled++; }
+
+    $('cParty').value = '';
+    $('cRaw').value = t.replace(/\s+/g, ' ').slice(0, 160);
+    if (filled) { toast('شماره چک، کد ملی و شناسه صیاد خوانده شد — مبلغ و تاریخ را دستی وارد کن'); return; }
+  }
+
+  /* حالت نامشخص: هیچ‌چیز در «نام طرف حساب» نوشته نمی‌شود */
+  const ibanOnly = (t.match(/IR[0-9]{24}/i) || [])[0] || '';
+  $('cParty').value = '';
+
+  if (ibanOnly) {
+    set('cReason', 'شبا: ' + ibanOnly.toUpperCase());
+    toast('شبا از QR در «بابت» گذاشته شد');
     return;
   }
 
-  set('cParty', t.slice(0, 60));
-  toast('متن QR در نام طرف حساب گذاشته شد');
+  openOcc({ t: 'متن خوانده‌شده از QR', d: t });
 }
 
 function onQrFile(ev) {
@@ -829,10 +866,10 @@ function backupToDocs() {
   const json = JSON.stringify({ v: 3, app: 'MyC', savedAt: new Date().toISOString(), data: S.d }, null, 1);
   try {
     if (window.AndroidAqsat && AndroidAqsat.saveDocs) {
-      return AndroidAqsat.saveDocs('Back_Miaad-' + stamp + '.json', json);
+      return AndroidAqsat.saveDocs('Back_Miaad.json', json);
     }
     if (window.AndroidAqsat && AndroidAqsat.saveFile) {
-      return AndroidAqsat.saveFile('Back_Miaad-' + stamp + '.json', json);
+      return AndroidAqsat.saveFile('Back_Miaad.json', json);
     }
   } catch (e) { /* */ }
   return false;
@@ -851,6 +888,11 @@ function wipeAllData() {
 }
 
 let rstStep = 0, rstTimer = null;
+
+$('resetDataBtn').addEventListener('click', () => {
+  $('settingsDlg').close();
+  askResetData();
+});
 
 function askResetData() {
   rstStep = 1;
@@ -2426,6 +2468,7 @@ function openCheque(c) {
   $('cDepBank').value = c ? c.depBank : '';
   $('cConfirmed').checked = c ? !!c.confirmed : false;
   $('cNote').value = c ? c.note : '';
+  $('cRaw').value = c ? (c.raw || '') : '';
   setDP($('dpChq'), c || todayJalali());
   $('chqDlg').showModal();
 }
@@ -2455,6 +2498,7 @@ $('chqFrm').addEventListener('submit', ev => {
     status: $('cStatus').value,
     depBank: $('cDepBank').value.trim(),
     confirmed: $('cConfirmed').checked,
+    raw: $('cRaw').value.trim(),
     note: $('cNote').value.trim()
   };
 

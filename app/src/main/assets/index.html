@@ -234,6 +234,9 @@
       <input id="cDepBank" type="text" maxlength="40">
     </label>
     <label class="chk"><input type="checkbox" id="cConfirmed"> در سامانه (صیاد) تأیید شده</label>
+    <label>اطلاعات روی چک / متن QR (اختیاری)
+      <input id="cRaw" type="text" maxlength="160" placeholder="با اسکن QR خودکار پر می‌شود">
+    </label>
     <label>توضیح (اختیاری)
       <input id="cNote" type="text" maxlength="100">
     </label>
@@ -365,6 +368,7 @@
       <button type="button" class="btn" id="exportBtn" style="flex:1">پشتیبان‌گیری</button>
       <button type="button" class="btn" id="importBtn" style="flex:1">بازیابی</button>
     </div>
+    <button type="button" class="btn danger block" id="resetDataBtn" style="margin-top:8px">پاک کردن داده‌های قبلی…</button>
     <label class="chk"><input type="checkbox" id="soundChk"> اعلان با صدا</label>
     <label class="chk hidden" id="bioRow"><input type="checkbox" id="bioChk"> ورود با اثر انگشت</label>
     <div>

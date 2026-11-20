@@ -39,6 +39,10 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
     private Handler ui;
     private volatile boolean busy = false;
     private volatile boolean done = false;
+    private volatile boolean ready = false;
+
+    private static final int PREVIEW_W = 1280;
+    private static final int PREVIEW_H = 720;
 
     @Override
     protected void onCreate(Bundle saved) {
@@ -47,14 +51,27 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
 
+        // نسبت تصویر دوربین رعایت شود تا کشیده/بزرگ دیده نشود
+        // پیش‌نمایش کوچک و وسط‌چین: کل میدان دید دوربین دیده می‌شود
+        int screenW = getResources().getDisplayMetrics().widthPixels;
+        int screenH = getResources().getDisplayMetrics().heightPixels;
+
+        int boxH = (int) (screenH * 0.62);
+        int boxW = (int) (boxH * 9.0 / 16.0);
+        if (boxW > screenW * 0.92) {
+            boxW = (int) (screenW * 0.92);
+            boxH = (int) (boxW * 16.0 / 9.0);
+        }
+
         surfaceView = new SurfaceView(this);
-        root.addView(surfaceView, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(boxW, boxH);
+        slp.gravity = Gravity.CENTER;
+        root.addView(surfaceView, slp);
         surfaceView.getHolder().addCallback(this);
 
         // کادر راهنما
         View frame = new View(this);
-        int size = (int) (getResources().getDisplayMetrics().widthPixels * 0.68);
+        int size = (int) (Math.min(boxW, boxH) * 0.78);
         GradientDrawable box = new GradientDrawable();
         box.setColor(0x11000000);
         box.setStroke(6, 0xFFFFFFFF);
@@ -65,7 +82,7 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
         root.addView(frame, flp);
 
         TextView hint = new TextView(this);
-        hint.setText("QR را داخل کادر بگیر — خودکار خوانده می‌شود");
+        hint.setText("کد QR را داخل کادر بگیر");
         hint.setTextColor(Color.WHITE);
         hint.setTextSize(14);
         hint.setGravity(Gravity.CENTER);
@@ -137,24 +154,62 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
         if (camera != null) return;
         try {
             camera = Camera.open();
+
+            try { camera.setDisplayOrientation(displayRotation()); } catch (Throwable ignored) { }
+
             Camera.Parameters p = camera.getParameters();
 
             Camera.Size best = null;
             try {
                 for (Camera.Size s : p.getSupportedPreviewSizes()) {
-                    if (best == null || Math.abs(s.width - 1280) < Math.abs(best.width - 1280)) best = s;
+                    float ratio = (float) s.width / (float) s.height;
+                    if (Math.abs(ratio - 16f / 9f) > 0.12f) continue;
+                    if (best == null || Math.abs(s.width - PREVIEW_W) < Math.abs(best.width - PREVIEW_W)) best = s;
                 }
-            } catch (Exception ignored) { }
+                if (best == null) {
+                    for (Camera.Size s : p.getSupportedPreviewSizes()) {
+                        if (best == null || Math.abs(s.width - PREVIEW_W) < Math.abs(best.width - PREVIEW_W)) best = s;
+                    }
+                }
+            } catch (Throwable ignored) { }
             if (best != null) p.setPreviewSize(best.width, best.height);
 
-            try { p.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE); } catch (Exception ignored) { }
-            try { camera.setParameters(p); } catch (Exception ignored) { }
+            try { p.setZoom(0); } catch (Throwable ignored) { }
+            try { p.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE); } catch (Throwable ignored) { }
+            try { camera.setParameters(p); } catch (Throwable ignored) { }
 
             camera.setPreviewDisplay(holder);
             camera.setPreviewCallback((data, cam) -> onFrame(data, cam));
             camera.startPreview();
+
+            // کمی فرصت بده تا کاربر کد را داخل کادر قرار دهد
+            ui.postDelayed(() -> ready = true, 900);
         } catch (Throwable t) {
             finishWith("ERR:NOCAMERA");
+        }
+    }
+
+    private int displayRotation() {
+        try {
+            Camera.CameraInfo info = new Camera.CameraInfo();
+            Camera.getCameraInfo(0, info);
+
+            int rotation = getWindowManager().getDefaultDisplay().getRotation();
+            int degrees = 0;
+            if (rotation == android.view.Surface.ROTATION_90) degrees = 90;
+            else if (rotation == android.view.Surface.ROTATION_180) degrees = 180;
+            else if (rotation == android.view.Surface.ROTATION_270) degrees = 270;
+
+            int result;
+            if (info.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
+                result = (info.orientation + degrees) % 360;
+                result = (360 - result) % 360;
+            } else {
+                result = (info.orientation - degrees + 360) % 360;
+            }
+            return result;
+        } catch (Throwable t) {
+            return 90;
         }
     }
 
@@ -169,13 +224,13 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
     }
 
     private void onFrame(byte[] data, Camera cam) {
-        if (busy || done || data == null) return;
+        if (busy || done || !ready || data == null) return;
         busy = true;
 
         final byte[] copy = data.clone();
 
-        int pw = 640;
-        int ph = 480;
+        int pw = PREVIEW_W;
+        int ph = PREVIEW_H;
         try {
             Camera.Size s = cam.getParameters().getPreviewSize();
             if (s != null) { pw = s.width; ph = s.height; }
@@ -188,8 +243,13 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
             @Override
             public void run() {
                 try {
+                    // فقط ناحیهٔ داخل کادر (مرکز تصویر) خوانده شود
+                    int side = Math.min(w, h);
+                    int left = (w - side) / 2;
+                    int top = (h - side) / 2;
+
                     PlanarYUVLuminanceSource src =
-                            new PlanarYUVLuminanceSource(copy, w, h, 0, 0, w, h, false);
+                            new PlanarYUVLuminanceSource(copy, w, h, left, top, side, side, false);
                     BinaryBitmap bmp = new BinaryBitmap(new HybridBinarizer(src));
 
                     Map<DecodeHintType, Object> hints = new HashMap<>();
