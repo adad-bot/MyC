@@ -975,8 +975,17 @@ function applyQrText(txt) {
   $('cParty').value = '';
 
   if (ibanOnly) {
-    set('cReason', 'شبا: ' + ibanOnly.toUpperCase());
-    toast('شبا از QR در «بابت» گذاشته شد');
+    const ib = ibanOnly.toUpperCase();
+    $('cIban').value = ib;
+    const bn2 = bankFromIban(ib);
+    if (bn2) $('cBank').value = bn2;
+
+    // شمارهٔ چک: عدد ۶ رقمی کنار شبا
+    const num6 = (t.replace(ib, ' ').match(/[0-9]{6}/g) || [])[0];
+    if (num6) $('cNumber').value = num6;
+
+    $('cRaw').value = t.replace(/\s+/g, ' ').slice(0, 160);
+    toast('شبا و اطلاعات چک از QR خوانده شد');
     return;
   }
 
@@ -1138,6 +1147,25 @@ $('rstYes').addEventListener('click', () => {
   toast('پاک‌کردن لغو شد — داده‌ها سر جایشان هستند');
 });
 
+function arrowSvg(incoming) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const s = document.createElementNS(NS, 'svg');
+  s.setAttribute('viewBox', '0 0 24 24');
+  s.setAttribute('fill', 'none');
+  s.setAttribute('stroke', 'currentColor');
+  s.setAttribute('stroke-width', '3.4');
+  s.setAttribute('stroke-linecap', 'round');
+  s.setAttribute('stroke-linejoin', 'round');
+
+  const deg = incoming ? -135 : -45;
+  s.innerHTML =
+    '<g transform="rotate(' + deg + ' 12 12)">' +
+    '<line x1="12" y1="4" x2="12" y2="16" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' +
+    '<polygon points="12,21 5.5,13 18.5,13" fill="currentColor"/>' +
+    '</g>';
+  return s;
+}
+
 /* ---------- گزارش طلب / بدهی ---------- */
 let sideExpanded = false, sideKind = 'r';
 
@@ -1176,7 +1204,8 @@ function sideMoneyRow(x) {
   const row = el('div', 'item');
   const isIn = (x.kind === 'cheque' && x.cheque.kind === 'in') ||
     (x.kind === 'account' && x.account.kind === 'receivable');
-  const ico = el('div', 'ico ' + (x.kind === 'cheque' ? 'chq' : 'acc'), isIn ? '↙' : '↗');
+  const ico = el('div', 'ico ' + (x.kind === 'cheque' ? 'chq' : 'acc arrow ' + (isIn ? 'green' : 'red')));
+  if (x.kind !== 'cheque') ico.appendChild(arrowSvg(isIn));
   const main = el('div', 'main');
   main.appendChild(el('div', 't', x.kind === 'cheque' ? x.cheque.party : x.account.name));
   const m = el('div', 'm');
@@ -1683,7 +1712,10 @@ function renderCal() {
         calSel = jdn;
         renderCal();
         renderDateInfo();
-        openRem(null);
+
+        setTimeout(() => {
+          if (confirm('برای این روز یادآوری ثبت شود؟')) openRem(null);
+        }, 120);
       }, 550);
     });
     b.addEventListener('pointerup', cancelLp);
@@ -2050,7 +2082,9 @@ function renderTx() {
 
 function txRow(x) {
   const row = el('div', 'item');
-  const ico = el('div', 'ico ' + (x.type === 'income' ? 'in' : 'out'), x.type === 'income' ? '↓' : '↑');
+  const isIn = x.type === 'income';
+  const ico = el('div', 'ico arrow ' + (isIn ? 'green' : 'red'));
+  ico.appendChild(arrowSvg(isIn));
   const main = el('div', 'main');
   const t = el('div', 't', x.cat + (x.note ? ' — ' + x.note : ''));
   const m = el('div', 'm');
@@ -2139,6 +2173,38 @@ function renderLoanDetail() {
   st.append(s1, s2, s3);
   view.appendChild(st);
 
+  /* نمودار میله‌ای: پرداخت‌شده (سبز) و روزهای مانده تا قسط بعد (قرمز) */
+  const total = loan.installments.length || 1;
+  const nextUnpaid = loan.installments
+    .filter(i => !i.paid)
+    .sort((a, b) => jdnOf(a) - jdnOf(b))[0];
+  const daysLeft = nextUnpaid ? Math.max(0, jdnOf(nextUnpaid) - effToday()) : 0;
+
+  const barsCard = el('div', 'card pad');
+  const bh = el('div', 'mhead');
+  bh.style.margin = '0 0 8px';
+  bh.appendChild(el('span', null, 'وضعیت اقساط'));
+  barsCard.appendChild(bh);
+
+  const mkBar = (label, value, max, cls, extra) => {
+    const line = el('div', 'cmpbar');
+    line.appendChild(el('span', 'cmpl', label));
+    const track = el('div', 'cmp-track');
+    const fill = el('i', 'cmp-fill ' + cls);
+    fill.style.width = '0%';
+    track.appendChild(fill);
+    line.appendChild(track);
+    line.appendChild(el('span', 'cmpv', extra));
+    barsCard.appendChild(line);
+    const pct = Math.max(2, Math.min(100, Math.round(value / max * 100)));
+    requestAnimationFrame(() => { fill.style.width = pct + '%'; });
+  };
+
+  mkBar('اقساط پرداخت‌شده', paid, total, 'in', fa(paid) + ' از ' + fa(total));
+  mkBar('روز تا قسط بعدی', Math.min(daysLeft, 30), 30, 'out', nextUnpaid ? fa(daysLeft) + ' روز' : '—');
+
+  view.appendChild(barsCard);
+
   const btns = el('div', 'row-btns');
   const bEdit = el('button', 'btn', 'ویرایش وام');
   bEdit.addEventListener('click', () => openLoan(loan));
@@ -2210,7 +2276,8 @@ function renderCheques() {
   const list = el('div', 'list');
   for (const c of items) {
     const row = el('div', 'item' + (c.status === 'open' && jdnOf(c) - t < 0 ? ' warn' : ''));
-    const ico = el('div', 'ico chq', c.kind === 'in' ? '⬇' : '⬆');
+    const ico = el('div', 'ico arrow ' + (c.kind === 'in' ? 'green' : 'red'));
+    ico.appendChild(arrowSvg(c.kind === 'in'));
     const main = el('div', 'main');
     main.appendChild(el('div', 't', c.party));
     const m = el('div', 'm');
@@ -2252,7 +2319,8 @@ function renderAccounts() {
   const list = el('div', 'list');
   for (const a of items) {
     const row = el('div', 'item');
-    const ico = el('div', 'ico acc', a.kind === 'receivable' ? '↙' : '↗');
+    const ico = el('div', 'ico acc arrow ' + (a.kind === 'receivable' ? 'green' : 'red'));
+    ico.appendChild(arrowSvg(a.kind === 'receivable'));
     const main = el('div', 'main');
     main.appendChild(el('div', 't', a.name));
     const m = el('div', 'm');
@@ -2268,6 +2336,8 @@ function renderAccounts() {
 }
 
 function renderReport() {
+  view.textContent = '';
+
   const now = todayJalali();
   const ym = S.reportYm || monthKey(now);
 
@@ -2317,12 +2387,14 @@ function renderReport() {
   view.appendChild(perSeg);
 
   const modeSeg = el('div', 'seg');
-  [['none', 'بدون مقایسه'], ['cmp', 'مقایسه']].forEach(([k, lbl]) => {
-    const b = el('button', mode === k ? 'on' : '', lbl);
-    b.type = 'button';
-    b.addEventListener('click', () => { S.repMode = k; render(); });
-    modeSeg.appendChild(b);
+  const modeBtn = el('button', mode === 'cmp' ? 'on' : '', mode === 'cmp' ? 'با مقایسه' : 'بدون مقایسه');
+  modeBtn.type = 'button';
+  modeBtn.style.width = '100%';
+  modeBtn.addEventListener('click', () => {
+    S.repMode = mode === 'cmp' ? 'none' : 'cmp';
+    render();
   });
+  modeSeg.appendChild(modeBtn);
   view.appendChild(modeSeg);
 
   /* ---------- جمع‌ها ---------- */
@@ -2744,7 +2816,13 @@ $('loanFrm').addEventListener('submit', ev => {
   const title = $('lTitle').value.trim();
   const amount = Math.round(Number($('lAmount').value));
   const count = clamp(parseInt($('lCount').value, 10) || 1, 1, 360);
-  if (!title) { toast('عنوان وام را بنویس'); return; }
+  if (!title) {
+    openOcc({
+      t: 'فیلدهای لازم برای ثبت وام',
+      d: 'عنوان وام، مبلغ هر قسط، تعداد اقساط و تاریخ اولین قسط الزامی هستند (با ستارهٔ قرمز مشخص شده‌اند).'
+    });
+    return;
+  }
   if (!(amount > 0)) { toast('مبلغ را درست وارد کن'); return; }
 
   const start = getDP($('dpLoan'));
@@ -2874,7 +2952,13 @@ $('chqFrm').addEventListener('submit', ev => {
   const amount = Math.round(Number($('cAmount').value));
   const party = $('cParty').value.trim();
   if (!(amount > 0)) { toast('مبلغ را درست وارد کن'); return; }
-  if (!party) { toast('نام طرف حساب را بنویس'); return; }
+  if (!party) {
+    openOcc({
+      t: 'فیلدهای لازم برای ثبت چک',
+      d: 'برای ثبت چک، این سه مورد الزامی است (با ستارهٔ قرمز مشخص شده‌اند):\n• مبلغ\n• تاریخ سررسید\n• نام طرف حساب'
+    });
+    return;
+  }
 
   const dt = getDP($('dpChq'));
   const rec = {
@@ -3574,7 +3658,37 @@ function openEditor(note) {
 
 function closeEditor(silent) {
   if (ED.note) {
-    ED.note.title = $('edTitle').value.trim();
+    const title = $('edTitle').value.trim();
+    const strokes = ED.note.pages && ED.note.pages[0] ? ED.note.pages[0].strokes.length : 0;
+
+    if (!title) {
+      if (strokes > 0) {
+        if (!confirm('یادداشت نام ندارد. می‌خواهی نام‌گذاری کنی؟\n\n«تأیید» = ماندن در ویرایشگر برای نام‌گذاری\n«انصراف» = حذف این یادداشت')) {
+          const i = S.d.notes.findIndex(n => n.id === ED.note.id);
+          if (i >= 0) S.d.notes.splice(i, 1);
+          ED.note = null;
+          $('editor').classList.add('hide');
+          save();
+          if (!silent) render();
+          toast('یادداشت بدون نام حذف شد');
+          return;
+        }
+        setTimeout(() => { try { $('edTitle').focus(); } catch (e) { } }, 120);
+        toast('برای یادداشت یک نام بنویس');
+        return;
+      }
+
+      const i = S.d.notes.findIndex(n => n.id === ED.note.id);
+      if (i >= 0) S.d.notes.splice(i, 1);
+      ED.note = null;
+      $('editor').classList.add('hide');
+      save();
+      if (!silent) render();
+      toast('یادداشت خالی ذخیره نشد');
+      return;
+    }
+
+    ED.note.title = title;
     ED.note.updated = Date.now();
     ED.note.thumb = makeThumb(ED.note);
     save();
@@ -3960,6 +4074,25 @@ function handleSwipe(dir, target) {
   if ($('dateDlg').open) { shiftCalMonth(dir); return; }
   if ($('sideDlg').open || $('todayDlg').open) return;
   if (!$('editor').classList.contains('hide')) return;
+
+  // جابه‌جایی بین سربرگ‌ها با سوایپ
+  if (S.tab === 'obl' && !S.detailLoan) {
+    const order = ['cheques', 'loans', 'accounts'];
+    const idx = Math.max(0, order.indexOf(S.oblTab));
+    S.oblTab = order[(idx + (dir > 0 ? 1 : -1) + 3) % 3];
+    render();
+    spinRings(dir, view);
+    return;
+  }
+
+  if (S.tab === 'tx') {
+    const order = ['all', 'expense', 'income'];
+    const idx = Math.max(0, order.indexOf(S.txFilter || 'all'));
+    S.txFilter = order[(idx + (dir > 0 ? 1 : -1) + 3) % 3];
+    render();
+    spinRings(dir, view);
+    return;
+  }
 
   if (S.tab === 'report') {
     S.reportYm = shiftYm(S.reportYm || monthKey(todayJalali()), dir);

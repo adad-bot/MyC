@@ -1031,3 +1031,39 @@ button:active, .cal-cell:active, .dc-circle:active,
 .legend .lg-prev{font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px}
 .legend .lg-prev::before{content:'';display:block;width:16px;height:0;border-top:2px dashed var(--muted)}
 .rep-head select:disabled{opacity:.45}
+
+/* فلش‌های ضخیم و رنگی طلب/بدهی */
+.ico.arrow{
+  font-size:22px;
+  font-weight:900;
+  -webkit-text-stroke:2.4px currentColor;
+  line-height:1;
+  display:grid;
+  place-items:center;
+}
+.ico.arrow.green{color:var(--green);background:rgba(16,185,129,.14);border-radius:12px}
+.ico.arrow.red{color:var(--red);background:rgba(239,68,68,.13);border-radius:12px}
+
+/* فلش SVG ضخیم */
+.ico.arrow svg{width:24px;height:24px;stroke-width:3.4}
+.ico.arrow.green svg{color:var(--green)}
+.ico.arrow.red svg{color:var(--red)}
+.ico.arrow{-webkit-text-stroke:0;font-size:0}
+
+/* آیکن‌ها: داخل کادر و پررنگ */
+.ico{
+  display:grid !important;
+  place-items:center;
+  font-size:16px;
+  line-height:1;
+  background:var(--soft);
+  border:1px solid var(--line);
+  color:var(--ink);
+}
+.ico.loan{background:rgba(79,70,229,.14);color:var(--brand);border-color:rgba(79,70,229,.22)}
+.ico.chq{background:rgba(234,179,8,.16);color:#a16207;border-color:rgba(234,179,8,.28)}
+.ico.acc{background:rgba(16,185,129,.12);color:var(--green);border-color:rgba(16,185,129,.22)}
+.ico.arrow{border:none}
+
+/* ستارهٔ فیلدهای لازم */
+label .req{color:var(--red);font-weight:800;margin-inline-start:3px}

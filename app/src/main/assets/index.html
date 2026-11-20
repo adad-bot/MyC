@@ -106,14 +106,14 @@
       <button type="button" data-kind="expense" class="on">هزینه</button>
       <button type="button" data-kind="income">درآمد</button>
     </div>
-    <label>مبلغ (تومان)
+    <label>مبلغ (تومان)<span class="req">*</span>
       <input id="txAmount" type="number" inputmode="numeric" min="0" step="1000" required>
       <span class="hint" id="txAmountHint"></span>
     </label>
     <label>دستهٔ <span id="catLbl">هزینه</span>
       <select id="txCat"></select>
     </label>
-    <fieldset><legend>تاریخ</legend><div class="drow" id="dpTx"></div>
+    <fieldset><legend>تاریخ<span class="req">*</span></legend><div class="drow" id="dpTx"></div>
       <div class="row-btns" style="margin:4px 0 0">
         <button type="button" class="btn ghost" data-quick="today" style="padding:5px 10px;font-size:11px">امروز</button>
         <button type="button" class="btn ghost" data-quick="yesterday" style="padding:5px 10px;font-size:11px">دیروز</button>
@@ -145,17 +145,17 @@
 <dialog id="loanDlg">
   <form id="loanFrm" novalidate>
     <h2 id="loanTitle">وام جدید</h2>
-    <label>عنوان وام
+    <label>عنوان وام<span class="req">*</span>
       <input id="lTitle" type="text" maxlength="60" placeholder="مثلاً وام مسکن" required>
     </label>
-    <label>مبلغ هر قسط (تومان)
+    <label>مبلغ هر قسط (تومان)<span class="req">*</span>
       <input id="lAmount" type="number" inputmode="numeric" min="1000" step="1000" required>
       <span class="hint" id="lAmountHint"></span>
     </label>
-    <label>تعداد اقساط
+    <label>تعداد اقساط<span class="req">*</span>
       <input id="lCount" type="number" min="1" max="360" value="12" inputmode="numeric" required>
     </label>
-    <fieldset><legend>تاریخ اولین قسط</legend><div class="drow" id="dpLoan"></div></fieldset>
+    <fieldset><legend>تاریخ اولین قسط<span class="req">*</span></legend><div class="drow" id="dpLoan"></div></fieldset>
     <label class="hidden" id="lPaidWrap">اقساطی که تا امروز پرداخت کرده‌ای (برای ادامهٔ وام در جریان)
       <input id="lPaid" type="number" min="0" max="359" value="0" inputmode="numeric">
       <span class="hint">اگر وام قبلاً شروع شده، تعداد اقساط پرداخت‌شده را بنویس تا از قسط بعدی ادامه دهد.</span>
@@ -177,7 +177,7 @@
 <dialog id="instDlg">
   <form id="instFrm" novalidate>
     <h2>ویرایش قسط</h2>
-    <label>مبلغ (تومان)
+    <label>مبلغ (تومان)<span class="req">*</span>
       <input id="iAmount" type="number" inputmode="numeric" min="0" step="1000" required>
       <span class="hint" id="iAmountHint"></span>
     </label>
@@ -198,16 +198,16 @@
       <button type="button" data-kind="in" class="on">دریافتی</button>
       <button type="button" data-kind="out">صادره</button>
     </div>
-    <label>مبلغ (تومان)
+    <label>مبلغ (تومان)<span class="req">*</span>
       <input id="cAmount" type="number" inputmode="numeric" min="0" step="1000" required>
       <span class="hint" id="cAmountHint"></span>
     </label>
-    <fieldset><legend>تاریخ سررسید چک</legend><div class="drow" id="dpChq"></div></fieldset>
+    <fieldset><legend>تاریخ سررسید چک<span class="req">*</span></legend><div class="drow" id="dpChq"></div></fieldset>
     <button type="button" class="btn block" id="qrBtn" style="margin:2px 0 4px">📷 عکس بگیر و QR را بخوان</button>
     <button type="button" class="btn ghost block" id="qrLive" style="margin:0 0 4px;font-size:11.5px">اسکنر زنده (آزمایشی)</button>
     <button type="button" class="btn ghost block" id="qrGal" style="margin:0 0 8px;font-size:11.5px">انتخاب عکس از گالری</button>
     <input type="file" id="qrFile" accept="image/*" class="hidden">
-    <label>نام طرف حساب
+    <label>نام طرف حساب<span class="req">*</span>
       <input id="cParty" type="text" maxlength="60" required placeholder="نام صاحب چک / در وجه">
     </label>
     <label>شماره چک (اختیاری)
@@ -262,7 +262,7 @@
     <label>نام شخص
       <input id="aName" type="text" maxlength="60" required>
     </label>
-    <label>مبلغ (تومان)
+    <label>مبلغ (تومان)<span class="req">*</span>
       <input id="aAmount" type="number" inputmode="numeric" min="0" step="1000" required>
       <span class="hint" id="aAmountHint"></span>
     </label>
