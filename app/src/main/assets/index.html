@@ -207,6 +207,13 @@
     <button type="button" class="btn ghost block" id="qrLive" style="margin:0 0 4px;font-size:11.5px">اسکنر زنده (آزمایشی)</button>
     <button type="button" class="btn ghost block" id="qrGal" style="margin:0 0 8px;font-size:11.5px">انتخاب عکس از گالری</button>
     <input type="file" id="qrFile" accept="image/*" class="hidden">
+
+    <button type="button" class="btn ghost block" id="chqPhotoBtn" style="margin:0 0 4px;font-size:11.5px">📷 افزودن تصویر چک</button>
+    <input type="file" id="chqPhotoFile" accept="image/*" class="hidden">
+    <div id="chqPhotoPrev" class="hidden" style="text-align:center;margin-bottom:8px">
+      <img id="chqPhotoImg" alt="تصویر چک" style="max-width:100%;max-height:150px;border-radius:10px;border:1px solid var(--line)">
+      <button type="button" class="btn ghost" id="chqPhotoDel" style="margin-top:6px;font-size:11px">حذف تصویر</button>
+    </div>
     <label>نام طرف حساب<span class="req">*</span>
       <input id="cParty" type="text" maxlength="60" required placeholder="نام صاحب چک / در وجه">
     </label>
@@ -283,6 +290,29 @@
 </dialog>
 
 <div class="ring-overlay hidden" id="ringOverlay"></div>
+
+<dialog id="imgDlg">
+  <form method="dialog">
+    <h2>تصویر چک</h2>
+    <img id="imgDlgPic" alt="چک" style="width:100%;border-radius:12px;border:1px solid var(--line)">
+    <div class="dact">
+      <button type="button" class="primary" id="imgDlgSave">دانلود تصویر</button>
+      <button type="button" id="imgDlgClose">بستن</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="askRemDlg">
+  <form method="dialog">
+    <div class="ask-icon">⏰</div>
+    <h2 id="askRemTitle" style="text-align:center">یادآوری ثبت شود؟</h2>
+    <p id="askRemBody" class="hint" style="text-align:center"></p>
+    <div class="dact">
+      <button type="button" class="primary" id="askRemYes">بله، ثبت یادآور</button>
+      <button type="button" id="askRemNo">خیر</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="resetDlg">
   <form method="dialog">

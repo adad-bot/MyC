@@ -244,6 +244,38 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** ذخیرهٔ تصویر (Base64) در Download */
+        @JavascriptInterface
+        public boolean saveImage(String base64, String fileName) {
+            OutputStream out = null;
+            try {
+                byte[] bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                values.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/MyC");
+                }
+
+                Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                if (uri == null) return false;
+
+                out = getContentResolver().openOutputStream(uri);
+                if (out == null) return false;
+
+                out.write(bytes);
+                out.flush();
+                return true;
+            } catch (Exception e) {
+                return false;
+            } finally {
+                if (out != null) {
+                    try { out.close(); } catch (Exception ignored) { }
+                }
+            }
+        }
+
         /** ذخیرهٔ فایل پشتیبان در Documents/Back_Miaad (و در صورت خطا در Download/Back_Miaad) */
         @JavascriptInterface
         public boolean saveDocs(String fileName, String content) {

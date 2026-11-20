@@ -761,6 +761,26 @@ function openOccDay(jdn) {
 
 $('occOk').addEventListener('click', () => $('occDlg').close());
 
+/* ---------- پرسش ثبت یادآور ---------- */
+let askRemJdn = 0;
+
+function askRemind(jdn) {
+  askRemJdn = jdn;
+  $('askRemBody').textContent = 'برای ' + dateLabel(d2j(jdn)) + ' یک یادآور بسازم؟';
+  $('askRemDlg').showModal();
+}
+
+$('askRemNo').addEventListener('click', () => $('askRemDlg').close());
+
+$('askRemYes').addEventListener('click', () => {
+  $('askRemDlg').close();
+  calSel = askRemJdn;
+  renderCal();
+  renderDateInfo();
+  openRem(null);
+  setTimeout(() => { try { $('remTitle').focus(); } catch (e) { } }, 200);
+});
+
 /* ---------- یادآورهای تقویم ---------- */
 let remEditId = null;
 
@@ -888,6 +908,72 @@ function bankFromIban(iban) {
   if (!iban || iban.length < 7) return '';
   return IBAN_BANKS[iban.slice(4, 7)] || '';
 }
+
+/* ---------- تصویر چک ---------- */
+let chqPhotoData = '';
+
+function setChqPhoto(data) {
+  chqPhotoData = data || '';
+  const wrap = $('chqPhotoPrev');
+  if (!wrap) return;
+  if (chqPhotoData) {
+    $('chqPhotoImg').src = chqPhotoData;
+    wrap.classList.remove('hidden');
+  } else {
+    $('chqPhotoImg').removeAttribute('src');
+    wrap.classList.add('hidden');
+  }
+}
+
+$('chqPhotoBtn').addEventListener('click', () => $('chqPhotoFile').click());
+$('chqPhotoDel').addEventListener('click', () => setChqPhoto(''));
+
+$('chqPhotoFile').addEventListener('change', ev => {
+  const f = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if (!f) return;
+
+  const fr = new FileReader();
+  fr.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const max = 900;
+      let w = img.width, h = img.height;
+      if (Math.max(w, h) > max) {
+        const k = max / Math.max(w, h);
+        w = Math.round(w * k); h = Math.round(h * k);
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      setChqPhoto(c.toDataURL('image/jpeg', 0.62));
+      toast('تصویر چک اضافه شد');
+    };
+    img.src = String(fr.result);
+  };
+  fr.readAsDataURL(f);
+});
+
+function openImage(data) {
+  if (!data) { toast('تصویری برای این چک ثبت نشده'); return; }
+  $('imgDlgPic').src = data;
+  $('imgDlg').showModal();
+}
+
+$('imgDlgClose').addEventListener('click', () => $('imgDlg').close());
+
+$('imgDlgSave').addEventListener('click', () => {
+  try {
+    const b64 = ($('imgDlgPic').src || '').split(',')[1] || '';
+    if (!b64) return;
+    if (window.AndroidAqsat && AndroidAqsat.saveImage) {
+      const ok = AndroidAqsat.saveImage(b64, 'MyC-cheque-' + Date.now() + '.jpg');
+      toast(ok ? 'تصویر ذخیره شد (پوشهٔ Downloads/MyC)' : 'ذخیره نشد');
+    } else {
+      toast('ذخیره فقط در نسخهٔ نصبی کار می‌کند');
+    }
+  } catch (e) { toast('ذخیره نشد'); }
+});
 
 /* ---------- خواندن اطلاعات چک از QR ---------- */
 function applyQrText(txt) {
@@ -1157,12 +1243,13 @@ function arrowSvg(incoming) {
   s.setAttribute('stroke-linecap', 'round');
   s.setAttribute('stroke-linejoin', 'round');
 
-  const deg = incoming ? -135 : -45;
-  s.innerHTML =
-    '<g transform="rotate(' + deg + ' 12 12)">' +
-    '<line x1="12" y1="4" x2="12" y2="16" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' +
-    '<polygon points="12,21 5.5,13 18.5,13" fill="currentColor"/>' +
-    '</g>';
+  s.innerHTML = incoming
+    // سبز: از بالا-راست به پایین-چپ
+    ? '<line x1="17" y1="7" x2="9.5" y2="14.5" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' +
+      '<polygon points="6,18 6,9.6 14.4,18" fill="currentColor"/>'
+    // قرمز: از پایین-چپ به بالا-راست
+    : '<line x1="7" y1="17" x2="14.5" y2="9.5" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' +
+      '<polygon points="18,6 18,14.4 9.6,6" fill="currentColor"/>';
   return s;
 }
 
@@ -1712,11 +1799,8 @@ function renderCal() {
         calSel = jdn;
         renderCal();
         renderDateInfo();
-
-        setTimeout(() => {
-          if (confirm('برای این روز یادآوری ثبت شود؟')) openRem(null);
-        }, 120);
-      }, 550);
+        askRemind(jdn);
+      }, 2000);
     });
     b.addEventListener('pointerup', cancelLp);
     b.addEventListener('pointerleave', cancelLp);
@@ -2288,6 +2372,15 @@ function renderCheques() {
     main.appendChild(m);
     const amt = el('div', 'amt', NUM.format(c.amount));
     row.append(ico, main, amt);
+
+    if (c.photo) {
+      const btnImg = el('button', 'btn ghost', '📷');
+      btnImg.type = 'button';
+      btnImg.style.cssText = 'padding:4px 7px;font-size:12px;margin-inline-start:6px';
+      btnImg.addEventListener('click', ev => { ev.stopPropagation(); openImage(c.photo); });
+      row.appendChild(btnImg);
+    }
+
     row.addEventListener('click', () => openCheque(c));
     list.appendChild(row);
   }
@@ -2938,6 +3031,7 @@ function openCheque(c) {
   $('cNote').value = c ? c.note : '';
   $('cRaw').value = c ? (c.raw || '') : '';
   $('cIban').value = c ? (c.iban || '') : '';
+  setChqPhoto(c ? (c.photo || '') : '');
   setDP($('dpChq'), c || todayJalali());
   $('chqDlg').showModal();
 }
@@ -2974,6 +3068,7 @@ $('chqFrm').addEventListener('submit', ev => {
     depBank: $('cDepBank').value.trim(),
     confirmed: $('cConfirmed').checked,
     iban: $('cIban').value.trim(),
+    photo: chqPhotoData || '',
     raw: $('cRaw').value.trim(),
     note: $('cNote').value.trim()
   };
@@ -4081,7 +4176,6 @@ function handleSwipe(dir, target) {
     const idx = Math.max(0, order.indexOf(S.oblTab));
     S.oblTab = order[(idx + (dir > 0 ? 1 : -1) + 3) % 3];
     render();
-    spinRings(dir, view);
     return;
   }
 
@@ -4090,7 +4184,6 @@ function handleSwipe(dir, target) {
     const idx = Math.max(0, order.indexOf(S.txFilter || 'all'));
     S.txFilter = order[(idx + (dir > 0 ? 1 : -1) + 3) % 3];
     render();
-    spinRings(dir, view);
     return;
   }
 
@@ -4108,10 +4201,7 @@ function handleSwipe(dir, target) {
     if (card) { spinRings(dir, card); return; }
 
     const grid = target.closest('.grid2');
-    if (grid) {
-      spinRings(dir, grid);
-      setTimeout(() => openSide(dir > 0 ? 'p' : 'r', false), 260);
-    }
+    if (grid) { spinRings(dir, grid); }
   }
 }
 

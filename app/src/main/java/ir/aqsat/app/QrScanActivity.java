@@ -58,11 +58,13 @@ public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
         int screenW = getResources().getDisplayMetrics().widthPixels;
         int screenH = getResources().getDisplayMetrics().heightPixels;
         int boxW = (int) (Math.min(screenW, screenH) * 0.8);
-        int boxH = boxW;
+        int boxH = (int) (screenH * 0.62);
+        boxW = (int) (boxH * 9.0 / 16.0);
 
         surfaceView = new SurfaceView(this);
-        root.addView(surfaceView, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(boxW, boxH);
+        slp.gravity = Gravity.CENTER;
+        root.addView(surfaceView, slp);
         surfaceView.getHolder().addCallback(this);
 
         surfaceView.setOnClickListener(v -> {

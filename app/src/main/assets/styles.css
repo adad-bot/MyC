@@ -1067,3 +1067,29 @@ button:active, .cal-cell:active, .dc-circle:active,
 
 /* ستارهٔ فیلدهای لازم */
 label .req{color:var(--red);font-weight:800;margin-inline-start:3px}
+
+/* پنجرهٔ پرسش یادآور */
+.ask-icon{
+  width:58px;height:58px;border-radius:20px;margin:0 auto 8px;
+  display:grid;place-items:center;font-size:26px;
+  background:var(--brand-soft);color:var(--brand);
+  box-shadow:0 8px 18px rgba(91,91,214,.18);
+}
+#askRemDlg h2{font-size:15.5px;margin:2px 0 4px}
+#askRemDlg p{margin:0 0 12px}
+
+/* آیکن‌های ردیف: کاملاً داخل کادر، وسط، پررنگ */
+.ico{
+  display:grid !important;
+  place-items:center;
+  width:38px !important;
+  height:38px !important;
+  flex:0 0 38px !important;
+  font-size:18px !important;
+  font-weight:700;
+  line-height:1;
+  overflow:hidden;
+  background:var(--soft);
+  border:1px solid var(--line);
+}
+.ico svg,.ico img{width:22px;height:22px;display:block}
