@@ -736,7 +736,23 @@ function markSeen(x) {
 /* ---------- خواندن اطلاعات چک از QR ---------- */
 function applyQrText(txt) {
   const t = (txt || '').trim();
-  if (!t) { toast('QR خوانده نشد؛ عکس واضح‌تری بگیر'); return; }
+
+  if (t.startsWith('ERR:')) {
+    const code = t.slice(4);
+    const map = {
+      CANCELLED: 'اسکن لغو شد',
+      NOIMAGE: 'عکسی گرفته نشد',
+      NOCAMERA: 'دوربین در دسترس نیست'
+    };
+    if (code.startsWith('NOTFOUND')) {
+      toast('در تصویر QR پیدا نشد — نزدیکتر و واضحتر عکس بگیر');
+    } else {
+      toast(map[code] || ('خطای اسکن: ' + code));
+    }
+    return;
+  }
+
+  if (!t) { toast('QR خوانده نشد؛ عکس واضحتری بگیر'); return; }
 
   let obj = null;
   try { obj = JSON.parse(t); } catch (e) { obj = null; }

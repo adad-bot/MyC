@@ -199,26 +199,27 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> MainActivity.this.finish());
         }
 
-        /** باز کردن دوربین برای اسکن QR */
+        /** باز کردن اسکنر زندهٔ QR */
         @JavascriptInterface
         public void scanQr() {
             runOnUiThread(() -> {
                 try {
-                    ContentValues v = new ContentValues();
-                    v.put(MediaStore.Images.Media.DISPLAY_NAME, "myc_qr_" + System.currentTimeMillis() + ".jpg");
-                    v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
-                    qrUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
-
-                    Intent i = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-                    if (qrUri != null) {
-                        i.putExtra(MediaStore.EXTRA_OUTPUT, qrUri);
-                        i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                    }
-                    startActivityForResult(i, REQ_QR);
-                } catch (Exception e) {
+                    startActivityForResult(new Intent(MainActivity.this, QrScanActivity.class), REQ_QR);
+                } catch (Throwable t) {
+                    // اگر اسکنر زنده بالا نیامد، دوربین عکاسی
                     try {
-                        startActivityForResult(new Intent(MediaStore.ACTION_IMAGE_CAPTURE), REQ_QR);
-                    } catch (Exception ignored) { }
+                        ContentValues v = new ContentValues();
+                        v.put(MediaStore.Images.Media.DISPLAY_NAME, "myc_qr_" + System.currentTimeMillis() + ".jpg");
+                        v.put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg");
+                        qrUri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+
+                        Intent i = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                        if (qrUri != null) {
+                            i.putExtra(MediaStore.EXTRA_OUTPUT, qrUri);
+                            i.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                        }
+                        startActivityForResult(i, REQ_QR);
+                    } catch (Throwable ignored) { }
                 }
             });
         }
@@ -402,11 +403,41 @@ public class MainActivity extends Activity {
 
         if (requestCode == REQ_QR) {
             String text = "";
+
+            if (data != null) {
+                String direct = data.getStringExtra("text");
+                if (direct != null) {
+                    text = direct;
+                    try {
+                        String js = "window.onQrResult && window.onQrResult(" + JSONObject.quote(text) + ")";
+                        runJs(js);
+                    } catch (Exception ignored) { }
+                    return;
+                }
+            }
+
             if (resultCode == RESULT_OK) {
                 Uri uri = qrUri;
                 if (uri == null && data != null && data.getData() != null) uri = data.getData();
-                if (uri != null) text = decodeQrUri(uri);
+
+                if (uri != null) {
+                    text = decodeQrUri(uri);
+                } else if (data != null && data.getParcelableExtra("data") != null) {
+                    try {
+                        android.graphics.Bitmap bmp =
+                                (android.graphics.Bitmap) data.getParcelableExtra("data");
+                        com.google.zxing.Result r = decodeBitmap(bmp);
+                        text = r != null ? r.getText() : "ERR:NOTFOUND:thumb";
+                    } catch (Exception e) {
+                        text = "ERR:NOTFOUND:thumb";
+                    }
+                } else {
+                    text = "ERR:NOIMAGE";
+                }
+            } else {
+                text = "ERR:CANCELLED";
             }
+
             if (qrUri != null) {
                 try { getContentResolver().delete(qrUri, null, null); } catch (Exception ignored) { }
                 qrUri = null;
@@ -422,40 +453,61 @@ public class MainActivity extends Activity {
     }
 
     private String decodeQrUri(Uri uri) {
+        String lastErr = "unknown";
         try {
-            java.io.InputStream in = getContentResolver().openInputStream(uri);
-            if (in == null) return "";
-
-            android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
-            opts.inJustDecodeBounds = true;
-            android.graphics.BitmapFactory.decodeStream(in, null, opts);
-            in.close();
-
-            int scale = 1;
-            int maxSide = Math.max(opts.outWidth, opts.outHeight);
-            while (maxSide / scale > 1400) scale *= 2;
-
-            android.graphics.BitmapFactory.Options o2 = new android.graphics.BitmapFactory.Options();
-            o2.inSampleSize = scale;
-
-            in = getContentResolver().openInputStream(uri);
-            android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeStream(in, null, o2);
-            if (in != null) in.close();
-            if (bmp == null) return "";
-
-            int w = bmp.getWidth(), h = bmp.getHeight();
-            int[] px = new int[w * h];
-            bmp.getPixels(px, 0, w, 0, 0, w, h);
-
-            com.google.zxing.LuminanceSource src = new com.google.zxing.RGBLuminanceSource(w, h, px);
-            com.google.zxing.BinaryBitmap bb =
-                    new com.google.zxing.BinaryBitmap(new com.google.zxing.common.HybridBinarizer(src));
-
-            com.google.zxing.Result r = new com.google.zxing.MultiFormatReader().decode(bb);
-            return r != null ? r.getText() : "";
+            // سه تلاش: تصویر کامل، نصف، یک‌چهارم (برای QR کوچک و بزرگ)
+            for (int sample : new int[]{1, 2, 4}) {
+                android.graphics.Bitmap bmp = loadScaled(uri, sample);
+                if (bmp == null) continue;
+                try {
+                    com.google.zxing.Result r = decodeBitmap(bmp);
+                    if (r != null && r.getText() != null && r.getText().length() > 0) {
+                        return r.getText();
+                    }
+                } catch (Exception e) {
+                    lastErr = e.getClass().getSimpleName();
+                }
+                try { bmp.recycle(); } catch (Exception ignored) { }
+            }
+            return "ERR:NOTFOUND:" + lastErr;
         } catch (Exception e) {
-            return "";
+            return "ERR:" + e.getClass().getSimpleName();
         }
+    }
+
+    private android.graphics.Bitmap loadScaled(Uri uri, int sample) {
+        try {
+            android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+            o.inSampleSize = Math.max(1, sample);
+            java.io.InputStream in = getContentResolver().openInputStream(uri);
+            android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeStream(in, null, o);
+            if (in != null) in.close();
+            return bmp;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private com.google.zxing.Result decodeBitmap(android.graphics.Bitmap bmp) throws Exception {
+        int w = bmp.getWidth(), h = bmp.getHeight();
+        int[] px = new int[w * h];
+        bmp.getPixels(px, 0, w, 0, 0, w, h);
+
+        com.google.zxing.LuminanceSource src = new com.google.zxing.RGBLuminanceSource(w, h, px);
+        com.google.zxing.BinaryBitmap bb =
+                new com.google.zxing.BinaryBitmap(new com.google.zxing.common.HybridBinarizer(src));
+
+        java.util.Map<com.google.zxing.DecodeHintType, Object> hints = new java.util.HashMap<>();
+        hints.put(com.google.zxing.DecodeHintType.TRY_HARDER, Boolean.TRUE);
+        hints.put(com.google.zxing.DecodeHintType.ALSO_INVERTED, Boolean.TRUE);
+        hints.put(com.google.zxing.DecodeHintType.POSSIBLE_FORMATS, java.util.Arrays.asList(
+                com.google.zxing.BarcodeFormat.QR_CODE,
+                com.google.zxing.BarcodeFormat.DATA_MATRIX,
+                com.google.zxing.BarcodeFormat.PDF417,
+                com.google.zxing.BarcodeFormat.AZTEC,
+                com.google.zxing.BarcodeFormat.CODE_128));
+
+        return new com.google.zxing.MultiFormatReader().decode(bb, hints);
     }
 
     @Override

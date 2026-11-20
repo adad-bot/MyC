@@ -1,0 +1,240 @@
+package ir.aqsat.app;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.hardware.Camera;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.Gravity;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.FrameLayout;
+import android.widget.TextView;
+
+import com.google.zxing.BinaryBitmap;
+import com.google.zxing.DecodeHintType;
+import com.google.zxing.MultiFormatReader;
+import com.google.zxing.PlanarYUVLuminanceSource;
+import com.google.zxing.Result;
+import com.google.zxing.common.HybridBinarizer;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * اسکنر زندهٔ QR: پیش‌نمایش دوربین + رمزگشایی پیوسته + کادر راهنما.
+ */
+public class QrScanActivity extends Activity implements SurfaceHolder.Callback {
+
+    private static final int REQ_CAM = 91;
+
+    private SurfaceView surfaceView;
+    private Camera camera;
+    private Handler ui;
+    private volatile boolean busy = false;
+    private volatile boolean done = false;
+
+    @Override
+    protected void onCreate(Bundle saved) {
+        super.onCreate(saved);
+
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.BLACK);
+
+        surfaceView = new SurfaceView(this);
+        root.addView(surfaceView, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        surfaceView.getHolder().addCallback(this);
+
+        // کادر راهنما
+        View frame = new View(this);
+        int size = (int) (getResources().getDisplayMetrics().widthPixels * 0.68);
+        GradientDrawable box = new GradientDrawable();
+        box.setColor(0x11000000);
+        box.setStroke(6, 0xFFFFFFFF);
+        box.setCornerRadius(28);
+        frame.setBackground(box);
+        FrameLayout.LayoutParams flp = new FrameLayout.LayoutParams(size, size);
+        flp.gravity = Gravity.CENTER;
+        root.addView(frame, flp);
+
+        TextView hint = new TextView(this);
+        hint.setText("QR را داخل کادر بگیر — خودکار خوانده می‌شود");
+        hint.setTextColor(Color.WHITE);
+        hint.setTextSize(14);
+        hint.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams tlp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tlp.gravity = Gravity.BOTTOM;
+        tlp.bottomMargin = 140;
+        root.addView(hint, tlp);
+
+        TextView close = new TextView(this);
+        close.setText("بستن");
+        close.setTextColor(Color.WHITE);
+        close.setTextSize(15);
+        close.setGravity(Gravity.CENTER);
+        GradientDrawable cbg = new GradientDrawable();
+        cbg.setColor(0xCC1F2937);
+        cbg.setCornerRadius(26);
+        close.setBackground(cbg);
+        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(160, 96);
+        clp.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+        clp.topMargin = 70;
+        close.setOnClickListener(v -> finishWith("ERR:CANCELLED"));
+        root.addView(close, clp);
+
+        setContentView(root);
+        ui = new Handler(Looper.getMainLooper());
+
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            try {
+                requestPermissions(new String[]{android.Manifest.permission.CAMERA}, REQ_CAM);
+            } catch (Exception e) {
+                finishWith("ERR:NOCAMERA");
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] res) {
+        super.onRequestPermissionsResult(code, perms, res);
+        if (code == REQ_CAM) {
+            boolean ok = res.length > 0 && res[0] == PackageManager.PERMISSION_GRANTED;
+            if (!ok) finishWith("ERR:NOPERM");
+            else startCamera(surfaceView.getHolder());
+        }
+    }
+
+    @Override
+    public void surfaceCreated(SurfaceHolder holder) {
+        startCamera(holder);
+    }
+
+    @Override
+    public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
+        if (camera != null) {
+            try {
+                camera.stopPreview();
+                camera.setPreviewDisplay(holder);
+                camera.startPreview();
+            } catch (Exception ignored) { }
+        }
+    }
+
+    @Override
+    public void surfaceDestroyed(SurfaceHolder holder) {
+        stopCamera();
+    }
+
+    private void startCamera(SurfaceHolder holder) {
+        if (camera != null) return;
+        try {
+            camera = Camera.open();
+            Camera.Parameters p = camera.getParameters();
+
+            Camera.Size best = null;
+            try {
+                for (Camera.Size s : p.getSupportedPreviewSizes()) {
+                    if (best == null || Math.abs(s.width - 1280) < Math.abs(best.width - 1280)) best = s;
+                }
+            } catch (Exception ignored) { }
+            if (best != null) p.setPreviewSize(best.width, best.height);
+
+            try { p.setFocusMode(Camera.Parameters.FOCUS_MODE_CONTINUOUS_PICTURE); } catch (Exception ignored) { }
+            try { camera.setParameters(p); } catch (Exception ignored) { }
+
+            camera.setPreviewDisplay(holder);
+            camera.setPreviewCallback((data, cam) -> onFrame(data, cam));
+            camera.startPreview();
+        } catch (Throwable t) {
+            finishWith("ERR:NOCAMERA");
+        }
+    }
+
+    private void stopCamera() {
+        if (camera == null) return;
+        try {
+            camera.setPreviewCallback(null);
+            camera.stopPreview();
+        } catch (Exception ignored) { }
+        try { camera.release(); } catch (Exception ignored) { }
+        camera = null;
+    }
+
+    private void onFrame(byte[] data, Camera cam) {
+        if (busy || done || data == null) return;
+        busy = true;
+
+        final byte[] copy = data.clone();
+        final int w;
+        final int h;
+        try {
+            Camera.Size s = cam.getParameters().getPreviewSize();
+            w = s.width;
+            h = s.height;
+        } catch (Exception e) {
+            busy = false;
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                PlanarYUVLuminanceSource src =
+                        new PlanarYUVLuminanceSource(copy, w, h, 0, 0, w, h, false);
+                BinaryBitmap bmp = new BinaryBitmap(new HybridBinarizer(src));
+
+                Map<DecodeHintType, Object> hints = new HashMap<>();
+                hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+
+                Result r = new MultiFormatReader().decode(bmp, hints);
+                if (r != null && r.getText() != null && r.getText().length() > 0) {
+                    finishWith(r.getText());
+                    return;
+                }
+            } catch (Throwable ignored) {
+            } finally {
+                busy = false;
+            }
+        }).start();
+    }
+
+    private void finishWith(String text) {
+        if (done) return;
+        done = true;
+        final String t = text;
+        runOnUiThread(() -> {
+            try {
+                Intent out = new Intent();
+                out.putExtra("text", t);
+                setResult(RESULT_OK, out);
+            } catch (Exception ignored) { }
+            finish();
+        });
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        stopCamera();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (surfaceView != null && surfaceView.getHolder().getSurface() != null && camera == null) {
+            startCamera(surfaceView.getHolder());
+        }
+    }
+
+    @Override
+    public void onBackPressed() {
+        finishWith("ERR:CANCELLED");
+    }
+}
