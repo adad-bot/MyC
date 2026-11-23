@@ -167,6 +167,7 @@ const S = {
   txDir: -1,
   txQuery: '',
   txRange: 'all',
+  loanQuery: '',
   chqRange: 'all',
   loanRange: 'all',
   accRange: 'all',
@@ -1026,12 +1027,48 @@ window.onPhotoResult = function (b64) {
 };
 $('chqPhotoDel').addEventListener('click', () => setChqPhoto(''));
 
-let photoRot = 0;
+$('chqPhotoImg').addEventListener('click', () => {
+  if (chqPhotoData) openImage(chqPhotoData);
+});
 
-function redrawPhoto(img, w, h, filter, rot, cropPct) {
+let photoRot = 0;
+let photoBusy = false;
+
+function photoTransform(opts) {
+  if (!chqPhotoData || photoBusy) return;
+  photoBusy = true;
+
+  const img = new Image();
+
+  img.onload = () => {
+    try {
+      const out = redrawPhoto(
+        img, img.width, img.height,
+        opts.filter || '',
+        opts.rot || 0,
+        opts.cropPct || 0,
+        opts.rect || null
+      );
+      setChqPhoto(out);
+    } catch (e) {
+      toast('ویرایش تصویر ممکن نشد');
+    }
+    photoBusy = false;
+  };
+
+  img.onerror = () => { photoBusy = false; };
+  img.src = chqPhotoData;
+}
+
+function redrawPhoto(img, w, h, filter, rot, cropPct, rect) {
   let sw = w, sh = h, sx = 0, sy = 0;
 
-  if (cropPct > 0) {
+  if (rect && rect.w > 8 && rect.h > 8) {
+    sx = Math.max(0, Math.round(rect.x));
+    sy = Math.max(0, Math.round(rect.y));
+    sw = Math.min(w - sx, Math.round(rect.w));
+    sh = Math.min(h - sy, Math.round(rect.h));
+  } else if (cropPct > 0) {
     sw = Math.round(w * (1 - cropPct * 2));
     sh = Math.round(h * (1 - cropPct * 2));
     sx = Math.round(w * cropPct);
@@ -1052,19 +1089,13 @@ function redrawPhoto(img, w, h, filter, rot, cropPct) {
 }
 
 function editPhoto(filter, cropPct) {
-  if (!chqPhotoData) return;
-  const img = new Image();
-  img.onload = () => {
-    try { setChqPhoto(redrawPhoto(img, img.width, img.height, filter, photoRot, cropPct || 0)); }
-    catch (e) { toast('ویرایش تصویر ممکن نشد'); }
-  };
-  img.src = chqPhotoData;
+  photoTransform({ filter: filter, rot: 0, cropPct: cropPct || 0 });
 }
 
 $('photoBright').addEventListener('click', () => editPhoto('brightness(1.18)', 0));
 $('photoDark').addEventListener('click', () => editPhoto('brightness(0.85)', 0));
-$('photoRot').addEventListener('click', () => { photoRot = (photoRot + 90) % 360; editPhoto('', 0); });
-$('photoCrop').addEventListener('click', () => { editPhoto('', 0.07); toast('حاشیهٔ تصویر حذف شد'); });
+$('photoRot').addEventListener('click', () => photoTransform({ rot: 90 }));
+$('photoCrop').addEventListener('click', () => editPhoto('', 0.06));
 
 $('chqPhotoFile').addEventListener('change', ev => {
   const f = ev.target.files && ev.target.files[0];
@@ -1592,6 +1623,63 @@ function renderTxList() {
 $('listSearch').addEventListener('input', () => { LIST.query = $('listSearch').value; renderTxList(); });
 $('listClose').addEventListener('click', () => $('listDlg').close());
 
+
+/* ---------- جستجوی هوشمند ---------- */
+function normDigits(v) {
+  return String(v == null ? '' : v)
+    .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0))
+    .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660));
+}
+
+function qMatch(q, values) {
+  const nq = normDigits(q).toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!nq) return true;
+
+  const parts = nq.split(' ');
+  return values.some(v => {
+    const nv = normDigits(v).toLowerCase();
+    return parts.every(pp => nv.includes(pp));
+  });
+}
+
+function jDateStr(x) {
+  return x ? (x.jy + '/' + x.jm + '/' + x.jd) : '';
+}
+
+/* کش ورودی جستجو (برای حفظ فوکوس و کیبورد) */
+const SEARCH_CACHE = {};
+const SEARCH_CFG = {};
+const SEARCH_POS = {};
+/* ردیف تعداد فقره‌ها */
+function listSum(n, suffix) {
+  const d = el('div', 'listsum');
+  d.appendChild(el('b', null, fa(n)));
+  d.appendChild(document.createTextNode(' ' + (suffix || 'فقره')));
+  return d;
+}
+
+/* حفظ فوکوس جستجو بعد از رندر */
+let searchFocus = null;
+
+function rememberSearch(inp) {
+  searchFocus = { key: inp.dataset.key || '', pos: inp.selectionStart || 0 };
+}
+
+function restoreSearchFocus() {
+  if (!searchFocus) return;
+
+  const inp = document.querySelector('#view .listtools input[type="search"]');
+  if (!inp) { searchFocus = null; return; }
+
+  try {
+    inp.focus({ preventScroll: true });
+    const pos = Math.min(searchFocus.pos, inp.value.length);
+    inp.setSelectionRange(pos, pos);
+  } catch (e) { /* */ }
+
+  searchFocus = null;
+}
+
 /* ---------- نوار ابزار لیست‌ها (فیلتر، مرتب‌سازی، جستجو) ---------- */
 
 
@@ -1680,7 +1768,7 @@ function rangeChips(target, current) {
     row.appendChild(b);
   }
 
-  const cb = el('button', 'chip' + (current === 'custom' ? ' on' : ''), 'بازهٔ دلخواه');
+  const cb = el('button', 'chip wide' + (current === 'custom' ? ' on' : ''), 'بازهٔ دلخواه (از تاریخ تا تاریخ)');
   cb.type = 'button';
   cb.addEventListener('click', () => openRangeDlg(target));
   row.appendChild(cb);
@@ -1737,12 +1825,50 @@ function listTools(cfg) {
   if (cfg.range) box.appendChild(cfg.range);
 
   if (cfg.search) {
-    const inp = document.createElement('input');
-    inp.type = 'search';
-    inp.placeholder = 'جستجو…';
-    inp.value = cfg.query || '';
-    inp.addEventListener('input', () => cfg.onSearch(inp.value));
+    const key = cfg.searchKey || 'q';
+    const wasFocused = SEARCH_CACHE[key] && document.activeElement === SEARCH_CACHE[key];
+
+    let inp = SEARCH_CACHE[key];
+
+    if (!inp) {
+      inp = document.createElement('input');
+      inp.type = 'search';
+      inp.dataset.key = key;
+
+      inp.addEventListener('input', () => {
+        const cfgNow = SEARCH_CFG[key];
+        SEARCH_POS[key] = inp.selectionStart || 0;
+        if (cfgNow) cfgNow.onSearch(inp.value);
+      });
+
+      inp.addEventListener('keydown', ev => {
+        if (ev.key === 'Escape') {
+          inp.value = '';
+          const cfgNow = SEARCH_CFG[key];
+          if (cfgNow) cfgNow.onSearch('');
+        }
+      });
+
+      SEARCH_CACHE[key] = inp;
+    }
+
+    SEARCH_CFG[key] = cfg;
+    inp.placeholder = cfg.placeholder || 'جستجو…';
+
+    const q = cfg.query || '';
+    if (inp.value !== q) inp.value = q;
+
     box.appendChild(inp);
+
+    if (wasFocused) {
+      setTimeout(() => {
+        try {
+          inp.focus({ preventScroll: true });
+          const pos = Math.min(SEARCH_POS[key] || inp.value.length, inp.value.length);
+          inp.setSelectionRange(pos, pos);
+        } catch (e) { /* */ }
+      }, 0);
+    }
   }
 
   if (cfg.toggle) {
@@ -2159,7 +2285,21 @@ function buildDateCard() {
   const bAyah = el('button', null, 'آیه‌ای از قرآن');
   bAyah.addEventListener('click', ev => { ev.stopPropagation(); openAyah(); });
   const bCal = el('button', null, 'تقویم و روزها');
-  bCal.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(effToday()); });
+  let calTap = 0;
+
+  bCal.addEventListener('click', ev => {
+    ev.stopPropagation();
+    const now = Date.now();
+
+    if (now - calTap < 420) {
+      calTap = 0;
+      openDateDlg(effToday());
+      return;
+    }
+
+    calTap = now;
+    toast('برای باز کردن تقویم، دو بار بزن');
+  });
   act.append(bFal, bAyah, bCal);
 
   const svcRow = el('div', 'svc-row');
@@ -2254,12 +2394,29 @@ function renderCal() {
 
   // زیرنویس: ماه میلادی و قمری (ممکن است هر کدام دو ماه باشند)
   const g1 = d2g(first), g2 = d2g(first + len - 1);
-  const gm1 = G_MONTHS[g1.gm - 1] + ' ' + g1.gy;
-  const gm2 = G_MONTHS[g2.gm - 1] + ' ' + g2.gy;
-  const hm1 = hijriMonthLabel(first);
-  const hm2 = hijriMonthLabel(first + len - 1);
-  const gTxt = gm1 === gm2 ? gm1 : gm1 + ' – ' + gm2;
-  const hTxt = hm1 === hm2 ? hm1 : hm1 + ' – ' + hm2;
+
+  const gName = (g) => G_MONTHS[g.gm - 1];
+  const gYearTxt = (g1.gy === g2.gy) ? String(g1.gy) : (g1.gy + '–' + g2.gy);
+  const gNamesTxt = (g1.gm === g2.gm) ? gName(g1) : (gName(g1) + ' – ' + gName(g2));
+  const gTxt = gNamesTxt + ' ' + gYearTxt;
+
+  const hName = (jdn) => {
+    const full = hijriMonthLabel(jdn) || '';
+    return full.replace(/[\u06F0-\u06F9\d]+\s*$/, '').trim();
+  };
+  const hYear = (jdn) => {
+    const full = hijriMonthLabel(jdn) || '';
+    const m = full.match(/([\u06F0-\u06F9\d]+)\s*$/);
+    return m ? m[1] : '';
+  };
+
+  const h1n = hName(first), h2n = hName(first + len - 1);
+  const h1y = hYear(first), h2y = hYear(first + len - 1);
+
+  const hNamesTxt = (h1n === h2n) ? h1n : (h1n + ' – ' + h2n);
+  const hYearTxt = (h1y === h2y) ? h1y : (h1y + '–' + h2y);
+  const hTxt = hNamesTxt + (hYearTxt ? ' ' + hYearTxt : '');
+
   $('calSub').textContent = gTxt + '   ·   ' + hTxt;
 
   for (let i = 0; i < startIdx; i++) grid.appendChild(el('div', 'cal-cell empty'));
@@ -2711,6 +2868,41 @@ $('svcCalc').addEventListener('click', () => {
   document.addEventListener('scroll', show, { passive: true });
 })();
 
+
+/* ---------- ستارهٔ الزامی: قبل از عنوان و قرمز ---------- */
+(function () {
+  const fix = (root) => {
+    (root.querySelectorAll('label, legend') || []).forEach(el => {
+      let r = el.querySelector('.req');
+
+      // ستارهٔ متنی بدون کلاس
+      if (!r) {
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let n;
+        while ((n = walker.nextNode())) {
+          const t = n.nodeValue;
+          if (t && t.indexOf('*') >= 0 && n.parentNode === el) {
+            const before = t.slice(0, t.indexOf('*'));
+            const after = t.slice(t.indexOf('*') + 1);
+            n.nodeValue = before + after;
+            r = document.createElement('span');
+            r.className = 'req';
+            r.textContent = '*';
+            el.insertBefore(r, el.firstChild);
+            break;
+          }
+        }
+      }
+
+      if (r && el.firstElementChild !== r) {
+        el.insertBefore(r, el.firstChild);
+      }
+    });
+  };
+
+  fix(document);
+})();
+
 /* ---------- رنگ نوار سیستم (دکمه‌های پایین) ---------- */
 function syncSystemBars() {
   try {
@@ -2739,6 +2931,10 @@ function applyFontScale() {
 const view = $('view');
 
 function render() {
+  try { renderCore(); } finally { restoreSearchFocus(); }
+}
+
+function renderCore() {
   renderRings();
   if (S.tab === 'home') renderHome();
   else if (S.tab === 'tx') renderTx();
@@ -2800,7 +2996,23 @@ function buildRings() {
     const r = ringRow(label, cls);
     r.dot.textContent = fa(counts[bucket]);
     if (!counts[bucket]) r.wrap.style.opacity = '.45';
-    r.wrap.addEventListener('click', () => openRing(bucket));
+
+    let tapTimer = null;
+
+    r.wrap.addEventListener('click', () => {
+      if (tapTimer) {
+        clearTimeout(tapTimer);
+        tapTimer = null;
+        openRing(bucket);
+        return;
+      }
+
+      tapTimer = setTimeout(() => {
+        tapTimer = null;
+        openDateDlg(effToday());
+      }, 280);
+    });
+
     box.appendChild(r.wrap);
   }
   return box;
@@ -2973,6 +3185,7 @@ function renderTx() {
     onSort: v => { S.txSort = v; render(); },
     onDir: () => { S.txDir = -S.txDir; render(); },
     search: true,
+    searchKey: 'tx',
     query: S.txQuery,
     onSearch: v => { S.txQuery = v; render(); },
     range: rangeChips('tx', S.txRange)
@@ -3004,8 +3217,10 @@ function renderTx() {
   items = items.filter(x => inRangeJ(jdnOf(x), txR));
 
   if (S.txQuery && S.txQuery.trim()) {
-    const q = S.txQuery.trim();
-    items = items.filter(x => (x.cat || '').includes(q) || (x.note || '').includes(q) || String(x.amount).includes(q));
+    items = items.filter(x => qMatch(S.txQuery, [
+      x.cat, x.note, x.amount, jDateStr(x), dateLabel(x),
+      x.type === 'income' ? 'درآمد' : 'هزینه'
+    ]));
   }
 
   const catKey = x => (x.cat || '').charCodeAt(0) || 0;
@@ -3013,6 +3228,8 @@ function renderTx() {
   if (S.txSort === 'amount') items.sort(sortBy(S.txDir, x => x.amount));
   else if (S.txSort === 'cat') items.sort(sortBy(S.txDir, catKey));
   else items.sort(sortBy(S.txDir, x => jdnOf(x)));
+
+  view.appendChild(listSum(items.length, 'فقره'));
 
   if (!items.length) {
     const e = el('div', 'empty');
@@ -3087,6 +3304,11 @@ function renderLoans() {
     toggleLabel: 'فقط وام‌های تسویه‌شده',
     toggleValue: S.loanSettled,
     onToggle: v => { S.loanSettled = v; render(); },
+    search: true,
+    searchKey: 'loan',
+    placeholder: 'جستجوی وام (نام، بانک، مبلغ…)' ,
+    query: S.loanQuery,
+    onSearch: v => { S.loanQuery = v; render(); },
     range: rangeChips('loan', S.loanRange)
   }));
 
@@ -3097,6 +3319,14 @@ function renderLoans() {
     return;
   }
   let loans = S.d.loans.slice();
+
+  if (S.loanQuery && S.loanQuery.trim()) {
+    loans = loans.filter(l => qMatch(S.loanQuery, [
+      l.title, l.note,
+      (l.installments || []).reduce((s2, i) => s2 + i.amount, 0),
+      (l.installments || []).map(i => jDateStr(i)).join(' ')
+    ]));
+  }
 
   const info = l => {
     const inst = l.installments || [];
@@ -3117,6 +3347,8 @@ function renderLoans() {
   else if (S.loanSort === "end") loans.sort(sortBy(S.loanDir, l => info(l).endJ));
   else if (S.loanSort === "bank") loans.sort(sortBy(S.loanDir, l => (info(l).bank.charCodeAt(0) || 0)));
   else loans.sort(sortBy(S.loanDir, l => info(l).startJ));
+
+  view.appendChild(listSum(loans.length, 'وام'));
 
   if (!loans.length) {
     const e = el("div", "empty");
@@ -3274,6 +3506,7 @@ function renderCheques() {
     onSort: v => { S.chqSort = v; render(); },
     onDir: () => { S.chqDir = -S.chqDir; render(); },
     search: true,
+    searchKey: 'chq',
     query: S.chqQuery,
     onSearch: v => { S.chqQuery = v; render(); },
     range: rangeChips('chq', S.chqRange)
@@ -3287,10 +3520,11 @@ function renderCheques() {
   items = items.filter(c => inRangeJ(jdnOf(c), chqR));
 
   if (S.chqQuery) {
-    const q = S.chqQuery.trim();
-    items = items.filter(c =>
-      (c.party || '').includes(q) || (c.number || '').includes(q) ||
-      (c.bank || '').includes(q) || String(c.amount).includes(q));
+    items = items.filter(c => qMatch(S.chqQuery, [
+      c.party, c.number, c.bank, c.reason, c.nid, c.iban,
+      c.account, c.sayad, c.status, c.amount, jDateStr(c),
+      dateLabel(c)
+    ]));
   }
 
   const byDate = c => jdnOf(c);
@@ -3300,6 +3534,8 @@ function renderCheques() {
   if (S.chqSort === 'amount') items.sort(sortBy(S.chqDir, byAmount));
   else if (S.chqSort === 'party') items.sort(sortBy(S.chqDir, byName));
   else items.sort(sortBy(S.chqDir, byDate));
+
+  view.appendChild(listSum(items.length, 'فقره چک'));
 
   if (!items.length) {
     const e = el('div', 'empty');
@@ -3334,6 +3570,12 @@ function renderCheques() {
     }
     row.appendChild(cam);
 
+    if (!c.confirmed) {
+      const w = el('span', 'warnico', '⚠');
+      w.title = 'در سامانهٔ صیاد تأیید نشده';
+      row.appendChild(w);
+    }
+
     row.addEventListener('click', () => openCheque(c));
     list.appendChild(row);
   }
@@ -3351,6 +3593,7 @@ function renderAccounts() {
     onSort: v => { S.accSort = v; render(); },
     onDir: () => { S.accDir = -S.accDir; render(); },
     search: true,
+    searchKey: 'acc',
     query: S.accQuery,
     onSearch: v => { S.accQuery = v; render(); },
     range: rangeChips('acc', S.accRange)
@@ -3364,8 +3607,9 @@ function renderAccounts() {
   items = items.filter(a => inRangeJ(a.due ? jdnOf(a.due) : jdnOf(a), accR));
 
   if (S.accQuery) {
-    const q = S.accQuery.trim();
-    items = items.filter(a => (a.name || '').includes(q) || String(a.amount).includes(q));
+    items = items.filter(a => qMatch(S.accQuery, [
+      a.name, a.note, a.amount, a.due ? jDateStr(a.due) : '', a.due ? dateLabel(a.due) : ''
+    ]));
   }
 
   const dueJ = a => (a.due ? jdnOf(a.due) : 0);
@@ -3374,6 +3618,8 @@ function renderAccounts() {
   if (S.accSort === 'amount') items.sort(sortBy(S.accDir, a => a.amount));
   else if (S.accSort === 'name') items.sort(sortBy(S.accDir, nameKey));
   else items.sort(sortBy(S.accDir, dueJ));
+
+  view.appendChild(listSum(items.length, 'فقره'));
 
   if (!items.length) {
     const e = el('div', 'empty');
@@ -3814,7 +4060,9 @@ function shiftYm(ym, delta) {
 /* ---------- ۹) فرم‌ها ---------- */
 function openTx(existing) {
   const dlg = $('txDlg');
-  $('txTitle').textContent = existing ? 'ویرایش تراکنش' : (S.txKind === 'income' ? 'درآمد جدید' : 'هزینهٔ جدید');
+  $('txTitle').textContent = existing
+    ? (existing.type === 'income' ? 'ویرایش درآمد' : 'ویرایش هزینه')
+    : (S.txKind === 'income' ? 'درآمد جدید' : 'هزینهٔ جدید');
   $('txDelete').classList.toggle('hidden', !existing);
 
   S.editTx = existing ? existing.id : null;
@@ -3854,6 +4102,10 @@ $('txKindSeg').addEventListener('click', ev => {
   if (!b) return;
   setSeg($('txKindSeg'), b.dataset.kind);
   fillCats(b.dataset.kind, null);
+
+  if (!S.editTx) {
+    $('txTitle').textContent = b.dataset.kind === 'income' ? 'درآمد جدید' : 'هزینهٔ جدید';
+  }
 });
 
 $('chqKindSeg').addEventListener('click', ev => {
@@ -5465,3 +5717,256 @@ function boot() {
 }
 
 boot();
+
+/* ================= ویرایش هوشمند تصویر چک ================= */
+
+function loadPhotoImage(cb) {
+  if (!chqPhotoData) return;
+  const img = new Image();
+  img.onload = () => cb(img);
+  img.src = chqPhotoData;
+}
+
+function imgToCanvas(img, maxW) {
+  const k = Math.min(1, maxW / img.width);
+  const c = document.createElement('canvas');
+  c.width = Math.round(img.width * k);
+  c.height = Math.round(img.height * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  return c;
+}
+
+/* زاویهٔ کجی را از هیستوگرام گرادیان پیدا می‌کند */
+function detectSkew(img) {
+  const c = imgToCanvas(img, 320);
+  const ctx = c.getContext('2d');
+  const { width: W, height: H } = c;
+  const data = ctx.getImageData(0, 0, W, H).data;
+
+  const gray = new Float32Array(W * H);
+  for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+    gray[j] = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+  }
+
+  const bins = 361;
+  const hist = new Float32Array(bins);
+
+  for (let y = 1; y < H - 1; y++) {
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x;
+      const gx = gray[i - 1] - gray[i + 1];
+      const gy = gray[i - W] - gray[i + W];
+      const mag = Math.hypot(gx, gy);
+      if (mag < 40) continue;
+
+      let a = Math.atan2(gy, gx) * 180 / Math.PI;
+      a = ((a % 180) + 180) % 180;
+      hist[Math.round(a)] += mag;
+    }
+  }
+
+  let best = 0, bestVal = 0;
+  for (let a = 0; a <= 180; a++) {
+    const v = hist[a] + hist[(a + 1) % 180] + hist[(a + 179) % 180];
+    if (v > bestVal) { bestVal = v; best = a; }
+  }
+
+  // زاویهٔ خطوط افقی: نزدیک 0 یا 180
+  let skew = best > 90 ? best - 180 : best;
+  if (Math.abs(skew) > 20) skew = 0;
+
+  return skew;
+}
+
+function rotateCanvas(src, deg) {
+  const rad = deg * Math.PI / 180;
+  const c = document.createElement('canvas');
+  const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+
+  c.width = Math.round(src.width * cos + src.height * sin);
+  c.height = Math.round(src.width * sin + src.height * cos);
+
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff';
+  g.fillRect(0, 0, c.width, c.height);
+  g.translate(c.width / 2, c.height / 2);
+  g.rotate(rad);
+  g.drawImage(src, -src.width / 2, -src.height / 2);
+
+  return c;
+}
+
+function autoStraighten() {
+  loadPhotoImage(img => {
+    const skew = detectSkew(img);
+    if (!skew || Math.abs(skew) < 0.6) { toast('تصویر از قبل صاف است'); return; }
+
+    const full = document.createElement('canvas');
+    full.width = img.width;
+    full.height = img.height;
+    full.getContext('2d').drawImage(img, 0, 0);
+
+    const rotated = rotateCanvas(full, -skew);
+    setChqPhoto(rotated.toDataURL('image/jpeg', 0.7));
+    toast('تصویر ' + skew.toFixed(1) + ' درجه صاف شد');
+  });
+}
+
+function detectChequeBox(img) {
+  const c = imgToCanvas(img, 400);
+  const ctx = c.getContext('2d');
+  const { width: W, height: H } = c;
+  const data = ctx.getImageData(0, 0, W, H).data;
+
+  const colDark = new Float32Array(W);
+  const rowDark = new Float32Array(H);
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const l = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+      const d = 255 - l;
+      if (d > 45) { colDark[x] += d; rowDark[y] += d; }
+    }
+  }
+
+  const thresh = (arr, factor) => {
+    const mx = Math.max.apply(null, Array.from(arr)) || 1;
+    const t = mx * factor;
+    let a = 0, b = arr.length - 1;
+    while (a < arr.length && arr[a] < t) a++;
+    while (b > 0 && arr[b] < t) b--;
+    return [a, b];
+  };
+
+  const [x0, x1] = thresh(colDark, 0.18);
+  const [y0, y1] = thresh(rowDark, 0.18);
+
+  if (x1 - x0 < W * 0.3 || y1 - y0 < H * 0.3) return null;
+
+  const sx = img.width / W, sy = img.height / H;
+  const padX = img.width * 0.015, padY = img.height * 0.015;
+
+  return {
+    x: Math.max(0, x0 * sx - padX),
+    y: Math.max(0, y0 * sy - padY),
+    w: Math.min(img.width, (x1 - x0) * sx + padX * 2),
+    h: Math.min(img.height, (y1 - y0) * sy + padY * 2)
+  };
+}
+
+function autoCropCheque() {
+  loadPhotoImage(img => {
+    const box = detectChequeBox(img);
+    if (!box) { toast('قالب چک پیدا نشد؛ از برش دستی استفاده کن'); return; }
+
+    const c = document.createElement('canvas');
+    c.width = Math.round(box.w);
+    c.height = Math.round(box.h);
+    c.getContext('2d').drawImage(img, box.x, box.y, box.w, box.h, 0, 0, c.width, c.height);
+
+    setChqPhoto(c.toDataURL('image/jpeg', 0.7));
+    toast('قالب چک جدا شد');
+  });
+}
+
+/* ---------- برش دستی ---------- */
+let cropRect = null;
+
+function openCropDlg() {
+  loadPhotoImage(img => {
+    let dlg = document.getElementById('cropDlg');
+
+    if (!dlg) {
+      dlg = document.createElement('dialog');
+      dlg.id = 'cropDlg';
+      dlg.innerHTML = [
+        '<form method="dialog">',
+        '  <h2 style="text-align:center">برش دستی تصویر</h2>',
+        '  <p class="hint" style="text-align:center">روی تصویر بکش تا کادر برش ساخته شود.</p>',
+        '  <div id="cropWrap" style="position:relative;display:inline-block;max-width:100%"></div>',
+        '  <div class="dact">',
+        '    <button type="button" class="primary" id="cropApply">برش بزن</button>',
+        '    <button type="button" id="cropCancel">انصراف</button>',
+        '  </div>',
+        '</form>'
+      ].join('');
+      document.body.appendChild(dlg);
+    }
+
+    const wrap = dlg.querySelector('#cropWrap');
+    wrap.innerHTML = '';
+
+    const canvas = document.createElement('canvas');
+    const maxW = Math.min(340, window.innerWidth - 60);
+    const k = Math.min(1, maxW / img.width);
+    canvas.width = Math.round(img.width * k);
+    canvas.height = Math.round(img.height * k);
+    canvas.style.display = 'block';
+    canvas.style.borderRadius = '12px';
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    wrap.appendChild(canvas);
+
+    const sel = document.createElement('div');
+    sel.style.cssText = 'position:absolute;border:2px dashed #fff;background:rgba(255,255,255,.18);display:none;pointer-events:none';
+    wrap.appendChild(sel);
+
+    cropRect = null;
+    let start = null;
+
+    const pos = ev => {
+      const r = canvas.getBoundingClientRect();
+      return {
+        x: Math.max(0, Math.min(canvas.width, ev.clientX - r.left)),
+        y: Math.max(0, Math.min(canvas.height, ev.clientY - r.top))
+      };
+    };
+
+    canvas.addEventListener('pointerdown', ev => {
+      start = pos(ev);
+      sel.style.display = 'block';
+      sel.style.left = start.x + 'px';
+      sel.style.top = start.y + 'px';
+      sel.style.width = '0px';
+      sel.style.height = '0px';
+      canvas.setPointerCapture(ev.pointerId);
+    });
+
+    canvas.addEventListener('pointermove', ev => {
+      if (!start) return;
+      const p = pos(ev);
+      const x = Math.min(start.x, p.x), y = Math.min(start.y, p.y);
+      const w = Math.abs(p.x - start.x), h = Math.abs(p.y - start.y);
+      sel.style.left = x + 'px';
+      sel.style.top = y + 'px';
+      sel.style.width = w + 'px';
+      sel.style.height = h + 'px';
+      cropRect = { x: x, y: y, w: w, h: h };
+    });
+
+    canvas.addEventListener('pointerup', () => { start = null; });
+
+    dlg.querySelector('#cropApply').onclick = () => {
+      if (!cropRect || cropRect.w < 12 || cropRect.h < 12) { toast('کادر برش خیلی کوچک است'); return; }
+
+      const scale = img.width / canvas.width;
+      const rect = {
+        x: cropRect.x * scale,
+        y: cropRect.y * scale,
+        w: cropRect.w * scale,
+        h: cropRect.h * scale
+      };
+
+      photoTransform({ rect: rect });
+      dlg.close();
+      toast('برش انجام شد');
+    };
+
+    dlg.querySelector('#cropCancel').onclick = () => dlg.close();
+    dlg.showModal();
+  });
+}
+
+document.getElementById('photoStraighten').addEventListener('click', autoStraighten);
+document.getElementById('photoAutoCrop').addEventListener('click', autoCropCheque);
+document.getElementById('photoManualCrop').addEventListener('click', openCropDlg);

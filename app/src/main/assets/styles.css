@@ -1566,3 +1566,78 @@ input,textarea,select{-webkit-user-select:text;user-select:text}
   border-color:var(--brand);font-weight:800;
 }
 .chip:active{transform:scale(1.04)}
+
+/* ===== نوار ابزار: سلسله‌مراتب و چیدمان ===== */
+.listtools{gap:9px}
+
+/* تب‌های اصلی (چک‌ها/اقساط/طلب و بدهی) — بزرگ‌تر */
+.listtools > .seg{display:flex;gap:6px;justify-content:center;transform:none !important;margin:0 0 2px}
+.listtools > .seg button{font-size:12.5px;padding:8px 12px;font-weight:800}
+
+/* ردیف مرتب‌سازی — کوچک‌تر از تب‌ها و وسط‌چین */
+.sortrow{justify-content:center;gap:6px}
+.sortbtn{font-size:11.5px;padding:6px 11px;font-weight:700}
+.sortbtn.on{font-weight:900}
+
+/* فلش: کلفت‌تر، نه بزرگ‌تر */
+.sortbtn.dir{
+  width:42px;height:34px;min-width:42px;padding:0;
+  font-size:20px;font-weight:900;line-height:1;
+  -webkit-text-stroke:1.3px currentColor;
+  transform:none;
+}
+.dirflash{left:50%;transform:translateX(-50%);top:-4px;animation-duration:.5s}
+@keyframes dirFlash{
+  0%{opacity:0;transform:translate(-50%,4px)}
+  30%{opacity:1;transform:translate(-50%,0)}
+  100%{opacity:0;transform:translate(-50%,-8px)}
+}
+
+/* چیپ‌های بازه: وسط‌چین */
+.rangerow{justify-content:center;gap:6px}
+.chip{font-size:11px;padding:6px 10px}
+
+/* «بازهٔ دلخواه»: دکمهٔ پهن و وسط */
+.chip.wide{
+  flex:1 1 100%;text-align:center;border-radius:12px;
+  padding:9px;font-size:11.5px;font-weight:800;
+  border-style:dashed;
+}
+
+/* ردیف تعداد */
+.listsum{
+  display:flex;align-items:center;gap:5px;
+  margin:2px 4px 8px;padding:6px 10px;border-radius:10px;
+  background:var(--brand-soft);color:var(--brand);
+  font-size:11.5px;font-weight:700;width:fit-content;
+}
+.listsum b{font-size:13px;font-weight:900}
+
+
+/* ستارهٔ الزامی: اول و قرمز */
+label .req, legend .req{
+  color:#dc2626 !important;
+  font-weight:900;
+  margin-inline-end:4px;
+  margin-inline-start:0;
+  order:-1;
+}
+
+/* عنوان پنجرهٔ تراکنش و سایر پنجره‌ها: وسط */
+#txDlg h2{text-align:center;font-size:16px}
+#loanDlg h2, #chqDlg h2, #accDlg h2, #instDlg h2{text-align:center}
+
+/* ===== هشدار چک تأییدنشده ===== */
+.warnico{
+  flex:0 0 auto;margin-inline-start:4px;font-size:14px;
+  color:#f59e0b;text-shadow:0 0 6px rgba(245,158,11,.45);
+}
+
+/* ===== برش دستی ===== */
+#cropDlg{max-width:96vw}
+#cropDlg #cropWrap{position:relative;display:inline-block;max-width:100%;touch-action:none}
+#cropDlg canvas{cursor:crosshair;touch-action:none;max-width:100%}
+#cropDlg form{max-height:92vh;overflow:auto}
+
+/* تصویر چک: اشارهٔ کلیک */
+#chqPhotoImg{cursor:zoom-in}
