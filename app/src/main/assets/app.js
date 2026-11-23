@@ -1021,10 +1021,30 @@ $('chqPhotoBtn').addEventListener('click', () => {
   $('chqPhotoFile').click();
 });
 
+function compressPhoto(src, maxW, quality, cb) {
+  const img = new Image();
+  img.onload = () => {
+    let w = img.width, h = img.height;
+    if (Math.max(w, h) > maxW) {
+      const k = maxW / Math.max(w, h);
+      w = Math.round(w * k);
+      h = Math.round(h * k);
+    }
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(img, 0, 0, w, h);
+    cb(c.toDataURL('image/jpeg', quality));
+  };
+  img.onerror = () => cb(src);
+  img.src = src;
+}
+
 window.onPhotoResult = function (b64) {
   if (!b64) { toast('عکسی گرفته نشد'); return; }
-  setChqPhoto('data:image/jpeg;base64,' + b64);
-  toast('تصویر چک اضافه شد');
+  compressPhoto('data:image/jpeg;base64,' + b64, 820, 0.55, out => {
+    setChqPhoto(out);
+    toast('تصویر چک اضافه شد');
+  });
 };
 $('chqPhotoDel').addEventListener('click', () => setChqPhoto(''));
 
@@ -1107,7 +1127,7 @@ $('chqPhotoFile').addEventListener('change', ev => {
   fr.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const max = 900;
+      const max = 820;
       let w = img.width, h = img.height;
       if (Math.max(w, h) > max) {
         const k = max / Math.max(w, h);
@@ -1116,7 +1136,7 @@ $('chqPhotoFile').addEventListener('change', ev => {
       const c = document.createElement('canvas');
       c.width = w; c.height = h;
       c.getContext('2d').drawImage(img, 0, 0, w, h);
-      setChqPhoto(c.toDataURL('image/jpeg', 0.62));
+      setChqPhoto(c.toDataURL('image/jpeg', 0.55));
       toast('تصویر چک اضافه شد');
     };
     img.src = String(fr.result);
@@ -1127,11 +1147,45 @@ $('chqPhotoFile').addEventListener('change', ev => {
 function openImage(data) {
   if (!data) { toast('تصویری برای این چک ثبت نشده'); return; }
   $('imgDlgPic').src = data;
+  imgHist = [data];
+  imgHistPos = 0;
+  paintHist();
+  resetZoom();
   $('imgDlg').showModal();
 }
 
 $('imgDlgClose').addEventListener('click', () => $('imgDlg').close());
-$('imgBack').addEventListener('click', () => $('imgDlg').close());
+/* ---------- تاریخچهٔ ویرایش تصویر (Undo / Redo) ---------- */
+let imgHist = [];
+let imgHistPos = -1;
+
+function imgPush(src) {
+  if (!src) return;
+  imgHist = imgHist.slice(0, imgHistPos + 1);
+  imgHist.push(src);
+  imgHistPos = imgHist.length - 1;
+  paintHist();
+}
+
+function paintHist() {
+  const u = $('imgUndo');
+  const r = $('imgRedo');
+  if (u) u.disabled = imgHistPos <= 0;
+  if (r) r.disabled = imgHistPos >= imgHist.length - 1;
+}
+
+function imgGo(delta) {
+  const p = imgHistPos + delta;
+  if (p < 0 || p >= imgHist.length) return;
+  imgHistPos = p;
+  $('imgDlgPic').src = imgHist[p];
+  paintHist();
+}
+
+$('imgUndo').addEventListener('click', () => imgGo(-1));
+$('imgRedo').addEventListener('click', () => imgGo(+1));
+
+$('imgDlgClose').addEventListener('click', () => { imgHist = []; imgHistPos = -1; });
 
 $('imgFull').addEventListener('click', () => {
   $('imgDlg').classList.toggle('full');
@@ -1156,11 +1210,79 @@ function rotateDataUrl(data, deg, cb) {
 }
 
 $('imgRotR').addEventListener('click', () => {
-  rotateDataUrl($('imgDlgPic').src, 90, out => { $('imgDlgPic').src = out; });
+  rotateDataUrl($('imgDlgPic').src, 90, out => { $('imgDlgPic').src = out; imgPush(out); resetZoom(); });
 });
 $('imgRotL').addEventListener('click', () => {
-  rotateDataUrl($('imgDlgPic').src, -90, out => { $('imgDlgPic').src = out; });
+  rotateDataUrl($('imgDlgPic').src, -90, out => { $('imgDlgPic').src = out; imgPush(out); resetZoom(); });
 });
+
+/* ---------- زوم دو انگشتی و جابه‌جایی ---------- */
+let zoomScale = 1, panX = 0, panY = 0, startDist = 0, startScale = 1;
+let startPan = null;
+
+function applyZoom() {
+  const img = $('imgDlgPic');
+  if (!img) return;
+  img.style.transform = 'scale(' + zoomScale + ') translate(' + panX + 'px,' + panY + 'px)';
+  img.style.transformOrigin = 'center center';
+}
+
+function resetZoom() {
+  zoomScale = 1; panX = 0; panY = 0;
+  applyZoom();
+}
+
+(function bindZoom() {
+  const stage = $('imgStage');
+  if (!stage) return;
+
+  const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+
+  stage.addEventListener('pointerdown', ev => {
+    if (ev.pointerType === 'mouse' && ev.buttons !== 1) return;
+    stage._pts = stage._pts || [];
+    stage._pts.push(ev);
+
+    if (stage._pts.length === 2) {
+      startDist = dist(stage._pts);
+      startScale = zoomScale;
+    } else if (zoomScale > 1) {
+      startPan = { x: ev.clientX - panX, y: ev.clientY - panY };
+    }
+  }, { passive: true });
+
+  stage.addEventListener('pointermove', ev => {
+    const pts = stage._pts || [];
+    if (pts.length === 2) {
+      const i = pts.findIndex(p => p.pointerId === ev.pointerId);
+      if (i >= 0) pts[i] = ev;
+      if (startDist > 0) {
+        zoomScale = Math.min(5, Math.max(1, startScale * dist(pts) / startDist));
+        applyZoom();
+      }
+    } else if (pts.length === 1 && startPan && zoomScale > 1) {
+      panX = ev.clientX - startPan.x;
+      panY = ev.clientY - startPan.y;
+      applyZoom();
+    }
+  }, { passive: true });
+
+  const clear = ev => {
+    const pts = stage._pts || [];
+    stage._pts = pts.filter(p => p.pointerId !== ev.pointerId);
+    if (stage._pts.length < 2) startDist = 0;
+    if (!stage._pts.length) startPan = null;
+  };
+
+  stage.addEventListener('pointerup', clear);
+  stage.addEventListener('pointercancel', clear);
+
+  stage.addEventListener('dblclick', () => {
+    zoomScale = zoomScale > 1 ? 1 : 2.2;
+    if (zoomScale === 1) { panX = 0; panY = 0; }
+    applyZoom();
+  });
+})();
 
 $('imgDlgSave').addEventListener('click', () => {
   const src = $('imgDlgPic').src || '';
@@ -1857,10 +1979,25 @@ function listTools(cfg) {
       row.appendChild(b);
     }
 
-    const dir = el('button', 'sortbtn dir ' + (cfg.dir > 0 ? 'asc' : 'desc'),
-      cfg.dir > 0 ? '↑ نمایش صعودی' : '↓ نمایش نزولی');
+    let curDir = cfg.dir;
+
+    const paintDir = () => {
+      dir.className = 'sortbtn dir ' + (curDir > 0 ? 'asc' : 'desc');
+      dir.textContent = '';
+      const ar = el('span', 'ar', curDir > 0 ? '↑' : '↓');
+      const lb = el('span', 'lbl', curDir > 0 ? 'نمایش صعودی' : 'نمایش نزولی');
+      dir.append(ar, lb);
+    };
+
+    const dir = el('button', 'sortbtn dir ' + (cfg.dir > 0 ? 'asc' : 'desc'), '');
     dir.type = 'button';
-    dir.addEventListener('click', () => { cfg.onDir(); });
+    paintDir();
+
+    dir.addEventListener('click', () => {
+      curDir = -curDir;
+      paintDir();
+      cfg.onDir();
+    });
     row.appendChild(dir);
 
     box.appendChild(row);

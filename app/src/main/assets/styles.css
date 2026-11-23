@@ -1766,3 +1766,29 @@ label .req, legend .req{
   font-family:inherit;max-width:45%;
 }
 .searchbar select:focus{outline:2px solid var(--brand2)}
+
+/* ===== فلش مرتب‌سازی: سه پله قطورتر ===== */
+.sortbtn.dir{
+  -webkit-text-stroke:2.2px currentColor !important;
+  font-size:12.5px !important;
+  letter-spacing:.3px;
+}
+.sortbtn.dir.asc,.sortbtn.dir.desc{font-weight:900}
+
+/* ===== نمایشگر تصویر: دکمه‌های واگرد/از نو ===== */
+.imgbtn.big{
+  width:44px;height:44px;font-size:24px;font-weight:900;
+  background:var(--brand);color:#fff;border:0;
+}
+.imgbtn.big:disabled{opacity:.35}
+.imgstage img{max-width:100%;max-height:50vh;touch-action:none;cursor:zoom-in}
+.imgstage{touch-action:none;overflow:hidden}
+
+/* فلش و برچسب جدا */
+.sortbtn.dir{ -webkit-text-stroke:0 !important; gap:6px }
+.sortbtn.dir .ar{
+  font-size:20px;font-weight:900;line-height:1;
+  -webkit-text-stroke:1.6px currentColor;
+  display:inline-block;
+}
+.sortbtn.dir .lbl{font-size:11px;font-weight:900;letter-spacing:.2px}
