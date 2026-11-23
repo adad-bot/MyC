@@ -64,6 +64,11 @@
     </button>
   </header>
 
+  <div id="searchBar" class="searchbar hidden">
+    <input id="searchInput" type="search" placeholder="جستجو…" autocomplete="off">
+    <button type="button" id="searchClear" aria-label="پاک کردن">✕</button>
+  </div>
+
   <main id="view"></main></div>
 
 <button class="fab" id="fab" aria-label="افزودن">+</button>
@@ -322,10 +327,23 @@
 
 <div class="ring-overlay hidden" id="ringOverlay"></div>
 
-<dialog id="imgDlg">
+<dialog id="imgDlg" class="imgdlg">
   <form method="dialog">
-    <h2>تصویر چک</h2>
-    <img id="imgDlgPic" alt="چک" style="width:100%;border-radius:12px;border:1px solid var(--line)">
+    <div class="imgbar">
+      <button type="button" class="imgbtn" id="imgBack" title="بازگشت">↩</button>
+      <span class="imgtitle">تصویر چک</span>
+      <button type="button" class="imgbtn" id="imgFull" title="تمام‌صفحه">⛶</button>
+    </div>
+
+    <div class="imgstage" id="imgStage">
+      <img id="imgDlgPic" alt="چک">
+    </div>
+
+    <div class="row-btns" style="margin-top:8px">
+      <button type="button" class="btn ghost" id="imgRotL" style="flex:1">↺ چرخش چپ</button>
+      <button type="button" class="btn ghost" id="imgRotR" style="flex:1">↻ چرخش راست</button>
+    </div>
+
     <div class="dact">
       <button type="button" class="primary" id="imgDlgSave">دانلود تصویر</button>
       <button type="button" id="imgDlgClose">بستن</button>
@@ -490,6 +508,7 @@
     <label class="chk hidden" id="bioRow"><input type="checkbox" id="bioChk"> ورود با اثر انگشت</label>
     <label class="chk"><input type="checkbox" id="seasonChk"> رنگ‌بندی فصلی (بهار/تابستان/پاییز/زمستان)</label>
     <label class="chk"><input type="checkbox" id="fxChk"> گرافیک و انیمیشن (ریزش گل، برگ، برف)</label>
+    <label class="chk"><input type="checkbox" id="dblTapChk" checked> فعال‌سازی منوها با دو کلیک (پیش‌فرض روشن)</label>
     <div>
       <div class="k" style="display:flex;justify-content:space-between">
         <span>اندازهٔ فونت</span>

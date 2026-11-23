@@ -1130,18 +1130,64 @@ function openImage(data) {
 }
 
 $('imgDlgClose').addEventListener('click', () => $('imgDlg').close());
+$('imgBack').addEventListener('click', () => $('imgDlg').close());
+
+$('imgFull').addEventListener('click', () => {
+  $('imgDlg').classList.toggle('full');
+  $('imgFull').textContent = $('imgDlg').classList.contains('full') ? '⛶' : '⛶';
+});
+
+function rotateDataUrl(data, deg, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const rad = deg * Math.PI / 180;
+    const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * cos + img.height * sin);
+    c.height = Math.round(img.width * sin + img.height * cos);
+    const g = c.getContext('2d');
+    g.translate(c.width / 2, c.height / 2);
+    g.rotate(rad);
+    g.drawImage(img, -img.width / 2, -img.height / 2);
+    cb(c.toDataURL('image/jpeg', 0.85));
+  };
+  img.src = data;
+}
+
+$('imgRotR').addEventListener('click', () => {
+  rotateDataUrl($('imgDlgPic').src, 90, out => { $('imgDlgPic').src = out; });
+});
+$('imgRotL').addEventListener('click', () => {
+  rotateDataUrl($('imgDlgPic').src, -90, out => { $('imgDlgPic').src = out; });
+});
 
 $('imgDlgSave').addEventListener('click', () => {
+  const src = $('imgDlgPic').src || '';
+  if (!src) { toast('تصویری نیست'); return; }
+
+  const name = 'MyC-cheque-' + Date.now() + '.jpg';
+
   try {
-    const b64 = ($('imgDlgPic').src || '').split(',')[1] || '';
-    if (!b64) return;
     if (window.AndroidAqsat && AndroidAqsat.saveImage) {
-      const ok = AndroidAqsat.saveImage(b64, 'MyC-cheque-' + Date.now() + '.jpg');
-      toast(ok ? 'تصویر ذخیره شد (پوشهٔ Downloads/MyC)' : 'ذخیره نشد');
-    } else {
-      toast('ذخیره فقط در نسخهٔ نصبی کار می‌کند');
+      const b64 = src.split(',')[1] || '';
+      if (b64 && AndroidAqsat.saveImage(b64, name)) {
+        toast('تصویر در Downloads/MyC ذخیره شد');
+        return;
+      }
     }
-  } catch (e) { toast('ذخیره نشد'); }
+  } catch (e) { /* */ }
+
+  try {
+    const a = document.createElement('a');
+    a.href = src;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast('دانلود شروع شد');
+  } catch (e) {
+    toast('دانلود ممکن نشد؛ روی تصویر نگه‌دار و ذخیره کن');
+  }
 });
 
 /* ---------- خواندن اطلاعات چک از QR ---------- */
@@ -1758,7 +1804,7 @@ function rangeChips(target, current) {
   for (const [key, label] of RANGE_CHIPS) {
     const b = el('button', 'chip' + (current === key ? ' on' : ''), label);
     b.type = 'button';
-    b.addEventListener('click', () => {
+    onTap(b, () => {
       if (target === 'tx') S.txRange = key;
       if (target === 'chq') S.chqRange = key;
       if (target === 'loan') S.loanRange = key;
@@ -1795,7 +1841,7 @@ function listTools(cfg) {
     for (const [val, label] of cfg.segs) {
       const b = el('button', cfg.value === val ? 'on' : '', label);
       b.type = 'button';
-      b.addEventListener('click', () => { cfg.onSeg(val); });
+      onTap(b, () => { cfg.onSeg(val); });
       seg.appendChild(b);
     }
     box.appendChild(seg);
@@ -2281,23 +2327,21 @@ function buildDateCard() {
 
   const act = el('div', 'dc-act');
   const bFal = el('button', null, 'فال حافظ');
-  bFal.addEventListener('click', ev => { ev.stopPropagation(); openFal(); });
+  onTap(bFal, ev => { ev.stopPropagation(); openFal(); });
   const bAyah = el('button', null, 'آیه‌ای از قرآن');
-  bAyah.addEventListener('click', ev => { ev.stopPropagation(); openAyah(); });
+  onTap(bAyah, ev => { ev.stopPropagation(); openAyah(); });
   const bCal = el('button', null, 'تقویم و روزها');
-  let calTap = 0;
-
   bCal.addEventListener('click', ev => {
     ev.stopPropagation();
     const now = Date.now();
 
-    if (now - calTap < 420) {
-      calTap = 0;
+    if (now - homeCalTap < 600) {
+      homeCalTap = 0;
       openDateDlg(effToday());
       return;
     }
 
-    calTap = now;
+    homeCalTap = now;
     toast('برای باز کردن تقویم، دو بار بزن');
   });
   act.append(bFal, bAyah, bCal);
@@ -2305,7 +2349,7 @@ function buildDateCard() {
   const svcRow = el('div', 'svc-row');
   const svcBtn = el('button', 'svc-btn', '🧮 خدمات — سن / یک روز خاص');
   svcBtn.type = 'button';
-  svcBtn.addEventListener('click', ev => { ev.stopPropagation(); openSvc(); });
+  onTap(svcBtn, ev => { ev.stopPropagation(); openSvc(); });
   svcRow.appendChild(svcBtn);
   card.appendChild(svcRow);
   card.appendChild(act);
@@ -2313,6 +2357,7 @@ function buildDateCard() {
   return card;
 }
 
+let homeCalTap = 0;
 let calY = 0, calM = 0, calSel = 0;
 
 function openDateDlg(jdn) {
@@ -2869,39 +2914,110 @@ $('svcCalc').addEventListener('click', () => {
 })();
 
 
-/* ---------- ستارهٔ الزامی: قبل از عنوان و قرمز ---------- */
+/* ---------- ستارهٔ الزامی: بعد از عنوان، کمی بالاتر ---------- */
 (function () {
-  const fix = (root) => {
-    (root.querySelectorAll('label, legend') || []).forEach(el => {
-      let r = el.querySelector('.req');
-
-      // ستارهٔ متنی بدون کلاس
-      if (!r) {
-        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-        let n;
-        while ((n = walker.nextNode())) {
-          const t = n.nodeValue;
-          if (t && t.indexOf('*') >= 0 && n.parentNode === el) {
-            const before = t.slice(0, t.indexOf('*'));
-            const after = t.slice(t.indexOf('*') + 1);
-            n.nodeValue = before + after;
-            r = document.createElement('span');
-            r.className = 'req';
-            r.textContent = '*';
-            el.insertBefore(r, el.firstChild);
-            break;
-          }
-        }
-      }
-
-      if (r && el.firstElementChild !== r) {
-        el.insertBefore(r, el.firstChild);
-      }
-    });
+  const place = (el, star) => {
+    // اولین گرهٔ متنیِ خودِ label/legend را پیدا کن و ستاره را بعدش بگذار
+    let node = null;
+    for (const n of el.childNodes) {
+      if (n.nodeType === 3 && n.nodeValue && n.nodeValue.trim()) { node = n; break; }
+    }
+    if (node) {
+      el.insertBefore(star, node.nextSibling);
+    } else {
+      el.insertBefore(star, el.firstChild);
+    }
   };
 
-  fix(document);
+  document.querySelectorAll('label, legend').forEach(el => {
+    let r = el.querySelector('.req');
+
+    if (!r) {
+      // ستارهٔ متنی بدون کلاس
+      for (const n of Array.from(el.childNodes)) {
+        if (n.nodeType === 3 && n.nodeValue && n.nodeValue.indexOf('*') >= 0) {
+          n.nodeValue = n.nodeValue.replace('*', '');
+          r = document.createElement('span');
+          r.className = 'req';
+          r.textContent = '*';
+          break;
+        }
+      }
+    }
+
+    if (r) place(el, r);
+  });
 })();
+
+
+/* ---------- حالت لمس: تک یا دو کلیک ---------- */
+function dblTapOn() {
+  return !(S.d && S.d.settings && S.d.settings.dblTap === false);
+}
+
+function onTap(el, fn) {
+  if (!el) return;
+
+  let last = 0;
+
+  el.addEventListener('click', ev => {
+    if (!dblTapOn()) { fn(ev); return; }
+
+    const now = Date.now();
+    if (now - last < 420) { last = 0; fn(ev); return; }
+
+    last = now;
+  });
+}
+
+
+/* ---------- جستجوی پایدار (کیبورد و فوکوس حفظ می‌شود) ---------- */
+let SEARCH_CTX = null;
+
+function useSearch(key, placeholder, onChange) {
+  const bar = $('searchBar');
+  const inp = $('searchInput');
+
+  if (!bar || !inp) return;
+
+  SEARCH_CTX = { key: key, onChange: onChange };
+
+  bar.classList.remove('hidden');
+  inp.placeholder = placeholder || 'جستجو…';
+
+  const cur = {
+    chq: S.chqQuery, tx: S.txQuery, acc: S.accQuery, loan: S.loanQuery
+  }[key] || '';
+
+  if (inp.value !== cur) inp.value = cur;
+}
+
+function hideSearch() {
+  const bar = $('searchBar');
+  if (bar) bar.classList.add('hidden');
+  SEARCH_CTX = null;
+}
+
+function initSearchBar() {
+  const inp = $('searchInput');
+  const clr = $('searchClear');
+  if (!inp) return;
+
+  inp.addEventListener('input', () => {
+    if (!SEARCH_CTX) return;
+    SEARCH_CTX.onChange(inp.value);
+  });
+
+  if (clr) {
+    clr.addEventListener('click', () => {
+      inp.value = '';
+      if (SEARCH_CTX) SEARCH_CTX.onChange('');
+      inp.focus();
+    });
+  }
+}
+
+initSearchBar();
 
 /* ---------- رنگ نوار سیستم (دکمه‌های پایین) ---------- */
 function syncSystemBars() {
@@ -2935,6 +3051,7 @@ function render() {
 }
 
 function renderCore() {
+  hideSearch();
   renderRings();
   if (S.tab === 'home') renderHome();
   else if (S.tab === 'tx') renderTx();
@@ -3173,6 +3290,7 @@ function renderHome() {
 }
 
 function renderTx() {
+  useSearch('tx', 'جستجو: دسته، توضیح، مبلغ، تاریخ…', v => { S.txQuery = v; render(); });
   view.textContent = '';
 
   view.appendChild(listTools({
@@ -3184,10 +3302,7 @@ function renderTx() {
     dir: S.txDir,
     onSort: v => { S.txSort = v; render(); },
     onDir: () => { S.txDir = -S.txDir; render(); },
-    search: true,
-    searchKey: 'tx',
-    query: S.txQuery,
-    onSearch: v => { S.txQuery = v; render(); },
+    search: false,
     range: rangeChips('tx', S.txRange)
   }));
 
@@ -3294,6 +3409,7 @@ function renderObl() {
 }
 
 function renderLoans() {
+  useSearch('loan', 'جستجوی وام: نام، بانک، مبلغ…', v => { S.loanQuery = v; render(); });
   view.appendChild(listTools({
     sorts: [['date', 'تاریخ شروع'], ['amount', 'مبلغ'], ['end', 'تاریخ پایان'], ['bank', 'بانک']],
     sort: S.loanSort,
@@ -3304,11 +3420,7 @@ function renderLoans() {
     toggleLabel: 'فقط وام‌های تسویه‌شده',
     toggleValue: S.loanSettled,
     onToggle: v => { S.loanSettled = v; render(); },
-    search: true,
-    searchKey: 'loan',
-    placeholder: 'جستجوی وام (نام، بانک، مبلغ…)' ,
-    query: S.loanQuery,
-    onSearch: v => { S.loanQuery = v; render(); },
+    search: false,
     range: rangeChips('loan', S.loanRange)
   }));
 
@@ -3496,93 +3608,117 @@ const CHQ_STATUS = {
 };
 
 function renderCheques() {
+  const listBox = el('div', 'listbox');
+
+  const draw = () => {
+    let items = S.d.cheques.slice();
+
+    if (S.chqFilter !== 'all') items = items.filter(c => c.kind === S.chqFilter);
+
+    const chqR = rangeOf(S.chqRange, S.chqCustom);
+    items = items.filter(c => inRangeJ(jdnOf(c), chqR));
+
+    if (S.chqQuery && S.chqQuery.trim()) {
+      items = items.filter(c => qMatch(S.chqQuery, [
+        c.party, c.number, c.bank, c.reason, c.nid, c.iban,
+        c.account, c.sayad, c.status, c.amount, jDateStr(c), dateLabel(c)
+      ]));
+    }
+
+    const byDate = c => jdnOf(c);
+    const byAmount = c => c.amount;
+    const byName = c => (c.party || '').charCodeAt(0) || 0;
+
+    if (S.chqSort === 'amount') items.sort(sortBy(S.chqDir, byAmount));
+    else if (S.chqSort === 'party') items.sort(sortBy(S.chqDir, byName));
+    else items.sort(sortBy(S.chqDir, byDate));
+
+    listBox.textContent = '';
+    listBox.appendChild(listSum(items.length, 'فقره چک'));
+
+    if (!items.length) {
+      const e = el('div', 'empty');
+      e.innerHTML = '<b>چکی با این فیلتر نیست</b>فیلتر، بازه یا جستجو را عوض کن.';
+      listBox.appendChild(e);
+      return;
+    }
+
+    const t = todayJdn();
+
+    for (const c of items) {
+      const d = jdnOf(c) - t;
+
+      let dueCls = '';
+      if (c.status === 'open' || c.status === 'deposited') {
+        if (d < 0) dueCls = ' due-past';
+        else if (d === 0) dueCls = ' due-today';
+        else if (d === 1) dueCls = ' due-1';
+        else if (d <= 3) dueCls = ' due-23';
+        else if (d <= 5) dueCls = ' due-45';
+      }
+
+      const row = el('div', 'item' + dueCls);
+
+      const ico = el('div', 'ico arrow ' + (c.kind === 'in' ? 'green' : 'red'));
+      ico.appendChild(arrowSvg(c.kind === 'in'));
+
+      const main = el('div', 'main');
+      main.appendChild(el('div', 't', c.party));
+
+      const m = el('div', 'm');
+      m.appendChild(el('span', null, dateLabel(c)));
+
+      const kindPill = el('span', 'pill ' + (c.kind === 'in' ? 'ok' : 'late'), c.kind === 'in' ? 'دریافتی' : 'صادره');
+      kindPill.style.fontWeight = '800';
+      m.appendChild(kindPill);
+      m.appendChild(el('span', 'pill info', CHQ_STATUS[c.status] || c.status));
+      if (c.status === 'open') m.appendChild(el('span', null, daysLabel(d)));
+      main.appendChild(m);
+
+      const amt = el('div', 'amt', NUM.format(c.amount));
+      row.append(ico, main, amt);
+
+      const cam = el('span', 'camico' + (c.photo ? ' has' : ' no'), '📷');
+      cam.title = c.photo ? 'تصویر چک موجود است' : 'تصویر چک ندارد';
+      if (c.photo) cam.addEventListener('click', ev => { ev.stopPropagation(); openImage(c.photo); });
+      row.appendChild(cam);
+
+      if (!c.confirmed) {
+        const w = el('span', 'warnico', '⚠');
+        w.title = 'در سامانهٔ صیاد ثبت/تأیید نشده';
+        w.addEventListener('click', ev => {
+          ev.stopPropagation();
+          toast('این چک در سامانهٔ صیاد تأیید نشده است');
+        });
+        row.appendChild(w);
+      }
+
+      row.addEventListener('click', () => openCheque(c));
+      listBox.appendChild(row);
+    }
+  };
+
   view.appendChild(listTools({
     segs: [['in', 'چک‌های دریافتی'], ['out', 'چک‌های صادره'], ['all', 'همهٔ چک‌ها']],
     value: S.chqFilter,
-    onSeg: v => { S.chqFilter = v; render(); },
+    onSeg: v => { S.chqFilter = v; draw(); },
     sorts: [['date', 'تاریخ'], ['amount', 'مبلغ'], ['party', 'نام']],
     sort: S.chqSort,
     dir: S.chqDir,
-    onSort: v => { S.chqSort = v; render(); },
-    onDir: () => { S.chqDir = -S.chqDir; render(); },
-    search: true,
-    searchKey: 'chq',
-    query: S.chqQuery,
-    onSearch: v => { S.chqQuery = v; render(); },
-    range: rangeChips('chq', S.chqRange)
+    onSort: v => { S.chqSort = v; draw(); },
+    onDir: () => { S.chqDir = -S.chqDir; draw(); },
+    search: false,
+    range: rangeChips('chq', S.chqRange, draw)
   }));
 
-  let items = S.d.cheques.slice();
+  useSearch('chq', 'جستجو: نام، شماره، بانک، مبلغ، تاریخ…', v => { S.chqQuery = v; draw(); });
 
-  if (S.chqFilter !== 'all') items = items.filter(c => c.kind === S.chqFilter);
-
-  const chqR = rangeOf(S.chqRange, S.chqCustom);
-  items = items.filter(c => inRangeJ(jdnOf(c), chqR));
-
-  if (S.chqQuery) {
-    items = items.filter(c => qMatch(S.chqQuery, [
-      c.party, c.number, c.bank, c.reason, c.nid, c.iban,
-      c.account, c.sayad, c.status, c.amount, jDateStr(c),
-      dateLabel(c)
-    ]));
-  }
-
-  const byDate = c => jdnOf(c);
-  const byAmount = c => c.amount;
-  const byName = c => (c.party || '').charCodeAt(0) || 0;
-
-  if (S.chqSort === 'amount') items.sort(sortBy(S.chqDir, byAmount));
-  else if (S.chqSort === 'party') items.sort(sortBy(S.chqDir, byName));
-  else items.sort(sortBy(S.chqDir, byDate));
-
-  view.appendChild(listSum(items.length, 'فقره چک'));
-
-  if (!items.length) {
-    const e = el('div', 'empty');
-    e.innerHTML = '<b>چکی ثبت نشده</b>با دکمهٔ + چک دریافتی یا صادره را اضافه کن.';
-    view.appendChild(e);
-    return;
-  }
-
-  const t = todayJdn();
-  const list = el('div', 'list');
-  for (const c of items) {
-    const row = el('div', 'item' + (c.status === 'open' && jdnOf(c) - t < 0 ? ' warn' : ''));
-    const ico = el('div', 'ico arrow ' + (c.kind === 'in' ? 'green' : 'red'));
-    ico.appendChild(arrowSvg(c.kind === 'in'));
-    const main = el('div', 'main');
-    main.appendChild(el('div', 't', c.party));
-    const m = el('div', 'm');
-    m.appendChild(el('span', null, dateLabel(c)));
-    const kindPill = el('span', 'pill ' + (c.kind === 'in' ? 'ok' : 'late'), c.kind === 'in' ? 'دریافتی' : 'صادره');
-    kindPill.style.fontWeight = '800';
-    m.appendChild(kindPill);
-    m.appendChild(el('span', 'pill info', CHQ_STATUS[c.status] || c.status));
-    if (c.status === 'open') m.appendChild(el('span', null, daysLabel(jdnOf(c) - t)));
-    main.appendChild(m);
-    const amt = el('div', 'amt', NUM.format(c.amount));
-    row.append(ico, main, amt);
-
-    const cam = el('span', 'camico' + (c.photo ? ' has' : ' no'), '📷');
-    cam.title = c.photo ? 'تصویر چک موجود است' : 'تصویر چک ندارد';
-    if (c.photo) {
-      cam.addEventListener('click', ev => { ev.stopPropagation(); openImage(c.photo); });
-    }
-    row.appendChild(cam);
-
-    if (!c.confirmed) {
-      const w = el('span', 'warnico', '⚠');
-      w.title = 'در سامانهٔ صیاد تأیید نشده';
-      row.appendChild(w);
-    }
-
-    row.addEventListener('click', () => openCheque(c));
-    list.appendChild(row);
-  }
-  view.appendChild(list);
+  view.appendChild(listBox);
+  draw();
 }
 
 function renderAccounts() {
+  useSearch('acc', 'جستجو: نام، مبلغ، تاریخ…', v => { S.accQuery = v; render(); });
   view.appendChild(listTools({
     segs: [['all', 'همه'], ['receivable', 'طلب‌ها'], ['payable', 'بدهی‌ها']],
     value: S.accFilter,
@@ -3592,10 +3728,7 @@ function renderAccounts() {
     dir: S.accDir,
     onSort: v => { S.accSort = v; render(); },
     onDir: () => { S.accDir = -S.accDir; render(); },
-    search: true,
-    searchKey: 'acc',
-    query: S.accQuery,
-    onSearch: v => { S.accQuery = v; render(); },
+    search: false,
     range: rangeChips('acc', S.accRange)
   }));
 
@@ -4516,6 +4649,13 @@ $('smsCancel').addEventListener('click', () => $('smsDlg').close());
 $('nav').addEventListener('click', ev => {
   const b = ev.target.closest('button[data-tab]');
   if (!b) return;
+
+  if (dblTapOn()) {
+    const now = Date.now();
+    if (now - (navTap.last || 0) > 420) { navTap.last = now; return; }
+    navTap.last = 0;
+  }
+
   if (typeof closeRing === 'function') closeRing();
   S.tab = b.dataset.tab;
   S.detailLoan = null;
@@ -4576,7 +4716,19 @@ $('aboutBtn').addEventListener('click', () => {
 $('titleWrap').addEventListener('click', openAbout);
 $('aboutClose').addEventListener('click', () => $('aboutDlg').close());
 
+let navTap = {};
+let fabTap = 0;
+
 $('fab').addEventListener('click', () => {
+  if (dblTapOn()) {
+    const now = Date.now();
+    if (now - fabTap > 420) { fabTap = now; toast('برای افزودن، دو بار بزن'); return; }
+    fabTap = 0;
+  }
+  fabAdd();
+});
+
+function fabAdd() {
   if (S.tab === 'notes') newNote();
   else if (S.tab === 'tx') openTx(null);
   else if (S.tab === 'obl') {
@@ -4585,7 +4737,7 @@ $('fab').addEventListener('click', () => {
     else openAccount(null);
   } else if (S.tab === 'report') openTx(null);
   else openTx(null);
-});
+}
 
 $('settingsBtn').addEventListener('click', openSettings);
 
@@ -4663,6 +4815,7 @@ function openSettings() {
   $('bioChk').checked = st.biometric !== false;
   $('seasonChk').checked = st.seasonal !== false;
   $('fxChk').checked = st.fx !== false;
+  if ($('dblTapChk')) $('dblTapChk').checked = st.dblTap !== false;
   $('chqDays').value = String(st.chqDays);
   $('genDays').value = String(st.genDays);
   setThemeSeg(st.theme || 'system');
@@ -4708,6 +4861,12 @@ $('fxChk').addEventListener('change', () => {
   save();
   render();
   toast($('fxChk').checked ? 'گرافیک و انیمیشن روشن شد' : 'گرافیک و انیمیشن خاموش شد');
+});
+
+$('dblTapChk').addEventListener('change', () => {
+  S.d.settings.dblTap = $('dblTapChk').checked;
+  save();
+  toast($('dblTapChk').checked ? 'منوها با دو کلیک فعال می‌شوند' : 'منوها با یک کلیک فعال می‌شوند');
 });
 
 $('bioChk').addEventListener('change', () => {
@@ -5839,10 +5998,10 @@ function detectChequeBox(img) {
     return [a, b];
   };
 
-  const [x0, x1] = thresh(colDark, 0.18);
-  const [y0, y1] = thresh(rowDark, 0.18);
+  const [x0, x1] = thresh(colDark, 0.12);
+  const [y0, y1] = thresh(rowDark, 0.12);
 
-  if (x1 - x0 < W * 0.3 || y1 - y0 < H * 0.3) return null;
+  if (x1 - x0 < W * 0.2 || y1 - y0 < H * 0.2) return null;
 
   const sx = img.width / W, sy = img.height / H;
   const padX = img.width * 0.015, padY = img.height * 0.015;
@@ -5857,8 +6016,17 @@ function detectChequeBox(img) {
 
 function autoCropCheque() {
   loadPhotoImage(img => {
-    const box = detectChequeBox(img);
-    if (!box) { toast('قالب چک پیدا نشد؛ از برش دستی استفاده کن'); return; }
+    let box = detectChequeBox(img);
+
+    if (!box) {
+      box = {
+        x: img.width * 0.05,
+        y: img.height * 0.05,
+        w: img.width * 0.90,
+        h: img.height * 0.90
+      };
+      toast('قالب دقیق پیدا نشد؛ برش مرکزی انجام شد');
+    }
 
     const c = document.createElement('canvas');
     c.width = Math.round(box.w);
@@ -5883,7 +6051,11 @@ function openCropDlg() {
       dlg.innerHTML = [
         '<form method="dialog">',
         '  <h2 style="text-align:center">برش دستی تصویر</h2>',
-        '  <p class="hint" style="text-align:center">روی تصویر بکش تا کادر برش ساخته شود.</p>',
+        '  <div class="crop-hint">' +
+        '    ۱) انگشت/موس را روی گوشهٔ چک بگذار و بکش.<br>' +
+        '    ۲) کادر زردی که می‌بینی همان ناحیهٔ برش است.<br>' +
+        '    ۳) دکمهٔ «برش بزن» را لمس کن.' +
+        '  </div>',
         '  <div id="cropWrap" style="position:relative;display:inline-block;max-width:100%"></div>',
         '  <div class="dact">',
         '    <button type="button" class="primary" id="cropApply">برش بزن</button>',
@@ -5908,10 +6080,32 @@ function openCropDlg() {
     wrap.appendChild(canvas);
 
     const sel = document.createElement('div');
-    sel.style.cssText = 'position:absolute;border:2px dashed #fff;background:rgba(255,255,255,.18);display:none;pointer-events:none';
+    sel.style.cssText = 'position:absolute;border:2px dashed #ffd400;background:rgba(255,212,0,.16);display:block;pointer-events:none;box-shadow:0 0 0 9999px rgba(0,0,0,.28)';
     wrap.appendChild(sel);
 
-    cropRect = null;
+    ['tl', 'tr', 'bl', 'br'].forEach(k => {
+      const h = document.createElement('i');
+      h.className = 'crop-handle crop-' + k;
+      h.style.cssText += ';' + (
+        k === 'tl' ? 'left:-7px;top:-7px' :
+        k === 'tr' ? 'right:-7px;top:-7px' :
+        k === 'bl' ? 'left:-7px;bottom:-7px' : 'right:-7px;bottom:-7px'
+      );
+      sel.appendChild(h);
+    });
+
+    // کادر پیش‌فرض ۹۰٪ تصویر
+    cropRect = {
+      x: canvas.width * 0.05,
+      y: canvas.height * 0.05,
+      w: canvas.width * 0.9,
+      h: canvas.height * 0.9
+    };
+    sel.style.left = cropRect.x + 'px';
+    sel.style.top = cropRect.y + 'px';
+    sel.style.width = cropRect.w + 'px';
+    sel.style.height = cropRect.h + 'px';
+
     let start = null;
 
     const pos = ev => {
@@ -5925,6 +6119,7 @@ function openCropDlg() {
     canvas.addEventListener('pointerdown', ev => {
       start = pos(ev);
       sel.style.display = 'block';
+      cropRect = null;
       sel.style.left = start.x + 'px';
       sel.style.top = start.y + 'px';
       sel.style.width = '0px';
