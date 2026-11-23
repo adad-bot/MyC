@@ -167,6 +167,7 @@ const S = {
   txDir: -1,
   txQuery: '',
   txRange: 'all',
+  sel: { chq: 'all', tx: 'all', acc: 'all', loan: 'all' },
   loanQuery: '',
   chqRange: 'all',
   loanRange: 'all',
@@ -1622,10 +1623,10 @@ function renderTxList() {
     bar.appendChild(b);
   });
 
-  const dir = el('button', 'sortbtn dir ' + (LIST.dir > 0 ? 'asc' : 'desc'), LIST.dir > 0 ? '↑' : '↓');
+  const dir = el('button', 'sortbtn dir ' + (LIST.dir > 0 ? 'asc' : 'desc'),
+    LIST.dir > 0 ? '↑ نمایش صعودی' : '↓ نمایش نزولی');
   dir.type = 'button';
   dir.addEventListener('click', () => {
-    flashDirText(bar, LIST.dir > 0 ? 'نزولی' : 'صعودی');
     LIST.dir = -LIST.dir;
     renderTxList();
   });
@@ -1856,13 +1857,10 @@ function listTools(cfg) {
       row.appendChild(b);
     }
 
-    const dir = el('button', 'sortbtn dir ' + (cfg.dir > 0 ? 'asc' : 'desc'), cfg.dir > 0 ? '↑' : '↓');
+    const dir = el('button', 'sortbtn dir ' + (cfg.dir > 0 ? 'asc' : 'desc'),
+      cfg.dir > 0 ? '↑ نمایش صعودی' : '↓ نمایش نزولی');
     dir.type = 'button';
-    dir.title = 'صعودی / نزولی';
-    dir.addEventListener('click', () => {
-      flashDirText(row, cfg.dir > 0 ? 'نزولی' : 'صعودی');
-      cfg.onDir();
-    });
+    dir.addEventListener('click', () => { cfg.onDir(); });
     row.appendChild(dir);
 
     box.appendChild(row);
@@ -2974,16 +2972,35 @@ function onTap(el, fn) {
 /* ---------- جستجوی پایدار (کیبورد و فوکوس حفظ می‌شود) ---------- */
 let SEARCH_CTX = null;
 
-function useSearch(key, placeholder, onChange) {
+function useSearch(key, placeholder, onChange, fields) {
   const bar = $('searchBar');
   const inp = $('searchInput');
+  const sel = $('searchField');
 
   if (!bar || !inp) return;
 
-  SEARCH_CTX = { key: key, onChange: onChange };
+  SEARCH_CTX = { key: key, onChange: onChange, fields: fields || [] };
 
   bar.classList.remove('hidden');
   inp.placeholder = placeholder || 'جستجو…';
+
+  if (sel) {
+    const list = [{ v: 'all', t: 'همه فیلدها' }].concat(fields || []);
+    const sig = list.map(x => x.v).join(',');
+
+    if (sel.dataset.sig !== sig) {
+      sel.textContent = '';
+      list.forEach(f => {
+        const o = document.createElement('option');
+        o.value = f.v;
+        o.textContent = f.t;
+        sel.appendChild(o);
+      });
+      sel.dataset.sig = sig;
+    }
+
+    sel.value = S.sel[key] || 'all';
+  }
 
   const cur = {
     chq: S.chqQuery, tx: S.txQuery, acc: S.accQuery, loan: S.loanQuery
@@ -2992,11 +3009,26 @@ function useSearch(key, placeholder, onChange) {
   if (inp.value !== cur) inp.value = cur;
 }
 
+/* انتخاب فیلد → اعمال دوبارهٔ جستجو */
+function initSearchField() {
+  const sel = $('searchField');
+  if (!sel) return;
+
+  sel.addEventListener('change', () => {
+    if (!SEARCH_CTX) return;
+
+    S.sel[SEARCH_CTX.key] = sel.value;
+    SEARCH_CTX.onChange($('searchInput').value);
+  });
+}
+
 function hideSearch() {
   const bar = $('searchBar');
   if (bar) bar.classList.add('hidden');
   SEARCH_CTX = null;
 }
+
+initSearchField();
 
 function initSearchBar() {
   const inp = $('searchInput');
@@ -3290,7 +3322,13 @@ function renderHome() {
 }
 
 function renderTx() {
-  useSearch('tx', 'جستجو: دسته، توضیح، مبلغ، تاریخ…', v => { S.txQuery = v; render(); });
+  useSearch('tx', 'جستجو…', v => { S.txQuery = v; render(); }, [
+    { v: 'cat', t: 'موضوع / دسته' },
+    { v: 'note', t: 'توضیحات' },
+    { v: 'amount', t: 'مبلغ' },
+    { v: 'date', t: 'تاریخ' },
+    { v: 'kind', t: 'نوع (درآمد/هزینه)' }
+  ]);
   view.textContent = '';
 
   view.appendChild(listTools({
@@ -3332,10 +3370,16 @@ function renderTx() {
   items = items.filter(x => inRangeJ(jdnOf(x), txR));
 
   if (S.txQuery && S.txQuery.trim()) {
-    items = items.filter(x => qMatch(S.txQuery, [
-      x.cat, x.note, x.amount, jDateStr(x), dateLabel(x),
-      x.type === 'income' ? 'درآمد' : 'هزینه'
-    ]));
+    items = items.filter(x => {
+      const map = {
+        cat: x.cat, note: x.note, amount: x.amount,
+        date: jDateStr(x) + ' ' + dateLabel(x),
+        kind: x.type === 'income' ? 'درآمد' : 'هزینه'
+      };
+      const selKey = S.sel.tx || 'all';
+      const vals = selKey === 'all' ? Object.values(map) : [map[selKey]];
+      return qMatch(S.txQuery, vals);
+    });
   }
 
   const catKey = x => (x.cat || '').charCodeAt(0) || 0;
@@ -3409,7 +3453,11 @@ function renderObl() {
 }
 
 function renderLoans() {
-  useSearch('loan', 'جستجوی وام: نام، بانک، مبلغ…', v => { S.loanQuery = v; render(); });
+  useSearch('loan', 'جستجو…', v => { S.loanQuery = v; render(); }, [
+    { v: 'title', t: 'نام وام' },
+    { v: 'bank', t: 'بانک' },
+    { v: 'amount', t: 'مبلغ' }
+  ]);
   view.appendChild(listTools({
     sorts: [['date', 'تاریخ شروع'], ['amount', 'مبلغ'], ['end', 'تاریخ پایان'], ['bank', 'بانک']],
     sort: S.loanSort,
@@ -3619,10 +3667,16 @@ function renderCheques() {
     items = items.filter(c => inRangeJ(jdnOf(c), chqR));
 
     if (S.chqQuery && S.chqQuery.trim()) {
-      items = items.filter(c => qMatch(S.chqQuery, [
-        c.party, c.number, c.bank, c.reason, c.nid, c.iban,
-        c.account, c.sayad, c.status, c.amount, jDateStr(c), dateLabel(c)
-      ]));
+      items = items.filter(c => {
+        const map = {
+          party: c.party, number: c.number, bank: c.bank, amount: c.amount,
+          date: jDateStr(c) + ' ' + dateLabel(c), reason: c.reason,
+          sayad: c.sayad, iban: c.iban, account: c.account, nid: c.nid
+        };
+        const selKey = S.sel.chq || 'all';
+        const vals = selKey === 'all' ? Object.values(map) : [map[selKey]];
+        return qMatch(S.chqQuery, vals);
+      });
     }
 
     const byDate = c => jdnOf(c);
@@ -3711,14 +3765,30 @@ function renderCheques() {
     range: rangeChips('chq', S.chqRange, draw)
   }));
 
-  useSearch('chq', 'جستجو: نام، شماره، بانک، مبلغ، تاریخ…', v => { S.chqQuery = v; draw(); });
+  useSearch('chq', 'جستجو…', v => { S.chqQuery = v; draw(); }, [
+    { v: 'party', t: 'نام طرف حساب' },
+    { v: 'number', t: 'شماره چک' },
+    { v: 'bank', t: 'بانک' },
+    { v: 'amount', t: 'مبلغ' },
+    { v: 'date', t: 'تاریخ' },
+    { v: 'reason', t: 'توضیحات / بابت' },
+    { v: 'sayad', t: 'شناسهٔ صیاد' },
+    { v: 'iban', t: 'شبا' },
+    { v: 'account', t: 'شماره حساب' },
+    { v: 'nid', t: 'کد ملی' }
+  ]);
 
   view.appendChild(listBox);
   draw();
 }
 
 function renderAccounts() {
-  useSearch('acc', 'جستجو: نام، مبلغ، تاریخ…', v => { S.accQuery = v; render(); });
+  useSearch('acc', 'جستجو…', v => { S.accQuery = v; render(); }, [
+    { v: 'name', t: 'نام' },
+    { v: 'amount', t: 'مبلغ' },
+    { v: 'date', t: 'تاریخ' },
+    { v: 'note', t: 'توضیحات' }
+  ]);
   view.appendChild(listTools({
     segs: [['all', 'همه'], ['receivable', 'طلب‌ها'], ['payable', 'بدهی‌ها']],
     value: S.accFilter,
@@ -3740,9 +3810,15 @@ function renderAccounts() {
   items = items.filter(a => inRangeJ(a.due ? jdnOf(a.due) : jdnOf(a), accR));
 
   if (S.accQuery) {
-    items = items.filter(a => qMatch(S.accQuery, [
-      a.name, a.note, a.amount, a.due ? jDateStr(a.due) : '', a.due ? dateLabel(a.due) : ''
-    ]));
+    items = items.filter(a => {
+      const map = {
+        name: a.name, note: a.note, amount: a.amount,
+        date: (a.due ? jDateStr(a.due) + ' ' + dateLabel(a.due) : '')
+      };
+      const selKey = S.sel.acc || 'all';
+      const vals = selKey === 'all' ? Object.values(map) : [map[selKey]];
+      return qMatch(S.accQuery, vals);
+    });
   }
 
   const dueJ = a => (a.due ? jdnOf(a.due) : 0);
@@ -4650,12 +4726,6 @@ $('nav').addEventListener('click', ev => {
   const b = ev.target.closest('button[data-tab]');
   if (!b) return;
 
-  if (dblTapOn()) {
-    const now = Date.now();
-    if (now - (navTap.last || 0) > 420) { navTap.last = now; return; }
-    navTap.last = 0;
-  }
-
   if (typeof closeRing === 'function') closeRing();
   S.tab = b.dataset.tab;
   S.detailLoan = null;
@@ -4720,11 +4790,6 @@ let navTap = {};
 let fabTap = 0;
 
 $('fab').addEventListener('click', () => {
-  if (dblTapOn()) {
-    const now = Date.now();
-    if (now - fabTap > 420) { fabTap = now; toast('برای افزودن، دو بار بزن'); return; }
-    fabTap = 0;
-  }
   fabAdd();
 });
 

@@ -1739,3 +1739,30 @@ label .req, legend .req{
   position:absolute;width:14px;height:14px;border-radius:4px;
   background:#fff;border:2px solid var(--brand);
 }
+
+
+/* ===== دکمهٔ جهت با متن ===== */
+.sortbtn.dir{
+  width:auto !important;min-width:118px !important;height:34px;padding:0 10px !important;
+  display:inline-flex !important;align-items:center;justify-content:center;gap:5px;
+  font-size:11.5px !important;font-weight:900;letter-spacing:.2px;
+  -webkit-text-stroke:0;
+  white-space:nowrap;
+}
+.sortbtn.dir.asc{color:#15803d;border-color:#16a34a;background:rgba(22,163,74,.13)}
+.sortbtn.dir.desc{color:#b91c1c;border-color:#dc2626;background:rgba(220,38,38,.13)}
+
+/* زیرتب‌ها یک پله کوچک‌تر از تب والد */
+.listtools > .seg button{font-size:11.5px !important;padding:7px 11px}
+.oblseg button, #oblSeg button{font-size:12.5px}
+
+/* بازهٔ دلخواه: درشت‌تر */
+.chip.wide{font-size:13.5px !important;font-weight:900;padding:11px}
+
+/* انتخاب فیلد جستجو */
+.searchbar select{
+  border:0;background:var(--brand);color:#fff;
+  border-radius:10px;padding:7px 8px;font-size:11px;font-weight:800;
+  font-family:inherit;max-width:45%;
+}
+.searchbar select:focus{outline:2px solid var(--brand2)}
