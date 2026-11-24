@@ -1875,3 +1875,59 @@ label .req, legend .req{
 }
 .pal-swatch.on{border-color:var(--ink);transform:scale(1.03)}
 .pal-swatch span{background:rgba(0,0,0,.28);padding:1px 5px;border-radius:6px}
+
+/* ===== پیام خوش‌آمد ===== */
+.welcome form{padding:14px}
+.wel-head{text-align:center;margin-bottom:10px}
+.wel-title{font-size:19px;font-weight:900;color:var(--brand)}
+.wel-date{font-size:11.5px;color:var(--muted);margin-top:2px}
+.wel-list{display:flex;flex-direction:column;gap:7px;max-height:46vh;overflow:auto}
+.wel-item{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 10px;border-radius:12px;background:var(--soft);
+  border:1.5px solid var(--line);
+}
+.wel-item.today{border-color:#e11d48;background:rgba(225,29,72,.07)}
+.wel-item.tomorrow{border-color:#f59e0b;background:rgba(245,158,11,.08)}
+.wel-dot{
+  font-size:9.5px;font-weight:900;padding:3px 7px;border-radius:999px;
+  background:var(--brand);color:#fff;flex:0 0 auto;
+}
+.wel-item.today .wel-dot{background:#e11d48}
+.wel-item.tomorrow .wel-dot{background:#f59e0b}
+.wel-t{flex:1;font-size:12px;font-weight:700;color:var(--ink)}
+.wel-a{font-size:12px;font-weight:900;color:var(--red);direction:ltr}
+
+/* ===== فلش‌های اسکرول ===== */
+.scrollnav{
+  position:fixed;left:10px;bottom:150px;z-index:210;
+  display:flex;flex-direction:column;gap:8px;
+}
+.scrollnav.hidden{display:none}
+.scrollnav button{
+  width:38px;height:38px;border-radius:50%;border:0;
+  background:var(--brand);color:#fff;font-size:18px;font-weight:900;
+  box-shadow:0 6px 14px rgba(0,0,0,.22);
+  display:grid;place-items:center;
+}
+.scrollnav button.hidden{display:none}
+.scrollnav button:active{transform:scale(.94)}
+
+/* ===== جستجو: آیکن و تاریخ‌گزین ===== */
+.search-ico{font-size:14px;opacity:.85;margin-inline-start:6px}
+.date-search{display:flex;gap:5px;flex:1}
+.date-search.hidden{display:none}
+.date-search select{
+  flex:1;min-width:0;border:0;border-radius:10px;
+  background:#fff;color:var(--ink);font-size:11px;font-weight:700;
+  padding:6px 4px;font-family:inherit;
+}
+#searchInput.hidden{display:none}
+
+/* ===== گزارش متنی ===== */
+.rep-pre{
+  white-space:pre-wrap;font-family:Tahoma,Consolas,monospace;
+  font-size:11.5px;line-height:2;direction:rtl;text-align:right;
+  background:var(--soft);border-radius:12px;padding:12px;
+  max-height:48vh;overflow:auto;color:var(--ink);
+}

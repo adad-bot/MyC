@@ -535,6 +535,12 @@ function endLock() {
   $('app').classList.remove('hidden');
   if (lockTimer) { clearInterval(lockTimer); lockTimer = null; }
   render();
+  setTimeout(() => {
+    try {
+      if (!userName()) askName(true);
+      else showWelcome();
+    } catch (e) { /* */ }
+  }, 600);
 
   if (pendingResetAsk) {
     pendingResetAsk = false;
@@ -602,8 +608,13 @@ function submitPin() {
     st.fails = 0;
     st.lockUntil = 0;
     save();
+
+    const isFirstRun = !userName();
+
     endLock();
     toast('رمز ذخیره شد');
+
+    if (isFirstRun) setTimeout(() => { try { askName(true); } catch (e) { } }, 500);
     return;
   }
 
@@ -1919,6 +1930,206 @@ function restoreSearchFocus() {
   searchFocus = null;
 }
 
+
+/* ================= گزارش متنی و خروجی ورد ================= */
+function reportCollect(kind, y, m, isYear) {
+  const map = new Map();
+  let total = 0;
+
+  for (const x of S.d.tx) {
+    if (x.type !== kind) continue;
+    if (isYear ? x.jy !== y : !(x.jy === y && x.jm === m)) continue;
+    const k = x.cat || 'سایر';
+    map.set(k, (map.get(k) || 0) + x.amount);
+    total += x.amount;
+  }
+
+  const rows = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  return { rows, total };
+}
+
+function reportRangeTitle(y, m, period) {
+  return period === 'year' ? ('سال ' + fa(y)) : (MONTHS[m - 1] + ' ' + fa(y));
+}
+
+function reportCmpPeriod(y, m, period) {
+  const mode = S.repCmp || 'prevMonth';
+
+  if (period === 'year') {
+    return mode === 'prevYear' ? { y: y - 1, m: m, title: 'سال ' + fa(y - 1) } : { y: y - 1, m: m, title: 'سال ' + fa(y - 1) };
+  }
+
+  if (mode === 'prevYear') return { y: y - 1, m: m, title: MONTHS[m - 1] + ' ' + fa(y - 1) };
+
+  const pm = m === 1 ? 12 : m - 1;
+  const py = m === 1 ? y - 1 : y;
+  return { y: py, m: pm, title: MONTHS[pm - 1] + ' ' + fa(py) };
+}
+
+function buildReportText(which) {
+  const now = todayJalali();
+  const ym = S.reportYm || monthKey(now);
+  const y = Math.floor(ym / 100);
+  const m = ym % 100;
+  const period = S.repPeriod || 'month';
+  const isYear = period === 'year';
+
+  const inc = reportCollect('income', y, m, isYear);
+  const exp = reportCollect('expense', y, m, isYear);
+  const cmp = reportCmpPeriod(y, m, period);
+  const incP = reportCollect('income', cmp.y, cmp.m, isYear);
+  const expP = reportCollect('expense', cmp.y, cmp.m, isYear);
+
+  const lines = [];
+  const title = which === 'income' ? 'گزارش درآمد' : (which === 'expense' ? 'گزارش هزینه' : 'گزارش کلی');
+
+  lines.push(title + ' — ' + reportRangeTitle(y, m, period));
+  lines.push('تاریخ تهیه: ' + WEEK_NAMES[weekIndex(todayJdn())] + ' ' + fa(now.jd) + ' ' + MONTHS[now.jm - 1] + ' ' + fa(now.jy));
+  lines.push('');
+
+  const add = (label, data, sign) => {
+    lines.push(label + ' — جمع: ' + data.total.toLocaleString('fa-IR') + ' تومان');
+    if (!data.rows.length) lines.push('  (موردی ثبت نشده)');
+    data.rows.forEach(([k, v], i) => {
+      const pct = data.total ? Math.round(v / data.total * 100) : 0;
+      lines.push('  ' + (i + 1) + ') ' + k + ' — ' + v.toLocaleString('fa-IR') + ' تومان (' + pct + '٪)');
+    });
+    lines.push('');
+  };
+
+  if (which === 'expense' || which === 'all') add('هزینه‌ها', exp);
+  if (which === 'income' || which === 'all') add('درآمدها', inc);
+
+  if (which === 'all') {
+    const net = inc.total - exp.total;
+    lines.push('ماندهٔ دوره: ' + net.toLocaleString('fa-IR') + ' تومان');
+    lines.push('');
+  }
+
+  lines.push('مقایسه با ' + cmp.title + ':');
+  const dInc = inc.total - incP.total;
+  const dExp = exp.total - expP.total;
+  lines.push('  درآمد: ' + incP.total.toLocaleString('fa-IR') + ' → ' + inc.total.toLocaleString('fa-IR') +
+    ' (' + (dInc >= 0 ? '+' : '') + dInc.toLocaleString('fa-IR') + ')');
+  lines.push('  هزینه: ' + expP.total.toLocaleString('fa-IR') + ' → ' + exp.total.toLocaleString('fa-IR') +
+    ' (' + (dExp >= 0 ? '+' : '') + dExp.toLocaleString('fa-IR') + ')');
+
+  return { text: lines.join('\n'), title, y, m, period, inc, exp, cmp, incP, expP, isYear };
+}
+
+function openReportText(which) {
+  const data = buildReportText(which);
+
+  let dlg = document.getElementById('repTextDlg');
+
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'repTextDlg';
+    dlg.innerHTML =
+      '<form method="dialog">' +
+      '<h2 style="text-align:center" id="repTextTitle">گزارش</h2>' +
+      '<pre id="repTextBody" class="rep-pre"></pre>' +
+      '<div class="dact" style="flex-direction:column;gap:8px">' +
+      '<button type="button" class="primary block" id="repTextWord">📄 خروجی ورد</button>' +
+      '<button type="button" class="block" id="repTextCopy">کپی متن</button>' +
+      '<button type="button" class="block" id="repTextClose">بستن</button>' +
+      '</div></form>';
+    document.body.appendChild(dlg);
+  }
+
+  dlg.querySelector('#repTextTitle').textContent = data.title;
+  dlg.querySelector('#repTextBody').textContent = data.text;
+
+  dlg.querySelector('#repTextClose').onclick = () => dlg.close();
+
+  dlg.querySelector('#repTextCopy').onclick = () => {
+    navigator.clipboard && navigator.clipboard.writeText(data.text);
+    toast('متن گزارش کپی شد');
+  };
+
+  dlg.querySelector('#repTextWord').onclick = () => exportReportWord(which);
+
+  dlg.showModal();
+}
+
+function reportWordHtml(data) {
+  const rows = [];
+
+  const table = (title, d, color) => {
+    if (!d.rows.length) return '';
+    return (
+      '<h3 style="color:' + color + ';margin:14px 0 6px">' + title + '</h3>' +
+      '<table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%;font-family:Tahoma;font-size:11pt">' +
+      '<tr style="background:' + color + ';color:#fff">' +
+      '<th>#</th><th>دسته</th><th>مبلغ (تومان)</th><th>سهم</th></tr>' +
+      d.rows.map(([k, v], i) =>
+        '<tr><td align="center">' + (i + 1) + '</td><td>' + k + '</td>' +
+        '<td align="center">' + v.toLocaleString('fa-IR') + '</td>' +
+        '<td align="center">' + Math.round(v / (d.total || 1) * 100) + '٪</td></tr>'
+      ).join('') +
+      '<tr style="font-weight:bold;background:#f3f4f6"><td colspan="2">جمع</td>' +
+      '<td align="center">' + d.total.toLocaleString('fa-IR') + '</td><td></td></tr>' +
+      '</table>'
+    );
+  };
+
+  const dInc = data.inc.total - data.incP.total;
+  const dExp = data.exp.total - data.expP.total;
+
+  return '<html dir="rtl"><head><meta charset="utf-8"><title>' + data.title + '</title></head>' +
+    '<body style="font-family:Tahoma;direction:rtl;padding:24px;color:#111">' +
+    '<div style="text-align:center;margin-bottom:10px">' +
+    '<img src="' + (window.__LOGO__ || '') + '" width="72" height="72" alt="MyC" style="border-radius:16px">' +
+    '<h1 style="margin:6px 0 0;color:#4f46e5">MyC — میعاد ماندگار</h1>' +
+    '<div style="font-size:10pt;color:#666">دفتر مالی شخصی</div></div>' +
+    '<h2 style="text-align:center;margin:16px 0 4px">' + data.title + '</h2>' +
+    '<div style="text-align:center;color:#555;font-size:10pt">' + reportRangeTitle(data.y, data.m, data.period) + '</div>' +
+    table('درآمدها', data.inc, '#0e7490') +
+    table('هزینه‌ها', data.exp, '#b91c1c') +
+    '<h3 style="margin:16px 0 6px">مقایسه با ' + data.cmp.title + '</h3>' +
+    '<table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%;font-family:Tahoma;font-size:11pt">' +
+    '<tr style="background:#334155;color:#fff"><th>عنوان</th><th>' + data.cmp.title + '</th><th>دورهٔ جاری</th><th>اختلاف</th></tr>' +
+    '<tr><td>درآمد</td><td align="center">' + data.incP.total.toLocaleString('fa-IR') + '</td>' +
+    '<td align="center">' + data.inc.total.toLocaleString('fa-IR') + '</td>' +
+    '<td align="center">' + (dInc >= 0 ? '+' : '') + dInc.toLocaleString('fa-IR') + '</td></tr>' +
+    '<tr><td>هزینه</td><td align="center">' + data.expP.total.toLocaleString('fa-IR') + '</td>' +
+    '<td align="center">' + data.exp.total.toLocaleString('fa-IR') + '</td>' +
+    '<td align="center">' + (dExp >= 0 ? '+' : '') + dExp.toLocaleString('fa-IR') + '</td></tr>' +
+    '</table>' +
+    '<p style="margin-top:18px;font-size:9pt;color:#888;text-align:center">' +
+    'ساخته‌شده با MyC — گروه فناوری کرانه ماندگار — علی دادمان</p>' +
+    '</body></html>';
+}
+
+function exportReportWord(which) {
+  const data = buildReportText(which);
+  const html = reportWordHtml(data);
+
+  const name = 'MyC-report-' + data.y + '-' + data.m + '.doc';
+
+  try {
+    if (window.AndroidAqsat && AndroidAqsat.saveDocs) {
+      if (AndroidAqsat.saveDocs(name, html)) {
+        toast('گزارش ورد ذخیره شد');
+        return;
+      }
+    }
+  } catch (e) { /* */ }
+
+  try {
+    const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    toast('فایل گزارش دانلود شد');
+  } catch (e) {
+    toast('ساخت فایل ممکن نشد');
+  }
+}
+
 /* ---------- نوار ابزار لیست‌ها (فیلتر، مرتب‌سازی، جستجو) ---------- */
 
 
@@ -2042,10 +2253,25 @@ function listTools(cfg) {
 
   if (cfg.sorts) {
     const row = el('div', 'sortrow');
+    let curSort = cfg.sort;
+
+    const paintSorts = () => {
+      for (const b of row.querySelectorAll('button[data-sort]')) {
+        b.classList.toggle('on', b.dataset.sort === curSort);
+      }
+    };
+
     for (const [val, label] of cfg.sorts) {
       const b = el('button', 'sortbtn' + (cfg.sort === val ? ' on' : ''), label);
       b.type = 'button';
-      b.addEventListener('click', () => { cfg.onSort(val); });
+      b.dataset.sort = val;
+
+      b.addEventListener('click', () => {
+        curSort = val;
+        paintSorts();
+        cfg.onSort(val);
+      });
+
       row.appendChild(b);
     }
 
@@ -3233,6 +3459,14 @@ function useSearch(key, placeholder, onChange, fields) {
   bar.classList.remove('hidden');
   inp.placeholder = placeholder || 'جستجو…';
 
+  const ds = $('dateSearch');
+  const inp0 = $('searchInput');
+  if (ds && inp0) {
+    const isDate = (S.sel[key] || 'all') === 'date';
+    ds.classList.toggle('hidden', !isDate);
+    inp0.classList.toggle('hidden', isDate);
+  }
+
   if (sel) {
     const list = [{ v: 'all', t: 'همه فیلدها' }].concat(fields || []);
     const sig = list.map(x => x.v).join(',');
@@ -3267,7 +3501,20 @@ function initSearchField() {
     if (!SEARCH_CTX) return;
 
     S.sel[SEARCH_CTX.key] = sel.value;
-    SEARCH_CTX.onChange($('searchInput').value);
+
+    const ds = $('dateSearch');
+    const inp = $('searchInput');
+    const isDate = sel.value === 'date';
+
+    if (ds) ds.classList.toggle('hidden', !isDate);
+    if (inp) inp.classList.toggle('hidden', isDate);
+
+    if (isDate) {
+      $('searchInput').value = '';
+      SEARCH_CTX.onChange('');
+    } else {
+      SEARCH_CTX.onChange($('searchInput').value);
+    }
   });
 }
 
@@ -3422,6 +3669,247 @@ function showTapHint() {
   dlg.showModal();
 }
 
+
+
+/* ================= نام کاربر ================= */
+function userName() {
+  return (S.d && S.d.settings && S.d.settings.name) ? String(S.d.settings.name).trim() : '';
+}
+
+/* پرسیدن نام در اولین اجرا (اجباری) */
+function askName(firstTime) {
+  let dlg = document.getElementById('nameDlg');
+
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'nameDlg';
+    dlg.innerHTML =
+      '<form method="dialog">' +
+      '<div class="wel-head"><div class="wel-title">به MyC خوش آمدی 🌱</div>' +
+      '<div class="wel-date">لطفاً نام خودت را بنویس تا در پیام‌ها با نام تو سلام کنم.</div></div>' +
+      '<input id="nameInput" type="text" maxlength="24" placeholder="نام شما" ' +
+      'style="width:100%;padding:12px;border-radius:14px;border:1px solid var(--line);background:var(--soft);font-family:inherit;font-size:15px;text-align:center">' +
+      '<div class="dact" style="margin-top:10px">' +
+      '<button type="button" class="primary block" id="nameOk">ذخیره و ادامه</button>' +
+      '</div></form>';
+    document.body.appendChild(dlg);
+
+    dlg.querySelector('#nameOk').addEventListener('click', () => {
+      const v = dlg.querySelector('#nameInput').value.trim();
+
+      if (v.length < 2) {
+        toast('نام را کامل بنویس');
+        dlg.querySelector('#nameInput').focus();
+        return;
+      }
+
+      S.d.settings.name = v;
+      save();
+      dlg.close();
+      toast('خوش آمدی ' + v + ' جان');
+    });
+  }
+
+  const inp = dlg.querySelector('#nameInput');
+  inp.value = userName();
+
+  dlg.showModal();
+  setTimeout(() => { try { inp.focus(); } catch (e) { } }, 200);
+}
+
+/* ================= پیام خوش‌آمد ================= */
+function welcomeItems() {
+  const t = todayJdn();
+  const list = [];
+
+  for (const c of (S.d.cheques || [])) {
+    if (c.status === 'cleared' || c.status === 'bounced' || c.status === 'void') continue;
+    const d = jdnOf(c) - t;
+    if (d < 0 || d > 1) continue;
+    list.push({
+      kind: 'cheque',
+      jdn: jdnOf(c),
+      d: d,
+      title: (c.kind === 'in' ? 'چک دریافتی' : 'چک صادره') + ' — ' + (c.party || ''),
+      amount: c.amount,
+      ref: c
+    });
+  }
+
+  for (const l of (S.d.loans || [])) {
+    for (const inst of (l.installments || [])) {
+      if (inst.paid) continue;
+      const d = jdnOf(inst) - t;
+      if (d < 0 || d > 1) continue;
+      list.push({
+        kind: 'loan',
+        jdn: jdnOf(inst),
+        d: d,
+        title: 'قسط ' + l.title,
+        amount: inst.amount,
+        ref: l
+      });
+    }
+  }
+
+  return list.sort((a, b) => a.d - b.d);
+}
+
+function showWelcome() {
+  if (!S.d || !S.d.settings) return;
+  if (S.d.settings.welcome === false) return;
+
+  const items = welcomeItems();
+  if (!items.length) return;
+
+  const dlg = $('welcomeDlg');
+  if (!dlg) return;
+
+  const nm = userName();
+  const nmEl = $('welName');
+  if (nmEl) nmEl.textContent = nm ? (nm + ' جان 👋') : '👋';
+
+  const j = d2j(todayJdn());
+  $('welDate').textContent = WEEK_NAMES[weekIndex(todayJdn())] + ' • ' + fa(j.jd) + ' ' + MONTHS[j.jm - 1] + ' ' + fa(j.jy);
+
+  const box = $('welList');
+  box.textContent = '';
+
+  for (const it of items.slice(0, 6)) {
+    const row = el('div', 'wel-item ' + (it.d === 0 ? 'today' : 'tomorrow'));
+    const dot = el('span', 'wel-dot', it.d === 0 ? 'امروز' : 'فردا');
+    const t = el('div', 'wel-t', it.title);
+    const a = el('div', 'wel-a', NUM.format(it.amount));
+    row.append(dot, t, a);
+    box.appendChild(row);
+  }
+
+  $('welShow').onclick = () => {
+    dlg.close();
+    S.tab = 'obl';
+    S.oblTab = items[0].kind === 'cheque' ? 'cheques' : 'loans';
+    render();
+  };
+
+  $('welClose').onclick = () => dlg.close();
+
+  dlg.showModal();
+}
+
+/* ================= فلش‌های اسکرول ================= */
+function scrollHost() {
+  const v = $('view');
+  if (v && v.scrollHeight > v.clientHeight + 40) return v;
+  return document.scrollingElement || document.documentElement;
+}
+
+function updateScrollNav() {
+  const nav = $('scrollNav');
+  if (!nav) return;
+
+  if (!S.d || !S.d.settings || S.d.settings.scrollHint === false) {
+    nav.classList.add('hidden');
+    return;
+  }
+
+  const host = scrollHost();
+  const top = host.scrollTop || window.scrollY || 0;
+  const max = (host.scrollHeight - host.clientHeight) || 1;
+
+  const canUp = top > 20;
+  const canDown = top < max - 20;
+
+  $('scrollUp').classList.toggle('hidden', !canUp);
+  $('scrollDown').classList.toggle('hidden', !canDown);
+
+  nav.classList.toggle('hidden', !(canUp || canDown));
+}
+
+function bindScrollNav() {
+  const up = $('scrollUp');
+  const down = $('scrollDown');
+  if (!up || !down) return;
+
+  const host = () => scrollHost();
+
+  up.addEventListener('click', () => {
+    const h2 = host();
+    (h2 === document.documentElement ? window : h2).scrollBy({ top: -420, behavior: 'smooth' });
+    setTimeout(updateScrollNav, 450);
+  });
+
+  down.addEventListener('click', () => {
+    const h2 = host();
+    (h2 === document.documentElement ? window : h2).scrollBy({ top: 420, behavior: 'smooth' });
+    setTimeout(updateScrollNav, 450);
+  });
+
+  const onScroll = () => updateScrollNav();
+
+  window.addEventListener('scroll', onScroll, { passive: true });
+  document.addEventListener('scroll', onScroll, { passive: true, capture: true });
+
+  const v = $('view');
+  if (v) v.addEventListener('scroll', onScroll, { passive: true });
+
+  const dlg = $('dateDlg');
+  if (dlg) {
+    const f = dlg.querySelector('form');
+    if (f) f.addEventListener('scroll', onScroll, { passive: true });
+  }
+
+  setInterval(onScroll, 1200);
+}
+
+/* ================= جستجوی تاریخ ================= */
+function buildDateSearch() {
+  const y = $('dsY'), m = $('dsM'), d = $('dsD');
+  if (!y || !m || !d) return;
+
+  const now = todayJalali().jy;
+
+  y.textContent = '';
+  y.add(new Option('سال', ''));
+  for (let i = now; i >= now - 10; i--) y.add(new Option(fa(i), String(i)));
+
+  m.textContent = '';
+  m.add(new Option('ماه', ''));
+  MONTHS.forEach((n, i) => m.add(new Option(n, String(i + 1))));
+
+  const fill = () => {
+    const yv = Number(y.value || 0);
+    const mv = Number(m.value || 0);
+
+    d.textContent = '';
+    d.add(new Option('روز', ''));
+
+    const len = (yv && mv) ? monthLen(yv, mv) : 31;
+    for (let i = 1; i <= len; i++) d.add(new Option(fa(i), String(i)));
+  };
+
+  fill();
+  y.onchange = () => { fill(); applyDateSearch(); };
+  m.onchange = () => { fill(); applyDateSearch(); };
+  d.onchange = applyDateSearch;
+}
+
+function applyDateSearch() {
+  if (!SEARCH_CTX) return;
+
+  const y = $('dsY').value;
+  const m = $('dsM').value;
+  const d = $('dsD').value;
+
+  const parts = [];
+  if (y) parts.push(y);
+  if (m) parts.push(String(Number(m)));
+  if (d) parts.push(String(Number(d)));
+
+  const q = parts.join('/');
+  $('searchInput').value = q;
+  SEARCH_CTX.onChange(q);
+}
+
 /* ---------- رنگ نوار سیستم (دکمه‌های پایین) ---------- */
 function syncSystemBars() {
   try {
@@ -3439,6 +3927,10 @@ function syncSystemBars() {
   } catch (e) { /* */ }
 }
 
+bindScrollNav();
+buildDateSearch();
+updateScrollNav();
+
 /* ---------- اندازهٔ فونت ---------- */
 function applyFontScale() {
   const v = clamp(parseInt(S.d.settings.fontScale, 10) || 5, 1, 10);
@@ -3451,6 +3943,7 @@ const view = $('view');
 
 function render() {
   try { renderCore(); } finally { restoreSearchFocus(); }
+  setTimeout(function () { try { updateScrollNav(); } catch (e) { } }, 60);
 }
 
 function renderCore() {
@@ -4251,6 +4744,21 @@ function renderReport() {
 
   const period = S.repPeriod || 'month';   // month | year
   const mode = S.repMode || 'none';        // none | cmp
+
+  /* ---------- دکمه‌های گزارش ---------- */
+  const repBtns = el('div', 'row-btns');
+  repBtns.style.margin = '0 0 8px';
+
+  const bText = el('button', 'btn ghost', '📝 گزارش متنی');
+  bText.type = 'button';
+  bText.addEventListener('click', () => openReportText('all'));
+
+  const bWord = el('button', 'btn ghost', '📄 خروجی ورد');
+  bWord.type = 'button';
+  bWord.addEventListener('click', () => exportReportWord('all'));
+
+  repBtns.append(bText, bWord);
+  view.appendChild(repBtns);
 
   /* ---------- سرصفحه ---------- */
   const nav = el('div', 'mhead rep-head');
@@ -5253,6 +5761,9 @@ function openSettings() {
   $('seasonChk').checked = st.seasonal !== false;
   $('fxChk').checked = st.fx !== false;
   if ($('sharpChk')) $('sharpChk').checked = st.docSharpen === true;
+  if ($('userName')) $('userName').value = st.name || '';
+  if ($('welcomeChk')) $('welcomeChk').checked = st.welcome !== false;
+  if ($('scrollChk')) $('scrollChk').checked = st.scrollHint !== false;
   if ($('tapHintChk')) $('tapHintChk').checked = st.tapHint !== false;
   setTapModeUI();
   renderPaletteGrid();
@@ -5317,6 +5828,29 @@ $('sharpChk').addEventListener('change', () => {
   S.d.settings.docSharpen = $('sharpChk').checked;
   save();
   toast($('sharpChk').checked ? 'تیزکردن تصویر روشن شد' : 'تیزکردن تصویر خاموش شد');
+});
+
+$('userNameSave').addEventListener('click', () => {
+  const v = ($('userName').value || '').trim();
+  if (v.length < 2) { toast('نام را کامل بنویس'); return; }
+
+  askPinGate('تغییر نام', () => {
+    S.d.settings.name = v;
+    save();
+    render();
+    toast('نام ذخیره شد');
+  });
+});
+
+$('welcomeChk').addEventListener('change', () => {
+  S.d.settings.welcome = $('welcomeChk').checked;
+  save();
+});
+
+$('scrollChk').addEventListener('change', () => {
+  S.d.settings.scrollHint = $('scrollChk').checked;
+  save();
+  updateScrollNav();
 });
 
 $('tapHintChk').addEventListener('change', () => {
@@ -6848,3 +7382,18 @@ function smartScan() {
 document.getElementById('photoSmart').addEventListener('click', smartScan);
 document.getElementById('photoEnhance') &&
   document.getElementById('photoEnhance').addEventListener('click', enhancePhoto);
+
+/* لوگو برای خروجی ورد */
+(function () {
+  try {
+    fetch('icons/icon-192.png')
+      .then(r => r.blob())
+      .then(b => new Promise(res => {
+        const fr = new FileReader();
+        fr.onload = () => res(fr.result);
+        fr.readAsDataURL(b);
+      }))
+      .then(u => { window.__LOGO__ = u; })
+      .catch(() => {});
+  } catch (e) { /* */ }
+})();

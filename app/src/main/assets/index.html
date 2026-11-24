@@ -65,9 +65,15 @@
   </header>
 
   <div id="searchBar" class="searchbar hidden">
+    <span class="search-ico">🔍</span>
     <select id="searchField" aria-label="نوع جستجو"></select>
-    <input id="searchInput" type="search" placeholder="جستجو…" autocomplete="off">
+    <input id="searchInput" type="search" placeholder="اینجا تایپ کن…" autocomplete="off">
     <button type="button" id="searchClear" aria-label="پاک کردن">✕</button>
+    <div id="dateSearch" class="date-search hidden">
+      <select id="dsY"></select>
+      <select id="dsM"></select>
+      <select id="dsD"></select>
+    </div>
   </div>
 
   <main id="view"></main></div>
@@ -387,6 +393,21 @@
   </form>
 </dialog>
 
+
+<dialog id="welcomeDlg" class="welcome">
+  <form method="dialog">
+    <div class="wel-head">
+      <div class="wel-title">خوش آمدی <span id="welName">👋</span></div>
+      <div class="wel-date" id="welDate"></div>
+    </div>
+    <div class="wel-list" id="welList"></div>
+    <div class="dact" style="flex-direction:column;gap:8px">
+      <button type="button" class="primary block" id="welShow">مشاهده</button>
+      <button type="button" class="block" id="welClose">بستن</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="pinGateDlg">
   <form id="pinGateFrm">
     <div class="ask-icon">🔒</div>
@@ -506,6 +527,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
     </div>
     <h2 style="text-align:center">تنظیمات</h2>
+    <div class="row-btns" style="align-items:center;gap:6px">
+      <input id="userName" placeholder="نام شما" style="flex:1;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--soft);font-family:inherit;font-size:12.5px">
+      <button type="button" class="btn" id="userNameSave" style="flex:0 0 auto">ذخیرهٔ نام</button>
+    </div>
     <p class="hint" id="backupStatus">آخرین پشتیبان: —</p>
     <div class="row-btns">
       <button type="button" class="btn" id="exportBtn" style="flex:1">پشتیبان‌گیری</button>
@@ -518,6 +543,8 @@
     <label class="chk"><input type="checkbox" id="seasonChk"> رنگ‌بندی فصلی (بهار/تابستان/پاییز/زمستان)</label>
     <label class="chk"><input type="checkbox" id="fxChk"> گرافیک و انیمیشن (ریزش گل، برگ، برف)</label>
     <label class="chk"><input type="checkbox" id="sharpChk"> تیزکردن تصویر چک هنگام اسکن (پیش‌فرض: خاموش)</label>
+    <label class="chk"><input type="checkbox" id="welcomeChk" checked> پیام خوش‌آمد و یادآوری امروز/فردا</label>
+    <label class="chk"><input type="checkbox" id="scrollChk" checked> نشانگر فلش اسکرول</label>
     <div>
       <div class="k" style="margin-bottom:6px">حالت فعال‌سازی (به‌جز منوهای اصلی که همیشه تک‌کلیک‌اند)</div>
       <div class="seg" id="tapModeSeg" style="margin:0">
@@ -846,6 +873,11 @@
 <script src="fal-data.js"></script>
 <script src="quran-data.js"></script>
 <script src="app.js"></script>
+
+<div id="scrollNav" class="scrollnav hidden">
+  <button type="button" id="scrollUp" aria-label="بالا">↑</button>
+  <button type="button" id="scrollDown" aria-label="پایین">↓</button>
+</div>
 </body>
 </html>
 
