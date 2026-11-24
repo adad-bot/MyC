@@ -1998,3 +1998,66 @@ label .req, legend .req{
 .sr-legend .lg.green i{background:#16a34a}
 .sr-legend .lg.red i{background:#dc2626}
 .ws-body{font-size:12.5px;line-height:2;text-align:center;color:var(--ink);padding:8px;background:var(--soft);border-radius:12px;margin:8px 0}
+
+/* ============ زیباسازی صفحهٔ گزارش ============ */
+#view .sr-head{margin:6px 0 14px}
+#view .sr-title{
+  font-size:18px;letter-spacing:-.2px;
+  background:linear-gradient(135deg,var(--brand),var(--brand2));
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  -webkit-text-fill-color:transparent;
+}
+#view .sr-sub{font-size:10.5px;opacity:.8;margin-top:4px}
+
+#view .sr-bar{gap:10px;margin-bottom:10px}
+#view .sr-field{gap:4px}
+#view .sr-field select{
+  border-radius:14px;padding:11px 10px;
+  box-shadow:0 3px 10px rgba(0,0,0,.06);
+  transition:transform .12s ease;
+}
+#view .sr-field select:active{transform:scale(.99)}
+
+#view .sr-card{
+  border-radius:18px;padding:14px;
+  box-shadow:0 8px 22px rgba(0,0,0,.07);
+  border:1px solid color-mix(in srgb,var(--brand) 14%,transparent);
+}
+#view .sr-card-title{
+  font-size:14px;font-weight:900;color:var(--brand);
+  padding-bottom:8px;margin-bottom:8px;
+  border-bottom:1px dashed color-mix(in srgb,var(--brand) 25%,transparent);
+}
+#view .sr-count{font-size:12px;color:var(--muted);font-weight:700}
+#view .sr-total{font-size:15px;margin-top:4px}
+#view .sr-diff{padding:8px 12px;border-radius:12px;margin-top:8px;font-size:12px}
+
+#view .sr-chart-box{
+  margin-top:12px;padding:10px;border-radius:14px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--brand) 5%,#fff),#fff);
+  border:1px solid color-mix(in srgb,var(--brand) 12%,transparent);
+}
+#view .sr-chart{width:100%;height:auto}
+#view .sr-hint{opacity:.75;margin-top:6px}
+
+#view .sr-legend{
+  background:var(--soft);border-radius:10px;padding:6px 10px;
+  width:fit-content;margin:8px auto 0;
+}
+#view .sr-legend .lg{font-size:10.5px}
+
+#view .sr-chart-box .donut-row{gap:8px;margin-top:10px}
+#view .sr-chart-box .donut-block{
+  background:#fff;border-radius:14px;padding:8px 6px;
+  border:1px solid color-mix(in srgb,var(--brand) 12%,transparent);
+}
+#view .sr-chart-box .donut{width:104px;height:104px}
+#view .donut-cap{font-size:10.5px;margin-bottom:4px}
+
+#view .sr-card .row-btns{margin-top:14px;gap:8px}
+#view .sr-card .row-btns .btn{padding:11px;border-radius:12px;font-weight:800}
+
+/* فاصلهٔ عمومی گزارش */
+#view > .sr-bar + .sr-field{margin-bottom:10px}
+#view .ev-list{margin-top:10px;max-height:none}
+#view .ev-item{border-radius:12px}

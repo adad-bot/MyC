@@ -5483,7 +5483,7 @@ function renderSmartReport() {
 
   const bWord = el('button', 'btn primary', 'خروجی وورد');
   bWord.type = 'button';
-  bWord.addEventListener('click', () => exportReportWord3(SR.topic, 'all'));
+  bWord.addEventListener('click', () => exportSmartReportDocx());
 
   btns.append(bDet, bWord);
   card.appendChild(btns);
@@ -8208,3 +8208,305 @@ document.getElementById('photoEnhance') &&
       .catch(() => {});
   } catch (e) { /* */ }
 })();
+
+
+/* ================= خروجی DOCX واقعی با نمودار ================= */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function strBytes(str) {
+  return new TextEncoder().encode(str);
+}
+
+/* ساخت ZIP بدون فشرده‌سازی */
+function makeZip(files) {
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+
+  for (const f of files) {
+    const nameBytes = strBytes(f.name);
+    const data = f.data;
+    const crc = crc32(data);
+
+    const local = new Uint8Array(30 + nameBytes.length);
+    const dv = new DataView(local.buffer);
+    dv.setUint32(0, 0x04034b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint16(6, 0, true);
+    dv.setUint16(8, 0, true);
+    dv.setUint16(10, 0, true);
+    dv.setUint16(12, 0, true);
+    dv.setUint32(14, crc, true);
+    dv.setUint32(18, data.length, true);
+    dv.setUint32(22, data.length, true);
+    dv.setUint16(26, nameBytes.length, true);
+    dv.setUint16(28, 0, true);
+    local.set(nameBytes, 30);
+
+    chunks.push(local, data);
+
+    const cen = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(cen.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint16(12, 0, true);
+    cv.setUint16(14, 0, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, data.length, true);
+    cv.setUint32(24, data.length, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint16(30, 0, true);
+    cv.setUint16(32, 0, true);
+    cv.setUint16(34, 0, true);
+    cv.setUint16(36, 0, true);
+    cv.setUint32(38, 0, true);
+    cv.setUint32(42, offset, true);
+    cen.set(nameBytes, 46);
+    central.push(cen);
+
+    offset += local.length + data.length;
+  }
+
+  let centralSize = 0;
+  for (const c of central) centralSize += c.length;
+
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, central.length, true);
+  ev.setUint16(10, central.length, true);
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, offset, true);
+
+  const total = offset + centralSize + 22;
+  const out = new Uint8Array(total);
+  let pos = 0;
+  for (const c of chunks) { out.set(c, pos); pos += c.length; }
+  for (const c of central) { out.set(c, pos); pos += c.length; }
+  out.set(end, pos);
+
+  return out;
+}
+
+/* تبدیل SVG نمودار به PNG */
+function svgToPng(svg, scale, cb) {
+  try {
+    const clone = svg.cloneNode(true);
+    const vb = (svg.getAttribute('viewBox') || '0 0 320 120').split(' ');
+    const w = Number(vb[2]) || 320, h = Number(vb[3]) || 120;
+
+    clone.setAttribute('width', w);
+    clone.setAttribute('height', h);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('style', 'background:#ffffff');
+
+    const xml = new XMLSerializer().serializeToString(clone);
+    const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
+
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = w * (scale || 2);
+      c.height = h * (scale || 2);
+      const g = c.getContext('2d');
+      g.fillStyle = '#fff';
+      g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(img, 0, 0, c.width, c.height);
+      cb(c.toDataURL('image/png'));
+    };
+    img.onerror = () => cb('');
+    img.src = url;
+  } catch (e) { cb(''); }
+}
+
+function b64ToBytes(b64) {
+  const bin = atob(b64.split(',')[1] || '');
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+function xmlEsc(t) {
+  return String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/* پاراگراف راست‌به‌چپ */
+function wPara(text, opts) {
+  const o = opts || {};
+  const sz = o.size ? ('<w:sz w:val="' + o.size + '"/><w:szCs w:val="' + o.size + '"/>') : '';
+  const bold = o.bold ? '<w:b/><w:bCs/>' : '';
+  const color = o.color ? ('<w:color w:val="' + o.color + '"/>') : '';
+
+  return '<w:p><w:pPr><w:bidi/><w:jc w:val="right"/><w:spacing w:after="80"/></w:pPr>' +
+    '<w:r><w:rPr>' + bold + sz + color + '<w:rFonts w:ascii="Tahoma" w:hAnsi="Tahoma" w:cs="Tahoma"/><w:rtl/></w:rPr>' +
+    '<w:t xml:space="preserve">' + xmlEsc(text) + '</w:t></w:r></w:p>';
+}
+
+function wImage(relId, cx, cy, id) {
+  return '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:drawing>' +
+    '<wp:inline distT="0" distB="0" distL="0" distR="0">' +
+    '<wp:extent cx="' + cx + '" cy="' + cy + '"/>' +
+    '<wp:docPr id="' + id + '" name="Chart' + id + '"/>' +
+    '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+    '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+    '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+    '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="chart' + id + '.png"/><pic:cNvPicPr/></pic:nvPicPr>' +
+    '<pic:blipFill><a:blip r:embed="' + relId + '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
+    '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>' +
+    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>' +
+    '</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+}
+
+/* ساخت DOCX */
+function buildDocx(opts) {
+  const images = opts.images || [];
+  const paragraphs = opts.paragraphs || [];
+
+  let body = '';
+  paragraphs.forEach(t => { body += t; });
+
+  const media = [];
+  images.forEach((im, idx) => {
+    if (!im.data) return;
+    const relId = 'rId' + (100 + idx);
+    body += wImage(relId, 5486400, 2743200, idx + 1);
+    media.push({ idx: idx, relId: relId, data: im.data, name: 'chart' + (idx + 1) + '.png' });
+  });
+
+  const document = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
+    'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ' +
+    'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" ' +
+    'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ' +
+    'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+    '<w:body>' + body +
+    '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>' +
+    '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr>' +
+    '</w:body></w:document>';
+
+  const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+    '<Default Extension="xml" ContentType="application/xml"/>' +
+    '<Default Extension="png" ContentType="image/png"/>' +
+    '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+    '</Types>';
+
+  const rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>' +
+    '</Relationships>';
+
+  let docRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+
+  media.forEach(m => {
+    docRels += '<Relationship Id="' + m.relId + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/' + m.name + '"/>';
+  });
+  docRels += '</Relationships>';
+
+  const files = [
+    { name: '[Content_Types].xml', data: strBytes(contentTypes) },
+    { name: '_rels/.rels', data: strBytes(rels) },
+    { name: 'word/document.xml', data: strBytes(document) },
+    { name: 'word/_rels/document.xml.rels', data: strBytes(docRels) }
+  ];
+
+  media.forEach(m => {
+    files.push({ name: 'word/media/' + m.name, data: b64ToBytes(m.data) });
+  });
+
+  return new Blob([makeZip(files)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+}
+
+/* خروجی گزارش فعلی به DOCX همراه نمودارها */
+function exportSmartReportDocx() {
+  const cards = document.querySelectorAll('#view .sr-card');
+  const svgEls = Array.from(document.querySelectorAll('#view .sr-chart'));
+
+  const build = (imgs) => {
+    const title = (document.querySelector('#view .sr-card-title') || {}).textContent || 'گزارش';
+    const count = (document.querySelector('#view .sr-count') || {}).textContent || '';
+    const total = (document.querySelector('#view .sr-total') || {}).textContent || '';
+    const diff = (document.querySelector('#view .sr-diff') || {}).textContent || '';
+
+    const paras = [
+      wPara('MyC — میعاد ماندگار', { bold: true, size: 36, color: '4F46E5' }),
+      wPara('دفتر مالی شخصی', { size: 18, color: '666666' }),
+      wPara(title, { bold: true, size: 30 }),
+      wPara(count + '   ' + total, { size: 22 }),
+      diff ? wPara(diff, { size: 20, color: 'B91C1C' }) : '',
+      wPara('تاریخ تهیه: ' + (WEEK_NAMES[weekIndex(todayJdn())] || '') + ' ' + fa(todayJalali().jd) + ' ' + MONTHS[todayJalali().jm - 1] + ' ' + fa(todayJalali().jy), { size: 18, color: '777777' })
+    ];
+
+    const blob = buildDocx({ paragraphs: paras, images: imgs });
+    const name = 'MyC-report-' + Date.now() + '.docx';
+    saveBlobFile(blob, name);
+  };
+
+  if (!svgEls.length) { build([]); return; }
+
+  const out = [];
+  let pending = svgEls.length;
+
+  svgEls.forEach((svg, i) => {
+    svgToPng(svg, 2, dataUrl => {
+      if (dataUrl) out.push({ data: dataUrl });
+      pending -= 1;
+      if (pending === 0) build(out);
+    });
+  });
+}
+
+function saveBlobFile(blob, name) {
+  const path = wordPath();
+
+  try {
+    if (window.AndroidAqsat && window.AndroidAqsat.saveBase64File) {
+      const fr = new FileReader();
+      fr.onload = () => {
+        const b64 = String(fr.result).split(',')[1] || '';
+        const ok = AndroidAqsat.saveBase64File(b64, name);
+        if (ok) showWordSaved('Documents/' + name);
+        else fallbackBlob(blob, name, path);
+      };
+      fr.readAsDataURL(blob);
+      return;
+    }
+  } catch (e) { /* */ }
+
+  fallbackBlob(blob, name, path);
+}
+
+function fallbackBlob(blob, name, path) {
+  try {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    showWordSaved(path);
+  } catch (e) {
+    toast('ذخیرهٔ فایل ممکن نشد');
+  }
+}

@@ -401,6 +401,47 @@ public class MainActivity extends Activity {
             }
         }
 
+        /** ذخیرهٔ فایل باینری (Base64) در Documents */
+        @JavascriptInterface
+        public boolean saveBase64File(String base64, String fileName) {
+            try {
+                byte[] bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                values.put(MediaStore.MediaColumns.MIME_TYPE,
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOCUMENTS + "/MyC");
+                }
+
+                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (uri != null) {
+                    java.io.OutputStream out = getContentResolver().openOutputStream(uri);
+                    if (out != null) {
+                        out.write(bytes);
+                        out.flush();
+                        out.close();
+                        return true;
+                    }
+                }
+            } catch (Throwable ignored) { }
+
+            try {
+                java.io.File dir = new java.io.File(getExternalFilesDir(null), "docs");
+                if (!dir.exists()) dir.mkdirs();
+                java.io.File f = new java.io.File(dir, fileName);
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(f);
+                fos.write(android.util.Base64.decode(base64, android.util.Base64.DEFAULT));
+                fos.flush();
+                fos.close();
+                return true;
+            } catch (Throwable t) {
+                return false;
+            }
+        }
+
         /** ذخیرهٔ فایل پشتیبان در Documents/Back_Miaad (و در صورت خطا در Download/Back_Miaad) */
         @JavascriptInterface
         public boolean saveDocs(String fileName, String content) {
