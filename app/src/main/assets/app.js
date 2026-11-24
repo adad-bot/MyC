@@ -2540,23 +2540,11 @@ function buildDateCard() {
 
   const act = el('div', 'dc-act');
   const bFal = el('button', null, 'فال حافظ');
-  onTap(bFal, ev => { ev.stopPropagation(); openFal(); });
+  bFal.addEventListener('click', ev => { ev.stopPropagation(); openFal(); });
   const bAyah = el('button', null, 'آیه‌ای از قرآن');
-  onTap(bAyah, ev => { ev.stopPropagation(); openAyah(); });
+  bAyah.addEventListener('click', ev => { ev.stopPropagation(); openAyah(); });
   const bCal = el('button', null, 'تقویم و روزها');
-  bCal.addEventListener('click', ev => {
-    ev.stopPropagation();
-    const now = Date.now();
-
-    if (now - homeCalTap < 600) {
-      homeCalTap = 0;
-      openDateDlg(effToday());
-      return;
-    }
-
-    homeCalTap = now;
-    toast('برای باز کردن تقویم، دو بار بزن');
-  });
+  bCal.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(effToday()); });
   act.append(bFal, bAyah, bCal);
 
   const svcRow = el('div', 'svc-row');
@@ -3204,6 +3192,7 @@ $('svcCalc').addEventListener('click', () => {
 
 /* ---------- حالت لمس: تک یا دو کلیک ---------- */
 function dblTapOn() {
+  if (S.d && S.d.settings && S.d.settings.tapMode) return S.d.settings.tapMode !== 'single';
   return !(S.d && S.d.settings && S.d.settings.dblTap === false);
 }
 
@@ -3216,9 +3205,15 @@ function onTap(el, fn) {
     if (!dblTapOn()) { fn(ev); return; }
 
     const now = Date.now();
-    if (now - last < 420) { last = 0; fn(ev); return; }
+
+    if (now - last < 420) {
+      last = 0;
+      fn(ev);
+      return;
+    }
 
     last = now;
+    maybeSuggestSingleTap(el);
   });
 }
 
@@ -3304,6 +3299,128 @@ function initSearchBar() {
 }
 
 initSearchBar();
+
+
+/* ---------- پالت رنگی ---------- */
+const PALETTES = [
+  ['standard', 'استاندارد', '#4f46e5', '#7c3aed'],
+  ['ocean', 'اقیانوس', '#0e7490', '#0284c7'],
+  ['emerald', 'زمرد', '#047857', '#16a34a'],
+  ['sunset', 'غروب', '#c2410c', '#f59e0b'],
+  ['violet', 'بنفش', '#6d28d9', '#a855f7'],
+  ['turquoise', 'فیروزه', '#0f766e', '#06b6d4'],
+  ['wine', 'شرابی', '#9f1239', '#e11d48'],
+  ['slate', 'خاکستری', '#334155', '#64748b']
+];
+
+function applyPalette() {
+  const name = (S.d && S.d.settings && S.d.settings.palette) || 'standard';
+  document.documentElement.setAttribute('data-palette', name);
+
+  // اگر رنگ‌بندی فصلی روشن باشد، فصل اولویت دارد مگر تم «استاندارد» انتخاب شده باشد
+  if (typeof applySeason === 'function') applySeason();
+}
+
+function renderPaletteGrid() {
+  const box = $('paletteGrid');
+  if (!box) return;
+
+  const cur = (S.d && S.d.settings && S.d.settings.palette) || 'standard';
+  box.textContent = '';
+
+  for (const [id, label, c1, c2] of PALETTES) {
+    const b = el('button', 'pal-swatch' + (cur === id ? ' on' : ''));
+    b.type = 'button';
+    b.style.background = 'linear-gradient(135deg,' + c1 + ',' + c2 + ')';
+    b.appendChild(el('span', null, label));
+
+    b.addEventListener('click', () => {
+      S.d.settings.palette = id;
+      save();
+      applyPalette();
+      renderPaletteGrid();
+      render();
+      toast('تم «' + label + '» انتخاب شد');
+    });
+
+    box.appendChild(b);
+  }
+}
+
+/* ---------- حالت کلیک (تک/دو) ---------- */
+function tapMode() {
+  return (S.d && S.d.settings && S.d.settings.tapMode) || 'double';
+}
+
+function setTapModeUI() {
+  const seg = $('tapModeSeg');
+  if (!seg) return;
+
+  for (const b of seg.children) {
+    b.classList.toggle('on', b.dataset.tap === tapMode());
+  }
+}
+
+/* پیشنهاد تک‌کلیکی بعد از سه تلاش */
+let tapTries = { el: null, n: 0, t: 0 };
+
+function maybeSuggestSingleTap(el) {
+  if (tapMode() !== 'double') return;
+  if (!S.d || !S.d.settings || S.d.settings.tapHint === false) return;
+
+  const now = Date.now();
+
+  if (tapTries.el !== el || now - tapTries.t > 2600) {
+    tapTries = { el: el, n: 0, t: now };
+  }
+
+  tapTries.n += 1;
+  tapTries.t = now;
+
+  if (tapTries.n >= 3) {
+    tapTries = { el: null, n: 0, t: 0 };
+    showTapHint();
+  }
+}
+
+function showTapHint() {
+  let dlg = document.getElementById('tapHintDlg');
+
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'tapHintDlg';
+    dlg.innerHTML =
+      '<form method="dialog">' +
+      '<h2 style="text-align:center">یک کلیک کافی باشد؟</h2>' +
+      '<p class="hint" style="text-align:center">به نظر می‌رسد چند بار تک‌کلیک کردی. ' +
+      'می‌خواهی منوها با یک کلیک باز شوند؟</p>' +
+      '<div class="dact" style="flex-direction:column;gap:8px">' +
+      '<button type="button" class="primary block" id="tapYes">بله، تک‌کلیک کن</button>' +
+      '<button type="button" class="block" id="tapNo">نه، دو کلیک بماند</button>' +
+      '<button type="button" class="block" id="tapDont">دیگر پیشنهاد نده</button>' +
+      '</div></form>';
+    document.body.appendChild(dlg);
+
+    dlg.querySelector('#tapYes').addEventListener('click', () => {
+      S.d.settings.tapMode = 'single';
+      save(); setTapModeUI(); dlg.close();
+      toast('از این به بعد با یک کلیک باز می‌شود');
+    });
+
+    dlg.querySelector('#tapNo').addEventListener('click', () => dlg.close());
+
+    dlg.querySelector('#tapDont').addEventListener('click', () => {
+      S.d.settings.tapHint = false;
+      save();
+      const c = $('tapHintChk');
+      if (c) c.checked = false;
+      dlg.close();
+      toast('پیشنهاد غیرفعال شد');
+    });
+  }
+
+  dlg.showModal();
+}
 
 /* ---------- رنگ نوار سیستم (دکمه‌های پایین) ---------- */
 function syncSystemBars() {
@@ -5117,6 +5234,7 @@ function applyTheme() {
   if (meta) meta.setAttribute('content', dark ? '#0d1017' : '#f5f6fa');
 
   applySeason();
+  if (typeof applyPalette === 'function') applyPalette();
 }
 
 function setThemeSeg(value) {
@@ -5134,7 +5252,10 @@ function openSettings() {
   $('bioChk').checked = st.biometric !== false;
   $('seasonChk').checked = st.seasonal !== false;
   $('fxChk').checked = st.fx !== false;
-  if ($('dblTapChk')) $('dblTapChk').checked = st.dblTap !== false;
+  if ($('sharpChk')) $('sharpChk').checked = st.docSharpen === true;
+  if ($('tapHintChk')) $('tapHintChk').checked = st.tapHint !== false;
+  setTapModeUI();
+  renderPaletteGrid();
   $('chqDays').value = String(st.chqDays);
   $('genDays').value = String(st.genDays);
   setThemeSeg(st.theme || 'system');
@@ -5182,10 +5303,25 @@ $('fxChk').addEventListener('change', () => {
   toast($('fxChk').checked ? 'گرافیک و انیمیشن روشن شد' : 'گرافیک و انیمیشن خاموش شد');
 });
 
-$('dblTapChk').addEventListener('change', () => {
-  S.d.settings.dblTap = $('dblTapChk').checked;
+$('tapModeSeg').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-tap]');
+  if (!b) return;
+
+  S.d.settings.tapMode = b.dataset.tap;
   save();
-  toast($('dblTapChk').checked ? 'منوها با دو کلیک فعال می‌شوند' : 'منوها با یک کلیک فعال می‌شوند');
+  setTapModeUI();
+  toast(b.dataset.tap === 'single' ? 'منوها با یک کلیک باز می‌شوند' : 'منوها با دو کلیک باز می‌شوند');
+});
+
+$('sharpChk').addEventListener('change', () => {
+  S.d.settings.docSharpen = $('sharpChk').checked;
+  save();
+  toast($('sharpChk').checked ? 'تیزکردن تصویر روشن شد' : 'تیزکردن تصویر خاموش شد');
+});
+
+$('tapHintChk').addEventListener('change', () => {
+  S.d.settings.tapHint = $('tapHintChk').checked;
+  save();
 });
 
 $('bioChk').addEventListener('change', () => {
@@ -6596,15 +6732,35 @@ function enhanceDocument(canvas) {
     stretched[i] = Math.min(255, Math.max(0, (norm[i] - lo) * 255 / span));
   }
 
-  /* ۵) تیزکردن (unsharp mask) */
-  const soft = boxBlur(stretched, W, H, 2);
-  const amount = 0.65;
+  /* ۵) تیزکردن (اختیاری و تطبیقی: لبه‌ها بیشتر، نواحی صاف کمتر) */
+  const wantSharp = !!(S.d && S.d.settings && S.d.settings.docSharpen);
+  const soft = boxBlur(stretched, W, H, 3);
+  const soft2 = boxBlur(stretched, W, H, 1);
 
   for (let j = 0, i = 0; j < stretched.length; j++, i += 4) {
-    let v = stretched[j] + amount * (stretched[j] - soft[j]);
+    const v = stretched[j];
+    let vv = v;
+
+    if (wantSharp) {
+      const detail = v - soft[j];
+      const absD = Math.abs(detail);
+
+      let mask = (absD - 3) / 10;
+      mask = mask < 0 ? 0 : (mask > 1 ? 1 : mask);
+
+      const cap = 32;
+      let d2 = detail * (absD > cap ? cap / absD : 1);
+
+      const fine = Math.abs(v - soft2[j]);
+      if (fine < 2) d2 *= 0.35;
+
+      const amount = 0.08 + 0.34 * mask;
+      vv = v + amount * d2;
+      vv = vv < 0 ? 0 : (vv > 255 ? 255 : vv);
+    }
 
     /* انتقال جزئی به کانال‌های رنگی برای حفظ رنگ */
-    const ratio = lum[j] > 1 ? (v / lum[j]) : 1;
+    const ratio = lum[j] > 1 ? (vv / lum[j]) : 1;
     const r2 = Math.min(255, d[i] * ratio);
     const g2 = Math.min(255, d[i + 1] * ratio);
     const b2 = Math.min(255, d[i + 2] * ratio);

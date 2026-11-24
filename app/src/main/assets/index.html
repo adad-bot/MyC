@@ -517,7 +517,21 @@
     <label class="chk hidden" id="bioRow"><input type="checkbox" id="bioChk"> ورود با اثر انگشت</label>
     <label class="chk"><input type="checkbox" id="seasonChk"> رنگ‌بندی فصلی (بهار/تابستان/پاییز/زمستان)</label>
     <label class="chk"><input type="checkbox" id="fxChk"> گرافیک و انیمیشن (ریزش گل، برگ، برف)</label>
-    <label class="chk"><input type="checkbox" id="dblTapChk" checked> فعال‌سازی منوها با دو کلیک (پیش‌فرض روشن)</label>
+    <label class="chk"><input type="checkbox" id="sharpChk"> تیزکردن تصویر چک هنگام اسکن (پیش‌فرض: خاموش)</label>
+    <div>
+      <div class="k" style="margin-bottom:6px">حالت فعال‌سازی (به‌جز منوهای اصلی که همیشه تک‌کلیک‌اند)</div>
+      <div class="seg" id="tapModeSeg" style="margin:0">
+        <button type="button" data-tap="single">تک کلیک</button>
+        <button type="button" data-tap="double" class="on">دو کلیک</button>
+      </div>
+    </div>
+
+    <label class="chk"><input type="checkbox" id="tapHintChk" checked> اگر سه بار تک‌کلیک کردی، پیشنهاد تک‌کلیکی بده</label>
+
+    <div>
+      <div class="k" style="margin-bottom:6px">تم رنگی برنامه</div>
+      <div id="paletteGrid" class="palette-grid"></div>
+    </div>
     <div>
       <div class="k" style="display:flex;justify-content:space-between">
         <span>اندازهٔ فونت</span>

@@ -1853,3 +1853,25 @@ label .req, legend .req{
 #dateDlg #dateInfo,
 #dateDlg .dayrem,
 #dateDlg .appdate{position:relative;z-index:2}
+
+
+/* ================= پالت‌های رنگی ================= */
+/* استاندارد: رنگ‌های پیش‌فرض/فصلی دست نمی‌خورند */
+:root[data-palette="ocean"]{--brand:#0e7490;--brand2:#0284c7;--brand-soft:rgba(14,116,144,.13)}
+:root[data-palette="emerald"]{--brand:#047857;--brand2:#16a34a;--brand-soft:rgba(4,120,87,.13)}
+:root[data-palette="sunset"]{--brand:#c2410c;--brand2:#f59e0b;--brand-soft:rgba(194,65,12,.13)}
+:root[data-palette="violet"]{--brand:#6d28d9;--brand2:#a855f7;--brand-soft:rgba(109,40,217,.13)}
+:root[data-palette="turquoise"]{--brand:#0f766e;--brand2:#06b6d4;--brand-soft:rgba(15,118,110,.13)}
+:root[data-palette="wine"]{--brand:#9f1239;--brand2:#e11d48;--brand-soft:rgba(159,18,57,.13)}
+:root[data-palette="slate"]{--brand:#334155;--brand2:#64748b;--brand-soft:rgba(51,65,85,.13)}
+
+/* شبکهٔ انتخاب تم */
+.palette-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pal-swatch{
+  height:46px;border-radius:14px;border:2px solid transparent;
+  display:flex;align-items:flex-end;justify-content:center;
+  font-size:9px;font-weight:800;color:#fff;padding-bottom:4px;
+  box-shadow:0 3px 8px rgba(0,0,0,.12);
+}
+.pal-swatch.on{border-color:var(--ink);transform:scale(1.03)}
+.pal-swatch span{background:rgba(0,0,0,.28);padding:1px 5px;border-radius:6px}
