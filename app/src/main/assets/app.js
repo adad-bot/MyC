@@ -5708,7 +5708,7 @@ function renderSmartReport() {
 
   const bDet = el('button', 'btn', 'جزئیات');
   bDet.type = 'button';
-  bDet.addEventListener('click', () => openReportDetails(SR.topic === 'both' ? 'expense' : SR.topic, 'all'));
+  bDet.addEventListener('click', () => openSmartDetails());
 
   const bWord = el('button', 'btn primary', 'خروجی وورد');
   bWord.type = 'button';
@@ -8668,6 +8668,144 @@ function buildDocx(opts) {
 }
 
 /* خروجی گزارش فعلی به DOCX همراه نمودارها */
+
+/* ---------- جزئیات بر اساس انتخاب فعلی ---------- */
+function srPeriodText(y, m, yearly) {
+  return yearly ? ('سال ' + fa(y)) : (MONTHS[m - 1] + ' ' + fa(y));
+}
+
+function srDetailRows() {
+  const isYear = SR.type === 'year' || (SR.type === 'cmp' && SR.cmpYearly);
+  const rows = [];
+  let title = '';
+
+  const tName = { expense: 'هزینه', income: 'درآمد', both: 'هزینه و درآمد', cheques: 'چک‌ها', loans: 'اقساط', accounts: 'تعهدات' }[SR.topic];
+
+  if (SR.type === 'cmp') {
+    const A = { y: SR.y, m: SR.m };
+    const B = { y: SR.y2, m: SR.m2 };
+
+    if (SR.topic === 'expense' || SR.topic === 'income') {
+      title = 'مقایسهٔ ' + tName + ' — ' + srPeriodText(A.y, A.m, isYear) + ' با ' + srPeriodText(B.y, B.m, isYear);
+
+      for (const x of S.d.tx) {
+        if (x.type !== SR.topic) continue;
+        const ja = isYear ? x.jy === A.y : (x.jy === A.y && x.jm === A.m);
+        const jb = isYear ? x.jy === B.y : (x.jy === B.y && x.jm === B.m);
+        if (!ja && !jb) continue;
+        rows.push({
+          title: (x.cat || 'بدون دسته'),
+          meta: (ja ? srPeriodText(A.y, A.m, isYear) : srPeriodText(B.y, B.m, isYear)) + (x.note ? (' • ' + x.note) : ''),
+          amount: x.amount
+        });
+      }
+    } else if (SR.topic === 'cheques') {
+      title = 'مقایسهٔ چک‌ها — ' + srPeriodText(A.y, A.m, isYear) + ' با ' + srPeriodText(B.y, B.m, isYear);
+      srChequeRows(A.y, A.m, isYear, SR.chqSub).concat(srChequeRows(B.y, B.m, isYear, SR.chqSub)).forEach(c => {
+        rows.push({ title: c.party || 'بدون نام', meta: dateLabel(c) + ' • ' + (c.kind === 'in' ? 'دریافتی' : 'صادره'), amount: c.amount });
+      });
+    } else if (SR.topic === 'loans') {
+      title = 'مقایسهٔ اقساط — ' + srPeriodText(A.y, A.m, isYear) + ' با ' + srPeriodText(B.y, B.m, isYear);
+      srLoanRows(A.y, A.m, isYear, 'all').concat(srLoanRows(B.y, B.m, isYear, 'all')).forEach(r => {
+        rows.push({ title: r.loan.title, meta: fa(r.count) + ' قسط', amount: r.amount });
+      });
+    } else {
+      title = 'مقایسهٔ تعهدات — ' + srPeriodText(A.y, A.m, isYear) + ' با ' + srPeriodText(B.y, B.m, isYear);
+      srAccountRows(A.y, A.m, isYear, 'all').concat(srAccountRows(B.y, B.m, isYear, 'all')).forEach(a => {
+        rows.push({ title: a.name, meta: (a.kind === 'receivable' ? 'طلب' : 'بدهی'), amount: a.amount });
+      });
+    }
+
+    return { title: title, rows: rows };
+  }
+
+  title = tName + ' — ' + srPeriodText(SR.y, SR.m, isYear);
+
+  if (SR.topic === 'expense' || SR.topic === 'income' || SR.topic === 'both') {
+    for (const x of S.d.tx) {
+      if (SR.topic !== 'both' && x.type !== SR.topic) continue;
+      if (isYear ? x.jy !== SR.y : !(x.jy === SR.y && x.jm === SR.m)) continue;
+
+      rows.push({
+        title: (x.cat || 'بدون دسته') + (SR.topic === 'both' ? (x.type === 'income' ? ' (درآمد)' : ' (هزینه)') : ''),
+        meta: dateLabel(x) + (x.note ? (' • ' + x.note) : ''),
+        amount: x.amount
+      });
+    }
+  }
+
+  if (SR.topic === 'cheques') {
+    srChequeRows(SR.y, SR.m, isYear, SR.chqSub).forEach(c => {
+      rows.push({
+        title: c.party || 'بدون نام',
+        meta: dateLabel(c) + ' • ' + (c.kind === 'in' ? 'دریافتی' : 'صادره') + (c.bank ? (' • ' + c.bank) : ''),
+        amount: c.amount
+      });
+    });
+  }
+
+  if (SR.topic === 'loans') {
+    srLoanRows(SR.y, SR.m, isYear, 'all').forEach(r => {
+      rows.push({ title: r.loan.title, meta: fa(r.count) + ' قسط در این دوره', amount: r.amount });
+    });
+  }
+
+  if (SR.topic === 'accounts') {
+    srAccountRows(SR.y, SR.m, isYear, 'all').forEach(a => {
+      rows.push({ title: a.name, meta: (a.kind === 'receivable' ? 'طلب' : 'بدهی') + (a.due ? (' • ' + dateLabel(a.due)) : ''), amount: a.amount });
+    });
+  }
+
+  return { title: title, rows: rows };
+}
+
+function openSmartDetails() {
+  const data = srDetailRows();
+
+  let dlg = document.getElementById('srDetDlg');
+
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'srDetDlg';
+    dlg.innerHTML =
+      '<form method="dialog">' +
+      '<h2 style="text-align:center" id="srDetTitle"></h2>' +
+      '<div id="srDetSum" class="sr-det-sum"></div>' +
+      '<div id="srDetList" class="ev-list"></div>' +
+      '<div class="dact" style="flex-direction:column;gap:8px">' +
+      '<button type="button" class="btn primary block" id="srDetWord">خروجی وورد</button>' +
+      '<button type="button" class="block" id="srDetClose">بستن</button>' +
+      '</div></form>';
+    document.body.appendChild(dlg);
+
+    dlg.querySelector('#srDetClose').addEventListener('click', () => dlg.close());
+    dlg.querySelector('#srDetWord').addEventListener('click', () => exportSmartReportDocx());
+  }
+
+  dlg.querySelector('#srDetTitle').textContent = data.title;
+
+  const total = data.rows.reduce((s2, r) => s2 + r.amount, 0);
+  dlg.querySelector('#srDetSum').textContent = fa(data.rows.length) + ' مورد — جمع ' + money(total);
+
+  const list = dlg.querySelector('#srDetList');
+  list.textContent = '';
+
+  if (!data.rows.length) {
+    list.appendChild(el('div', 'empty', 'در این دوره موردی ثبت نشده است'));
+  }
+
+  data.rows.slice().sort((a, b) => b.amount - a.amount).forEach((r, idx) => {
+    const row = el('div', 'ev-item');
+    const t = el('div', 'ev-t');
+    t.appendChild(el('div', 'ev-name', fa(idx + 1) + '. ' + r.title));
+    if (r.meta) t.appendChild(el('div', 'ev-meta', r.meta));
+    row.append(t, el('div', 'ev-amt', NUM.format(r.amount)));
+    list.appendChild(row);
+  });
+
+  dlg.showModal();
+}
+
 function exportSmartReportDocx() {
   const cards = document.querySelectorAll('#view .sr-card');
   const svgEls = Array.from(document.querySelectorAll('#view .sr-chart'));
@@ -8678,14 +8816,21 @@ function exportSmartReportDocx() {
     const total = (document.querySelector('#view .sr-total') || {}).textContent || '';
     const diff = (document.querySelector('#view .sr-diff') || {}).textContent || '';
 
+    const det = srDetailRows();
+
     const paras = [
       wPara('MyC — میعاد ماندگار', { bold: true, size: 36, color: '4F46E5' }),
       wPara('دفتر مالی شخصی', { size: 18, color: '666666' }),
       wPara(title, { bold: true, size: 30 }),
       wPara(count + '   ' + total, { size: 22 }),
       diff ? wPara(diff, { size: 20, color: 'B91C1C' }) : '',
-      wPara('تاریخ تهیه: ' + (WEEK_NAMES[weekIndex(todayJdn())] || '') + ' ' + fa(todayJalali().jd) + ' ' + MONTHS[todayJalali().jm - 1] + ' ' + fa(todayJalali().jy), { size: 18, color: '777777' })
+      wPara('تاریخ تهیه: ' + (WEEK_NAMES[weekIndex(todayJdn())] || '') + ' ' + fa(todayJalali().jd) + ' ' + MONTHS[todayJalali().jm - 1] + ' ' + fa(todayJalali().jy), { size: 18, color: '777777' }),
+      wPara(' ', { size: 12 })
     ];
+
+    det.rows.slice(0, 60).forEach((r, idx) => {
+      paras.push(wPara((idx + 1) + '. ' + r.title + '  —  ' + r.meta + '  —  ' + NUM.format(r.amount) + ' تومان', { size: 18 }));
+    });
 
     const blob = buildDocx({ paragraphs: paras, images: imgs });
     const name = 'MyC-report-' + Date.now() + '.docx';
