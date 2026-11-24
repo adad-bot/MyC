@@ -5174,98 +5174,208 @@ function renderAccounts() {
 }
 
 
-/* ================= سیستم هوشمند گزارش‌ها ================= */
+/* ================= سیستم هوشمند گزارش‌ها (نسخهٔ ۳) ================= */
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const SR_PALETTE = ['#4f46e5', '#0e7490', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#65a30d'];
 
 const SR = {
-  topic: 'expense',
-  type: 'month',
-  cmp: 'month',
-  y: 0,
-  m: 0
+  topic: 'expense',      // expense | income | both | cheques | loans | accounts
+  type: 'month',         // month | year | cmp
+  y: 0, m: 0,            // دوره A
+  y2: 0, m2: 0,          // دوره B (مقایسه)
+  cmpYearly: false,      // مقایسهٔ سالانه
+  chqSub: 'all'
 };
 
-function srEnsure() {
+function srInit() {
   const now = todayJalali();
   if (!SR.y) { SR.y = now.jy; SR.m = now.jm; }
+  if (!SR.y2) {
+    const pm = SR.m === 1 ? 12 : SR.m - 1;
+    const py = SR.m === 1 ? SR.y - 1 : SR.y;
+    SR.y2 = py; SR.m2 = pm;
+  }
 }
 
-function srSeries(kind, y, m, isYear) {
+/* ---------- محاسبهٔ داده ---------- */
+function srMonthDays(y, m) { return monthLen(y, m); }
+
+function srTxSeries(kind, y, m, isYear) {
   const out = [];
+
   if (isYear) {
-    for (let mm = 1; mm <= 12; mm++) out.push({ label: MONTHS[mm - 1].slice(0, 4), v: 0, key: mm });
+    for (let mm = 1; mm <= 12; mm++) out.push({ label: MONTHS[mm - 1].slice(0, 4), v: 0 });
     for (const x of S.d.tx) {
       if (x.type !== kind || x.jy !== y) continue;
       out[x.jm - 1].v += x.amount;
     }
   } else {
-    const len = monthLen(y, m);
-    for (let d = 1; d <= len; d++) out.push({ label: String(d), v: 0, key: d });
+    const len = srMonthDays(y, m);
+    for (let d = 1; d <= len; d++) out.push({ label: String(d), v: 0 });
     for (const x of S.d.tx) {
       if (x.type !== kind || x.jy !== y || x.jm !== m) continue;
       out[x.jd - 1].v += x.amount;
     }
   }
+
   return out;
 }
 
-function srLineChart(seriesA, colorA, seriesB, colorB, height) {
-  const W = 320, H = height || 120, pad = 6;
+function srTxTotal(kind, y, m, isYear) {
+  let t = 0;
+  for (const x of S.d.tx) {
+    if (x.type !== kind) continue;
+    if (isYear ? x.jy === y : (x.jy === y && x.jm === m)) t += x.amount;
+  }
+  return t;
+}
 
-  const n = Math.max(seriesA.length, seriesB ? seriesB.length : 0);
+function srTxCount(kind, y, m, isYear) {
+  let n = 0;
+  for (const x of S.d.tx) {
+    if (x.type !== kind) continue;
+    if (isYear ? x.jy === y : (x.jy === y && x.jm === m)) n++;
+  }
+  return n;
+}
+
+function srInPeriod(jdn, y, m, isYear) {
+  const j = d2j(jdn);
+  return isYear ? (j.jy === y) : (j.jy === y && j.jm === m);
+}
+
+function srChequeRows(y, m, isYear, sub) {
+  const t = todayJdn();
+  const rows = [];
+
+  for (const c of S.d.cheques) {
+    if (sub === 'in' && c.kind !== 'in') continue;
+    if (sub === 'out' && c.kind !== 'out') continue;
+    if (sub === 'past' && !(jdnOf(c) < t)) continue;
+
+    if (y && !srInPeriod(jdnOf(c), y, m, isYear)) continue;
+
+    rows.push(c);
+  }
+
+  return rows.sort((a, b) => jdnOf(a) - jdnOf(b));
+}
+
+function srLoanRows(y, m, isYear, sub) {
+  const rows = [];
+
+  for (const l of S.d.loans) {
+    const inst = l.installments || [];
+    const settled = inst.length > 0 && inst.every(i => i.paid);
+
+    if (sub === 'settled' && !settled) continue;
+    if (sub === 'open' && settled) continue;
+
+    const due = inst.filter(i => !i.paid && (y ? srInPeriod(jdnOf(i), y, m, isYear) : true));
+    if (y && !due.length) continue;
+
+    const remain = due.reduce((s2, i) => s2 + i.amount, 0);
+    rows.push({ loan: l, amount: remain, count: due.length });
+  }
+
+  return rows;
+}
+
+function srAccountRows(y, m, isYear, sub) {
+  const rows = [];
+
+  for (const a of S.d.accounts) {
+    if (sub === 'receivable' && a.kind !== 'receivable') continue;
+    if (sub === 'payable' && a.kind !== 'payable') continue;
+    if (y && a.due && !srInPeriod(jdnOf(a.due), y, m, isYear)) continue;
+    rows.push(a);
+  }
+
+  return rows;
+}
+
+/* ---------- نقشهٔ دسته‌ها ---------- */
+function srCatMap(kind, y, m, isYear) {
+  const map = new Map();
+  for (const x of S.d.tx) {
+    if (x.type !== kind) continue;
+    if (isYear ? x.jy !== y : !(x.jy === y && x.jm === m)) continue;
+    const k = (x.cat || 'سایر').trim() || 'سایر';
+    map.set(k, (map.get(k) || 0) + x.amount);
+  }
+  return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+}
+
+/* ---------- نمودار خطی با محور ---------- */
+function srLineChart(series, height) {
+  const W = 340, H = height || 150;
+  const padL = 6, padR = 6, padT = 10, padB = 22;
+
+  const n = Math.max.apply(null, series.map(s2 => s2.data.length)) || 1;
   let max = 1;
-  seriesA.forEach(d => { if (d.v > max) max = d.v; });
-  if (seriesB) seriesB.forEach(d => { if (d.v > max) max = d.v; });
+  series.forEach(s2 => s2.data.forEach(d => { if (d.v > max) max = d.v; }));
 
-  const x = i => pad + (i * (W - pad * 2)) / Math.max(1, n - 1);
-  const y = v => H - pad - (v / max) * (H - pad * 2);
-
-  const path = arr => arr.map((d, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(d.v).toFixed(1)).join(' ');
+  const x = idx => padL + (idx * (W - padL - padR)) / Math.max(1, n - 1);
+  const y = v => H - padB - (v / max) * (H - padT - padB);
 
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
   svg.setAttribute('class', 'sr-chart');
 
-  const grid = document.createElementNS(SVG_NS, 'line');
-  grid.setAttribute('x1', pad); grid.setAttribute('x2', W - pad);
-  grid.setAttribute('y1', H - pad); grid.setAttribute('y2', H - pad);
-  grid.setAttribute('stroke', 'rgba(0,0,0,.12)');
-  svg.appendChild(grid);
+  /* خط پایه */
+  const base = document.createElementNS(SVG_NS, 'line');
+  base.setAttribute('x1', padL); base.setAttribute('x2', W - padR);
+  base.setAttribute('y1', H - padB); base.setAttribute('y2', H - padB);
+  base.setAttribute('stroke', 'rgba(0,0,0,.18)');
+  base.setAttribute('stroke-width', '1');
+  svg.appendChild(base);
 
-  if (seriesB) {
-    const pb = document.createElementNS(SVG_NS, 'path');
-    pb.setAttribute('d', path(seriesB));
-    pb.setAttribute('fill', 'none');
-    pb.setAttribute('stroke', colorB);
-    pb.setAttribute('stroke-width', '2');
-    pb.setAttribute('stroke-linejoin', 'round');
-    svg.appendChild(pb);
+  /* شبکهٔ افقی */
+  for (let g2 = 1; g2 <= 3; g2++) {
+    const gy = H - padB - (g2 / 4) * (H - padT - padB);
+    const l = document.createElementNS(SVG_NS, 'line');
+    l.setAttribute('x1', padL); l.setAttribute('x2', W - padR);
+    l.setAttribute('y1', gy); l.setAttribute('y2', gy);
+    l.setAttribute('stroke', 'rgba(0,0,0,.06)');
+    svg.appendChild(l);
   }
 
-  const pa = document.createElementNS(SVG_NS, 'path');
-  pa.setAttribute('d', path(seriesA));
-  pa.setAttribute('fill', 'none');
-  pa.setAttribute('stroke', colorA);
-  pa.setAttribute('stroke-width', '2.4');
-  pa.setAttribute('stroke-linejoin', 'round');
-  svg.appendChild(pa);
+  /* برچسب‌های محور X */
+  const labels = series[0].data;
+  const step = Math.max(1, Math.ceil(n / 12));
+
+  labels.forEach((d, idx) => {
+    if (idx % step !== 0 && idx !== n - 1) return;
+
+    const t = document.createElementNS(SVG_NS, 'text');
+    t.setAttribute('x', x(idx));
+    t.setAttribute('y', H - 6);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('font-size', '7.5');
+    t.setAttribute('fill', '#6b7280');
+    t.textContent = d.label;
+    svg.appendChild(t);
+  });
+
+  /* خطوط */
+  series.forEach(s2 => {
+    const path = s2.data.map((d, idx) => (idx ? 'L' : 'M') + x(idx).toFixed(1) + ' ' + y(d.v).toFixed(1)).join(' ');
+    const pth = document.createElementNS(SVG_NS, 'path');
+    pth.setAttribute('d', path);
+    pth.setAttribute('fill', 'none');
+    pth.setAttribute('stroke', s2.color);
+    pth.setAttribute('stroke-width', '2.2');
+    pth.setAttribute('stroke-linejoin', 'round');
+    pth.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(pth);
+  });
 
   return svg;
 }
 
-function srDonut(kind, y, m) {
-  const map = new Map();
-  for (const x of S.d.tx) {
-    if (x.type !== kind || x.jy !== y || x.jm !== m) continue;
-    const k = x.cat || 'سایر';
-    map.set(k, (map.get(k) || 0) + x.amount);
-  }
-
-  const rows = Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const total = rows.reduce((s2, r) => s2 + r[1], 0) || 1;
-
-  const R = 40, C = 2 * Math.PI * R;
+/* ---------- دونات ---------- */
+function srDonut(entries, size) {
+  const R = 42, C = 2 * Math.PI * R;
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', '0 0 110 110');
   svg.setAttribute('class', 'donut');
@@ -5275,12 +5385,14 @@ function srDonut(kind, y, m) {
   bg.setAttribute('class', 'donut-bg');
   svg.appendChild(bg);
 
+  const total = entries.reduce((s2, e) => s2 + e[1], 0) || 1;
   let acc = 0;
-  rows.forEach(([k, v], i) => {
+
+  entries.slice(0, 7).forEach(([k, v], idx) => {
     const frac = v / total;
     const arc = document.createElementNS(SVG_NS, 'circle');
     arc.setAttribute('cx', 55); arc.setAttribute('cy', 55); arc.setAttribute('r', R);
-    arc.setAttribute('stroke', SR_PALETTE[i % SR_PALETTE.length]);
+    arc.setAttribute('stroke', SR_PALETTE[idx % SR_PALETTE.length]);
     arc.setAttribute('class', 'donut-arc');
     arc.setAttribute('stroke-dasharray', (frac * C).toFixed(2) + ' ' + C.toFixed(2));
     arc.setAttribute('stroke-dashoffset', (-acc * C).toFixed(2));
@@ -5292,194 +5404,311 @@ function srDonut(kind, y, m) {
   return svg;
 }
 
-function srMoneySum(kind, y, m, isYear) {
-  let t = 0;
-  for (const x of S.d.tx) {
-    if (x.type !== kind) continue;
-    if (isYear ? x.jy !== y : (x.jy === y && x.jm === m)) t += x.amount;
-  }
-  return t;
+function srLegend(entries) {
+  const box = el('div', 'sr-legend small');
+  entries.slice(0, 7).forEach(([k, v], idx) => {
+    const it = el('span', 'lg');
+    const dot = el('i');
+    dot.style.background = SR_PALETTE[idx % SR_PALETTE.length];
+    it.appendChild(dot);
+    it.appendChild(document.createTextNode(k));
+    box.appendChild(it);
+  });
+  return box;
 }
 
+/* ---------- انتخاب‌گر دوره ---------- */
+function srPeriodPickers(label, y, m, isYear, onChange) {
+  const row = el('div', 'sr-bar');
+
+  const yf = el('div', 'sr-field');
+  yf.appendChild(el('div', 'sr-lbl', label + ' — سال'));
+  const ys = document.createElement('select');
+  const now = todayJalali().jy;
+  for (let i = now; i >= now - 10; i--) ys.add(new Option(fa(i), String(i)));
+  ys.value = String(y);
+  ys.addEventListener('change', () => onChange(Number(ys.value), m));
+  yf.appendChild(ys);
+  row.appendChild(yf);
+
+  if (!isYear) {
+    const mf = el('div', 'sr-field');
+    mf.appendChild(el('div', 'sr-lbl', 'ماه'));
+    const ms = document.createElement('select');
+    MONTHS.forEach((nm, idx) => ms.add(new Option(nm, String(idx + 1))));
+    ms.value = String(m);
+    ms.addEventListener('change', () => onChange(y, Number(ms.value)));
+    mf.appendChild(ms);
+    row.appendChild(mf);
+  }
+
+  return row;
+}
+
+/* ---------- رندر ---------- */
 function renderSmartReport() {
-  srEnsure();
+  srInit();
   view.textContent = '';
 
   const head = el('div', 'sr-head');
   head.appendChild(el('div', 'sr-title', 'سیستم هوشمند گزارش‌ها'));
-  head.appendChild(el('div', 'sr-sub', 'موضوع و نوع گزارش را انتخاب کن'));
+  head.appendChild(el('div', 'sr-sub', 'موضوع و دوره را انتخاب کن؛ نمودارها خودکار رسم می‌شوند'));
   view.appendChild(head);
 
-  const bar = el('div', 'sr-bar');
+  /* موضوع */
+  const bar1 = el('div', 'sr-bar');
 
-  /* انتخاب موضوع */
-  const topicWrap = el('div', 'sr-field');
-  topicWrap.appendChild(el('div', 'sr-lbl', 'انتخاب موضوع'));
-  const topicSel = document.createElement('select');
-  [['expense', 'هزینه'], ['income', 'درآمد'], ['cheques', 'چک‌ها'], ['loans', 'اقساط'], ['accounts', 'تعهدات']]
-    .forEach(([v, t]) => topicSel.add(new Option(t, v)));
-  topicSel.value = SR.topic;
-  topicSel.addEventListener('change', () => { SR.topic = topicSel.value; render(); });
-  topicWrap.appendChild(topicSel);
+  const tf = el('div', 'sr-field');
+  tf.appendChild(el('div', 'sr-lbl', 'انتخاب موضوع'));
+  const ts = document.createElement('select');
+  [
+    ['expense', 'هزینه'], ['income', 'درآمد'], ['both', 'هزینه و درآمد'],
+    ['cheques', 'چک‌ها'], ['loans', 'اقساط'], ['accounts', 'تعهدات']
+  ].forEach(([v, t]) => ts.add(new Option(t, v)));
+  ts.value = SR.topic;
+  ts.addEventListener('change', () => { SR.topic = ts.value; render(); });
+  tf.appendChild(ts);
 
-  /* نوع گزارش */
-  const typeWrap = el('div', 'sr-field');
-  typeWrap.appendChild(el('div', 'sr-lbl', 'نوع گزارش'));
-  const typeSel = document.createElement('select');
-  [['month', 'ماهیانه'], ['year', 'سالیانه'], ['cmp', 'مقایسه‌ای']]
-    .forEach(([v, t]) => typeSel.add(new Option(t, v)));
-  typeSel.value = SR.type;
-  typeSel.addEventListener('change', () => { SR.type = typeSel.value; render(); });
-  typeWrap.appendChild(typeSel);
+  const gf = el('div', 'sr-field');
+  gf.appendChild(el('div', 'sr-lbl', 'نوع گزارش'));
+  const gs = document.createElement('select');
+  [['month', 'ماهیانه'], ['year', 'سالیانه'], ['cmp', 'مقایسه‌ای']].forEach(([v, t]) => gs.add(new Option(t, v)));
+  gs.value = SR.type;
+  gs.addEventListener('change', () => { SR.type = gs.value; render(); });
+  gf.appendChild(gs);
 
-  bar.append(topicWrap, typeWrap);
-  view.appendChild(bar);
+  bar1.append(tf, gf);
+  view.appendChild(bar1);
 
-  /* انتخاب ماه/سال */
-  if (SR.type !== 'year') {
-    const mw = el('div', 'sr-bar');
-    const mf = el('div', 'sr-field');
-    mf.appendChild(el('div', 'sr-lbl', 'ماه'));
-    const ms = document.createElement('select');
-    MONTHS.forEach((n, i) => ms.add(new Option(n, String(i + 1))));
-    ms.value = String(SR.m);
-    ms.addEventListener('change', () => { SR.m = Number(ms.value); render(); });
-    mf.appendChild(ms);
+  const isYear = SR.type === 'year' || (SR.type === 'cmp' && SR.cmpYearly);
 
-    const yf = el('div', 'sr-field');
-    yf.appendChild(el('div', 'sr-lbl', 'سال'));
-    const ys = document.createElement('select');
-    const now = todayJalali().jy;
-    for (let i = now; i >= now - 8; i--) ys.add(new Option(fa(i), String(i)));
-    ys.value = String(SR.y);
-    ys.addEventListener('change', () => { SR.y = Number(ys.value); render(); });
-    yf.appendChild(ys);
-
-    mw.append(mf, yf);
-    view.appendChild(mw);
-  } else {
-    const yf = el('div', 'sr-field');
-    yf.appendChild(el('div', 'sr-lbl', 'سال'));
-    const ys = document.createElement('select');
-    const now = todayJalali().jy;
-    for (let i = now; i >= now - 8; i--) ys.add(new Option(fa(i), String(i)));
-    ys.value = String(SR.y);
-    ys.addEventListener('change', () => { SR.y = Number(ys.value); render(); });
-    yf.appendChild(ys);
-    view.appendChild(yf);
-  }
-
-  /* مقایسه: ماه قبل / سال قبل */
+  /* انتخاب دوره‌ها */
   if (SR.type === 'cmp') {
     const cw = el('div', 'sr-field');
-    cw.appendChild(el('div', 'sr-lbl', 'مقایسه با'));
+    cw.appendChild(el('div', 'sr-lbl', 'مقایسه'));
     const cs = document.createElement('select');
-    [['month', 'ماه قبل'], ['year', 'همین ماه سال قبل']].forEach(([v, t]) => cs.add(new Option(t, v)));
-    cs.value = SR.cmp;
-    cs.addEventListener('change', () => { SR.cmp = cs.value; render(); });
+    [['0', 'ماه با ماه'], ['1', 'سال با سال']].forEach(([v, t]) => cs.add(new Option(t, v)));
+    cs.value = SR.cmpYearly ? '1' : '0';
+    cs.addEventListener('change', () => { SR.cmpYearly = cs.value === '1'; render(); });
     cw.appendChild(cs);
     view.appendChild(cw);
+
+    view.appendChild(srPeriodPickers('دورهٔ اول', SR.y, SR.m, SR.cmpYearly, (yy, mm) => { SR.y = yy; SR.m = mm; render(); }));
+    view.appendChild(srPeriodPickers('دورهٔ دوم', SR.y2, SR.m2, SR.cmpYearly, (yy, mm) => { SR.y2 = yy; SR.m2 = mm; render(); }));
+  } else if (isYear) {
+    view.appendChild(srPeriodPickers('سال', SR.y, SR.m, true, (yy) => { SR.y = yy; render(); }));
+  } else {
+    view.appendChild(srPeriodPickers('دوره', SR.y, SR.m, false, (yy, mm) => { SR.y = yy; SR.m = mm; render(); }));
   }
 
-  const isYear = SR.type === 'year';
-  const isMoney = (SR.topic === 'expense' || SR.topic === 'income');
+  /* زیرنوع چک */
+  if (SR.topic === 'cheques') {
+    const cf = el('div', 'sr-field');
+    cf.appendChild(el('div', 'sr-lbl', 'نوع چک'));
+    const cs = document.createElement('select');
+    [['all', 'همهٔ چک‌ها'], ['in', 'دریافتی'], ['out', 'صادره'], ['past', 'تاریخ‌گذشته']].forEach(([v, t]) => cs.add(new Option(t, v)));
+    cs.value = SR.chqSub;
+    cs.addEventListener('change', () => { SR.chqSub = cs.value; render(); });
+    cf.appendChild(cs);
+    view.appendChild(cf);
+  }
 
-  /* عنوان گزارش */
+  /* ---------- کارت ---------- */
+  const card = el('div', 'card pad sr-card');
+
+  const periodLabel = (y, m, yearly) => yearly ? ('سال ' + fa(y)) : (MONTHS[m - 1] + ' ' + fa(y));
+
   const titleText = (() => {
-    const t = SR.topic === 'expense' ? 'هزینه' : SR.topic === 'income' ? 'درآمد'
-      : SR.topic === 'cheques' ? 'چک‌ها' : SR.topic === 'loans' ? 'اقساط' : 'تعهدات';
-
-    if (SR.type === 'cmp') return 'گزارش مقایسه‌ای ' + t;
-    if (isYear) return 'گزارش سالیانه ' + t + ' — سال ' + fa(SR.y);
-    return 'گزارش ماهیانه ' + t + ' — ' + MONTHS[SR.m - 1] + ' ' + fa(SR.y);
+    const t = { expense: 'هزینه', income: 'درآمد', both: 'هزینه و درآمد', cheques: 'چک‌ها', loans: 'اقساط', accounts: 'تعهدات' }[SR.topic];
+    if (SR.type === 'cmp') {
+      return 'مقایسهٔ ' + t + ' — ' + periodLabel(SR.y, SR.m, SR.cmpYearly) + ' با ' + periodLabel(SR.y2, SR.m2, SR.cmpYearly);
+    }
+    if (isYear) return t + ' سالیانه — ' + periodLabel(SR.y, SR.m, true);
+    return t + ' ماهیانه — ' + periodLabel(SR.y, SR.m, false);
   })();
 
-  const card = el('div', 'card pad sr-card');
   card.appendChild(el('div', 'sr-card-title', titleText));
 
-  if (isMoney) {
-    const cur = srMoneySum(SR.topic, SR.y, SR.m, isYear);
+  const chartBox = el('div', 'sr-chart-box');
 
-    let prevY = SR.y, prevM = SR.m;
-    if (SR.type === 'cmp') {
-      if (SR.cmp === 'year') { prevY = SR.y - 1; }
-      else { prevM = SR.m === 1 ? 12 : SR.m - 1; prevY = SR.m === 1 ? SR.y - 1 : SR.y; }
+  const drawMoney = (kind, y, m, yearly, label, color) => {
+    const ser = srTxSeries(kind, y, m, yearly);
+    const tot = srTxTotal(kind, y, m, yearly);
+    const cnt = srTxCount(kind, y, m, yearly);
+
+    const head2 = el('div', 'sr-block');
+    head2.appendChild(el('div', 'sr-block-t', label));
+    head2.appendChild(el('div', 'sr-count', fa(cnt) + ' مورد — جمع ' + money(tot)));
+    chartBox.appendChild(head2);
+
+    chartBox.appendChild(srLineChart([{ data: ser, color: color }], 150));
+
+    const cats = srCatMap(kind, y, m, yearly);
+    if (cats.length) {
+      const dd = el('div', 'sr-donut-wrap');
+      dd.appendChild(srDonut(cats));
+      const right = el('div', 'sr-donut-side');
+      right.appendChild(srLegend(cats));
+      dd.appendChild(right);
+      chartBox.appendChild(dd);
     }
 
-    const prev = SR.type === 'cmp' ? srMoneySum(SR.topic, prevY, prevM, isYear) : 0;
+    return { total: tot, count: cnt };
+  };
 
-    const cnt = SR.topic === 'expense'
-      ? S.d.tx.filter(x => x.type === 'expense' && (isYear ? x.jy === SR.y : (x.jy === SR.y && x.jm === SR.m))).length
-      : S.d.tx.filter(x => x.type === 'income' && (isYear ? x.jy === SR.y : (x.jy === SR.y && x.jm === SR.m))).length;
+  if (SR.type === 'cmp') {
+    if (SR.topic === 'expense' || SR.topic === 'income') {
+      const a = srTxSeries(SR.topic, SR.y, SR.m, SR.cmpYearly);
+      const b = srTxSeries(SR.topic, SR.y2, SR.m2, SR.cmpYearly);
 
-    card.appendChild(el('div', 'sr-count', fa(cnt) + ' مورد وجود دارد'));
-    card.appendChild(el('div', 'sr-total', 'جمع: ' + money(cur)));
+      chartBox.appendChild(srLineChart([
+        { data: b, color: '#dc2626' },
+        { data: a, color: '#16a34a' }
+      ], 160));
 
-    if (SR.type === 'cmp') {
-      card.appendChild(el('div', 'sr-total sm', 'دورهٔ مقایسه: ' + money(prev)));
+      const lg = el('div', 'sr-legend');
+      const l1 = el('span', 'lg red'); l1.appendChild(el('i')); l1.appendChild(document.createTextNode(periodLabel(SR.y2, SR.m2, SR.cmpYearly)));
+      const l2 = el('span', 'lg green'); l2.appendChild(el('i')); l2.appendChild(document.createTextNode(periodLabel(SR.y, SR.m, SR.cmpYearly)));
+      lg.append(l1, l2);
+      chartBox.appendChild(lg);
 
-      const diff = cur - prev;
-      const pct = prev > 0 ? Math.round(diff / prev * 100) : 0;
-      const line = el('div', 'sr-diff ' + (diff >= 0 ? 'up' : 'down'),
-        (diff >= 0 ? '▲ ' : '▼ ') + fa(Math.abs(pct)) + '٪ ' + (diff >= 0 ? 'افزایش' : 'کاهش') +
-        ' نسبت به ' + (SR.cmp === 'year' ? 'سال گذشته' : 'ماه قبل'));
-      card.appendChild(line);
-    }
+      const ta = srTxTotal(SR.topic, SR.y, SR.m, SR.cmpYearly);
+      const tb = srTxTotal(SR.topic, SR.y2, SR.m2, SR.cmpYearly);
 
-    /* نمودار خطی */
-    const serA = srSeries(SR.topic, SR.y, SR.m, isYear);
-    let chartBox = el('div', 'sr-chart-box');
+      card.appendChild(chartBox);
 
-    if (SR.type === 'cmp') {
-      const serB = srSeries(SR.topic, prevY, prevM, isYear);
-      chartBox.appendChild(srLineChart(serA, '#16a34a', serB, '#dc2626', 130));
+      const diff = ta - tb;
+      const pct = tb > 0 ? Math.round(diff / tb * 100) : 0;
+      card.appendChild(el('div', 'sr-diff ' + (diff >= 0 ? 'up' : 'down'),
+        (diff >= 0 ? '▲ ' : '▼ ') + fa(Math.abs(pct)) + '٪ ' + (diff >= 0 ? 'افزایش' : 'کاهش') + ' نسبت به دورهٔ دوم'));
 
-      const leg = el('div', 'sr-legend');
-      const l1 = el('span', 'lg green'); l1.appendChild(el('i')); l1.appendChild(document.createTextNode(MONTHS[(prevM - 1)] + ' ' + fa(prevY)));
-      const l2 = el('span', 'lg red'); l2.appendChild(el('i')); l2.appendChild(document.createTextNode(MONTHS[SR.m - 1] + ' ' + fa(SR.y)));
-      leg.append(l1, l2);
-      chartBox.appendChild(leg);
-
-      /* دو دونات */
       const row = el('div', 'donut-row');
-      const b1 = el('div', 'donut-block');
-      b1.appendChild(el('div', 'donut-cap', MONTHS[prevM - 1] + ' ' + fa(prevY)));
-      b1.appendChild(srDonut(SR.topic, prevY, prevM));
-      const b2 = el('div', 'donut-block');
-      b2.appendChild(el('div', 'donut-cap', MONTHS[SR.m - 1] + ' ' + fa(SR.y)));
-      b2.appendChild(srDonut(SR.topic, SR.y, SR.m));
-      row.append(b1, b2);
-      chartBox.appendChild(row);
+      [[SR.y2, SR.m2, 'دورهٔ دوم'], [SR.y, SR.m, 'دورهٔ اول']].forEach(([yy, mm, lab]) => {
+        const blk = el('div', 'donut-block');
+        blk.appendChild(el('div', 'donut-cap', lab + ' · ' + periodLabel(yy, mm, SR.cmpYearly)));
+        blk.appendChild(srDonut(srCatMap(SR.topic, yy, mm, SR.cmpYearly)));
+        row.appendChild(blk);
+      });
+      card.appendChild(row);
     } else {
-      chartBox.appendChild(srLineChart(serA, '#4f46e5', null, null, 130));
-      chartBox.appendChild(el('div', 'sr-hint', isYear ? 'نمودار ماهیانه' : 'نمودار روزانه'));
+      const rowsA = SR.topic === 'cheques' ? srChequeRows(SR.y, SR.m, SR.cmpYearly, SR.chqSub)
+        : SR.topic === 'loans' ? srLoanRows(SR.y, SR.m, SR.cmpYearly, 'all')
+          : srAccountRows(SR.y, SR.m, SR.cmpYearly, 'all');
+
+      const rowsB = SR.topic === 'cheques' ? srChequeRows(SR.y2, SR.m2, SR.cmpYearly, SR.chqSub)
+        : SR.topic === 'loans' ? srLoanRows(SR.y2, SR.m2, SR.cmpYearly, 'all')
+          : srAccountRows(SR.y2, SR.m2, SR.cmpYearly, 'all');
+
+      const sum = arr => arr.reduce((s2, r) => s2 + (r.amount !== undefined ? r.amount : r.amount), 0);
+
+      card.appendChild(chartBox);
+      card.appendChild(el('div', 'sr-count', 'دورهٔ اول: ' + fa(rowsA.length) + ' مورد — جمع ' + money(sum(rowsA))));
+      card.appendChild(el('div', 'sr-count', 'دورهٔ دوم: ' + fa(rowsB.length) + ' مورد — جمع ' + money(sum(rowsB))));
     }
+  } else if (SR.topic === 'both') {
+    const incSer = srTxSeries('income', SR.y, SR.m, isYear);
+    const expSer = srTxSeries('expense', SR.y, SR.m, isYear);
+
+    chartBox.appendChild(srLineChart([
+      { data: expSer, color: '#dc2626' },
+      { data: incSer, color: '#16a34a' }
+    ], 160));
+
+    const lg = el('div', 'sr-legend');
+    const l1 = el('span', 'lg red'); l1.appendChild(el('i')); l1.appendChild(document.createTextNode('هزینه'));
+    const l2 = el('span', 'lg green'); l2.appendChild(el('i')); l2.appendChild(document.createTextNode('درآمد'));
+    lg.append(l1, l2);
+    chartBox.appendChild(lg);
 
     card.appendChild(chartBox);
-  } else {
-    /* چک/اقساط/تعهدات */
-    const data = reportItems(SR.topic, 'all');
-    card.appendChild(el('div', 'sr-count', fa(data.rows.length) + ' مورد وجود دارد'));
-    card.appendChild(el('div', 'sr-total', 'جمع: ' + money(data.total)));
 
-    const list = el('div', 'ev-list');
-    data.rows.slice(0, 12).forEach((r, i) => {
-      const row = el('div', 'ev-item');
-      const t = el('div', 'ev-t');
-      t.appendChild(el('div', 'ev-name', fa(i + 1) + '. ' + r.t));
-      if (r.s) t.appendChild(el('div', 'ev-meta', r.s));
-      row.append(t, el('div', 'ev-amt', NUM.format(r.a)));
-      list.appendChild(row);
+    const iT = srTxTotal('income', SR.y, SR.m, isYear);
+    const eT = srTxTotal('expense', SR.y, SR.m, isYear);
+    card.appendChild(el('div', 'sr-count', 'درآمد: ' + money(iT) + ' — هزینه: ' + money(eT)));
+    card.appendChild(el('div', 'sr-total', 'مانده: ' + money(iT - eT)));
+
+    const row = el('div', 'donut-row');
+    [['درآمد', 'income'], ['هزینه', 'expense']].forEach(([lab, kind]) => {
+      const blk = el('div', 'donut-block');
+      blk.appendChild(el('div', 'donut-cap', lab));
+      blk.appendChild(srDonut(srCatMap(kind, SR.y, SR.m, isYear)));
+      row.appendChild(blk);
     });
-    card.appendChild(list);
+    card.appendChild(row);
+  } else if (SR.topic === 'expense' || SR.topic === 'income') {
+    const r = drawMoney(SR.topic, SR.y, SR.m, isYear,
+      SR.topic === 'expense' ? 'هزینه‌ها' : 'درآمدها',
+      SR.topic === 'expense' ? '#dc2626' : '#16a34a');
+
+    card.appendChild(chartBox);
+    card.appendChild(el('div', 'sr-total', 'جمع کل: ' + money(r.total)));
+  } else {
+    card.appendChild(chartBox);
+
+    if (SR.topic === 'cheques') {
+      const rows = srChequeRows(SR.y, SR.m, isYear, SR.chqSub);
+      const total = rows.reduce((s2, c) => s2 + c.amount, 0);
+
+      card.appendChild(el('div', 'sr-count', fa(rows.length) + ' چک در این دوره'));
+      card.appendChild(el('div', 'sr-total', 'جمع: ' + money(total)));
+
+      const list = el('div', 'ev-list');
+      rows.slice(0, 15).forEach((c, idx) => {
+        const row = el('div', 'ev-item');
+        const tt = el('div', 'ev-t');
+        tt.appendChild(el('div', 'ev-name', fa(idx + 1) + '. ' + (c.party || 'بدون نام')));
+        tt.appendChild(el('div', 'ev-meta', dateLabel(c) + ' • ' + (c.kind === 'in' ? 'دریافتی' : 'صادره')));
+        row.append(tt, el('div', 'ev-amt', NUM.format(c.amount)));
+        list.appendChild(row);
+      });
+      card.appendChild(list);
+    }
+
+    if (SR.topic === 'loans') {
+      const rows = srLoanRows(SR.y, SR.m, isYear, 'all');
+      const total = rows.reduce((s2, r) => s2 + r.amount, 0);
+
+      card.appendChild(el('div', 'sr-count', fa(rows.length) + ' وام در این دوره'));
+      card.appendChild(el('div', 'sr-total', 'جمع اقساط: ' + money(total)));
+
+      const list = el('div', 'ev-list');
+      rows.slice(0, 15).forEach((r, idx) => {
+        const row = el('div', 'ev-item');
+        const tt = el('div', 'ev-t');
+        tt.appendChild(el('div', 'ev-name', fa(idx + 1) + '. ' + r.loan.title));
+        tt.appendChild(el('div', 'ev-meta', fa(r.count) + ' قسط در این دوره'));
+        row.append(tt, el('div', 'ev-amt', NUM.format(r.amount)));
+        list.appendChild(row);
+      });
+      card.appendChild(list);
+    }
+
+    if (SR.topic === 'accounts') {
+      const rows = srAccountRows(SR.y, SR.m, isYear, 'all');
+      const total = rows.reduce((s2, a) => s2 + a.amount, 0);
+
+      card.appendChild(el('div', 'sr-count', fa(rows.length) + ' مورد'));
+      card.appendChild(el('div', 'sr-total', 'جمع: ' + money(total)));
+
+      const list = el('div', 'ev-list');
+      rows.slice(0, 15).forEach((a, idx) => {
+        const row = el('div', 'ev-item');
+        const tt = el('div', 'ev-t');
+        tt.appendChild(el('div', 'ev-name', fa(idx + 1) + '. ' + a.name));
+        tt.appendChild(el('div', 'ev-meta', (a.kind === 'receivable' ? 'طلب' : 'بدهی') + (a.due ? (' • ' + dateLabel(a.due)) : '')));
+        row.append(tt, el('div', 'ev-amt', NUM.format(a.amount)));
+        list.appendChild(row);
+      });
+      card.appendChild(list);
+    }
   }
 
   const btns = el('div', 'row-btns');
-  btns.style.marginTop = '10px';
+  btns.style.marginTop = '12px';
 
   const bDet = el('button', 'btn', 'جزئیات');
   bDet.type = 'button';
-  bDet.addEventListener('click', () => openReportDetails(SR.topic, 'all'));
+  bDet.addEventListener('click', () => openReportDetails(SR.topic === 'both' ? 'expense' : SR.topic, 'all'));
 
   const bWord = el('button', 'btn primary', 'خروجی وورد');
   bWord.type = 'button';

@@ -2061,3 +2061,23 @@ label .req, legend .req{
 #view > .sr-bar + .sr-field{margin-bottom:10px}
 #view .ev-list{margin-top:10px;max-height:none}
 #view .ev-item{border-radius:12px}
+
+/* ===== گزارش: متن‌ها وسط باکس ===== */
+#view .sr-card-title,
+#view .sr-count,
+#view .sr-total,
+#view .sr-diff,
+#view .sr-block-t{text-align:center}
+#view .sr-card-title{display:block;width:100%}
+#view .sr-block{margin-top:10px;text-align:center}
+#view .sr-block-t{font-size:12.5px;font-weight:900;color:var(--brand)}
+#view .sr-donut-wrap{display:flex;align-items:center;gap:10px;margin-top:10px}
+#view .sr-donut-wrap .donut{width:110px;height:110px;flex:0 0 auto}
+#view .sr-donut-side{flex:1;min-width:0}
+#view .sr-legend.small{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+#view .sr-legend.small .lg{font-size:10px}
+#view .sr-legend .lg i{width:9px;height:9px;border-radius:3px;display:inline-block;margin-inline-end:3px}
+#view .sr-legend .lg.red i{background:#dc2626}
+#view .sr-legend .lg.green i{background:#16a34a}
+#view .sr-field > .sr-lbl{text-align:center}
+#view .sr-field select{text-align:center}
