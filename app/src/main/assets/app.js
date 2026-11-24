@@ -1372,6 +1372,17 @@ $('imgDlgSave').addEventListener('click', () => {
   const name = 'MyC-cheque-' + Date.now() + '.jpg';
   const b64 = src.split(',')[1] || '';
 
+  const bridge = !!(window.AndroidAqsat && window.AndroidAqsat.saveImage);
+  if (!bridge && !/^https?:/.test(location.protocol)) {
+    // داخل اپ هستیم ولی پل بومی نیست → نسخهٔ قدیمی
+    try {
+      showHelp('ذخیرهٔ تصویر ممکن نشد',
+        'نسخهٔ نصب‌شدهٔ اپ قدیمی است و قابلیت ذخیرهٔ تصویر را ندارد.\n\n' +
+        'آخرین نسخه را نصب کن؛ بعد از آن دکمهٔ «ذخیرهٔ تصویر» کار می‌کند.');
+    } catch (e) { toast('نسخهٔ اپ قدیمی است'); }
+    return;
+  }
+
   // ۱) اپ اندروید
   try {
     if (window.AndroidAqsat && AndroidAqsat.saveImage && b64) {
@@ -1403,7 +1414,14 @@ $('imgDlgSave').addEventListener('click', () => {
     }
   } catch (e) { /* */ }
 
-  toast('ذخیره نشد؛ از دکمهٔ «اشتراک» استفاده کن');
+  try {
+    showHelp('ذخیرهٔ تصویر ممکن نشد',
+      'هیچ‌کدام از مسیرهای ذخیره باز نشد.\n\n' +
+      '۱) دکمهٔ «اشتراک/ذخیره در گالری» را بزن و از پنجرهٔ سیستم ذخیره کن.\n' +
+      '۲) یا از تصویر اسکرین‌شات بگیر.');
+  } catch (e) {
+    toast('ذخیره نشد؛ از دکمهٔ «اشتراک» استفاده کن');
+  }
 });
 
 $('imgShare').addEventListener('click', () => {
@@ -2213,22 +2231,68 @@ function exportReportWord3(type, sub) {
     '</body></html>';
 
   const name = 'MyC-report-' + type + '-' + Date.now() + '.doc';
+  saveWordFile(name, html);
+}
 
+
+/* ---------- ذخیرهٔ فایل ورد ---------- */
+function wordPath() {
+  const p = (S.d && S.d.settings && S.d.settings.wordPath) || '';
+  return (p && p.trim()) || 'Download/MyC';
+}
+
+function showWordSaved(path, userName2) {
+  let dlg = document.getElementById('wordSavedDlg');
+
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'wordSavedDlg';
+    dlg.innerHTML =
+      '<form method="dialog">' +
+      '<div class="wel-head"><div class="wel-title" id="wsTitle">فایل وورد ذخیره شد ✅</div></div>' +
+      '<div class="ws-body" id="wsBody"></div>' +
+      '<div class="dact"><button type="button" class="primary block" id="wsClose">بستن</button></div>' +
+      '</form>';
+    document.body.appendChild(dlg);
+    dlg.querySelector('#wsClose').addEventListener('click', () => dlg.close());
+  }
+
+  const nm = userName2 || userName();
+  dlg.querySelector('#wsTitle').textContent = nm ? (nm + ' جان، فایل وورد ذخیره شد ✅') : 'فایل وورد ذخیره شد ✅';
+  dlg.querySelector('#wsBody').textContent = 'محل ذخیره: ' + path + ' — می‌توانی مسیر را در تنظیمات تغییر دهی.';
+
+  dlg.showModal();
+  clearTimeout(dlg._t);
+  dlg._t = setTimeout(() => { try { dlg.close(); } catch (e) { } }, 3000);
+}
+
+function saveWordFile(name, html) {
+  const path = wordPath();
+
+  // ۱) اپ اندروید
   try {
-    if (window.AndroidAqsat && AndroidAqsat.saveDocs && AndroidAqsat.saveDocs(name, html)) {
-      toast('گزارش ورد ذخیره شد');
-      return;
+    if (window.AndroidAqsat && AndroidAqsat.saveDocs) {
+      const ok = AndroidAqsat.saveDocs(name, html);
+      if (ok) { showWordSaved('Documents/' + name); return true; }
     }
   } catch (e) { /* */ }
 
+  // ۲) مرورگر
   try {
     const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
-    toast('فایل گزارش دانلود شد');
-  } catch (e) { toast('ساخت فایل ممکن نشد'); }
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    showWordSaved(path);
+    return true;
+  } catch (e) {
+    toast('ذخیرهٔ فایل ممکن نشد');
+    return false;
+  }
 }
 
 /* ================= گزارش متنی و خروجی ورد ================= */
@@ -5109,7 +5173,327 @@ function renderAccounts() {
   view.appendChild(list);
 }
 
-function renderReport() {
+
+/* ================= سیستم هوشمند گزارش‌ها ================= */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const SR_PALETTE = ['#4f46e5', '#0e7490', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#65a30d'];
+
+const SR = {
+  topic: 'expense',
+  type: 'month',
+  cmp: 'month',
+  y: 0,
+  m: 0
+};
+
+function srEnsure() {
+  const now = todayJalali();
+  if (!SR.y) { SR.y = now.jy; SR.m = now.jm; }
+}
+
+function srSeries(kind, y, m, isYear) {
+  const out = [];
+  if (isYear) {
+    for (let mm = 1; mm <= 12; mm++) out.push({ label: MONTHS[mm - 1].slice(0, 4), v: 0, key: mm });
+    for (const x of S.d.tx) {
+      if (x.type !== kind || x.jy !== y) continue;
+      out[x.jm - 1].v += x.amount;
+    }
+  } else {
+    const len = monthLen(y, m);
+    for (let d = 1; d <= len; d++) out.push({ label: String(d), v: 0, key: d });
+    for (const x of S.d.tx) {
+      if (x.type !== kind || x.jy !== y || x.jm !== m) continue;
+      out[x.jd - 1].v += x.amount;
+    }
+  }
+  return out;
+}
+
+function srLineChart(seriesA, colorA, seriesB, colorB, height) {
+  const W = 320, H = height || 120, pad = 6;
+
+  const n = Math.max(seriesA.length, seriesB ? seriesB.length : 0);
+  let max = 1;
+  seriesA.forEach(d => { if (d.v > max) max = d.v; });
+  if (seriesB) seriesB.forEach(d => { if (d.v > max) max = d.v; });
+
+  const x = i => pad + (i * (W - pad * 2)) / Math.max(1, n - 1);
+  const y = v => H - pad - (v / max) * (H - pad * 2);
+
+  const path = arr => arr.map((d, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(d.v).toFixed(1)).join(' ');
+
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svg.setAttribute('class', 'sr-chart');
+
+  const grid = document.createElementNS(SVG_NS, 'line');
+  grid.setAttribute('x1', pad); grid.setAttribute('x2', W - pad);
+  grid.setAttribute('y1', H - pad); grid.setAttribute('y2', H - pad);
+  grid.setAttribute('stroke', 'rgba(0,0,0,.12)');
+  svg.appendChild(grid);
+
+  if (seriesB) {
+    const pb = document.createElementNS(SVG_NS, 'path');
+    pb.setAttribute('d', path(seriesB));
+    pb.setAttribute('fill', 'none');
+    pb.setAttribute('stroke', colorB);
+    pb.setAttribute('stroke-width', '2');
+    pb.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(pb);
+  }
+
+  const pa = document.createElementNS(SVG_NS, 'path');
+  pa.setAttribute('d', path(seriesA));
+  pa.setAttribute('fill', 'none');
+  pa.setAttribute('stroke', colorA);
+  pa.setAttribute('stroke-width', '2.4');
+  pa.setAttribute('stroke-linejoin', 'round');
+  svg.appendChild(pa);
+
+  return svg;
+}
+
+function srDonut(kind, y, m) {
+  const map = new Map();
+  for (const x of S.d.tx) {
+    if (x.type !== kind || x.jy !== y || x.jm !== m) continue;
+    const k = x.cat || 'سایر';
+    map.set(k, (map.get(k) || 0) + x.amount);
+  }
+
+  const rows = Array.from(map.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6);
+  const total = rows.reduce((s2, r) => s2 + r[1], 0) || 1;
+
+  const R = 40, C = 2 * Math.PI * R;
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 110 110');
+  svg.setAttribute('class', 'donut');
+
+  const bg = document.createElementNS(SVG_NS, 'circle');
+  bg.setAttribute('cx', 55); bg.setAttribute('cy', 55); bg.setAttribute('r', R);
+  bg.setAttribute('class', 'donut-bg');
+  svg.appendChild(bg);
+
+  let acc = 0;
+  rows.forEach(([k, v], i) => {
+    const frac = v / total;
+    const arc = document.createElementNS(SVG_NS, 'circle');
+    arc.setAttribute('cx', 55); arc.setAttribute('cy', 55); arc.setAttribute('r', R);
+    arc.setAttribute('stroke', SR_PALETTE[i % SR_PALETTE.length]);
+    arc.setAttribute('class', 'donut-arc');
+    arc.setAttribute('stroke-dasharray', (frac * C).toFixed(2) + ' ' + C.toFixed(2));
+    arc.setAttribute('stroke-dashoffset', (-acc * C).toFixed(2));
+    arc.setAttribute('transform', 'rotate(-90 55 55)');
+    svg.appendChild(arc);
+    acc += frac;
+  });
+
+  return svg;
+}
+
+function srMoneySum(kind, y, m, isYear) {
+  let t = 0;
+  for (const x of S.d.tx) {
+    if (x.type !== kind) continue;
+    if (isYear ? x.jy !== y : (x.jy === y && x.jm === m)) t += x.amount;
+  }
+  return t;
+}
+
+function renderSmartReport() {
+  srEnsure();
+  view.textContent = '';
+
+  const head = el('div', 'sr-head');
+  head.appendChild(el('div', 'sr-title', 'سیستم هوشمند گزارش‌ها'));
+  head.appendChild(el('div', 'sr-sub', 'موضوع و نوع گزارش را انتخاب کن'));
+  view.appendChild(head);
+
+  const bar = el('div', 'sr-bar');
+
+  /* انتخاب موضوع */
+  const topicWrap = el('div', 'sr-field');
+  topicWrap.appendChild(el('div', 'sr-lbl', 'انتخاب موضوع'));
+  const topicSel = document.createElement('select');
+  [['expense', 'هزینه'], ['income', 'درآمد'], ['cheques', 'چک‌ها'], ['loans', 'اقساط'], ['accounts', 'تعهدات']]
+    .forEach(([v, t]) => topicSel.add(new Option(t, v)));
+  topicSel.value = SR.topic;
+  topicSel.addEventListener('change', () => { SR.topic = topicSel.value; render(); });
+  topicWrap.appendChild(topicSel);
+
+  /* نوع گزارش */
+  const typeWrap = el('div', 'sr-field');
+  typeWrap.appendChild(el('div', 'sr-lbl', 'نوع گزارش'));
+  const typeSel = document.createElement('select');
+  [['month', 'ماهیانه'], ['year', 'سالیانه'], ['cmp', 'مقایسه‌ای']]
+    .forEach(([v, t]) => typeSel.add(new Option(t, v)));
+  typeSel.value = SR.type;
+  typeSel.addEventListener('change', () => { SR.type = typeSel.value; render(); });
+  typeWrap.appendChild(typeSel);
+
+  bar.append(topicWrap, typeWrap);
+  view.appendChild(bar);
+
+  /* انتخاب ماه/سال */
+  if (SR.type !== 'year') {
+    const mw = el('div', 'sr-bar');
+    const mf = el('div', 'sr-field');
+    mf.appendChild(el('div', 'sr-lbl', 'ماه'));
+    const ms = document.createElement('select');
+    MONTHS.forEach((n, i) => ms.add(new Option(n, String(i + 1))));
+    ms.value = String(SR.m);
+    ms.addEventListener('change', () => { SR.m = Number(ms.value); render(); });
+    mf.appendChild(ms);
+
+    const yf = el('div', 'sr-field');
+    yf.appendChild(el('div', 'sr-lbl', 'سال'));
+    const ys = document.createElement('select');
+    const now = todayJalali().jy;
+    for (let i = now; i >= now - 8; i--) ys.add(new Option(fa(i), String(i)));
+    ys.value = String(SR.y);
+    ys.addEventListener('change', () => { SR.y = Number(ys.value); render(); });
+    yf.appendChild(ys);
+
+    mw.append(mf, yf);
+    view.appendChild(mw);
+  } else {
+    const yf = el('div', 'sr-field');
+    yf.appendChild(el('div', 'sr-lbl', 'سال'));
+    const ys = document.createElement('select');
+    const now = todayJalali().jy;
+    for (let i = now; i >= now - 8; i--) ys.add(new Option(fa(i), String(i)));
+    ys.value = String(SR.y);
+    ys.addEventListener('change', () => { SR.y = Number(ys.value); render(); });
+    yf.appendChild(ys);
+    view.appendChild(yf);
+  }
+
+  /* مقایسه: ماه قبل / سال قبل */
+  if (SR.type === 'cmp') {
+    const cw = el('div', 'sr-field');
+    cw.appendChild(el('div', 'sr-lbl', 'مقایسه با'));
+    const cs = document.createElement('select');
+    [['month', 'ماه قبل'], ['year', 'همین ماه سال قبل']].forEach(([v, t]) => cs.add(new Option(t, v)));
+    cs.value = SR.cmp;
+    cs.addEventListener('change', () => { SR.cmp = cs.value; render(); });
+    cw.appendChild(cs);
+    view.appendChild(cw);
+  }
+
+  const isYear = SR.type === 'year';
+  const isMoney = (SR.topic === 'expense' || SR.topic === 'income');
+
+  /* عنوان گزارش */
+  const titleText = (() => {
+    const t = SR.topic === 'expense' ? 'هزینه' : SR.topic === 'income' ? 'درآمد'
+      : SR.topic === 'cheques' ? 'چک‌ها' : SR.topic === 'loans' ? 'اقساط' : 'تعهدات';
+
+    if (SR.type === 'cmp') return 'گزارش مقایسه‌ای ' + t;
+    if (isYear) return 'گزارش سالیانه ' + t + ' — سال ' + fa(SR.y);
+    return 'گزارش ماهیانه ' + t + ' — ' + MONTHS[SR.m - 1] + ' ' + fa(SR.y);
+  })();
+
+  const card = el('div', 'card pad sr-card');
+  card.appendChild(el('div', 'sr-card-title', titleText));
+
+  if (isMoney) {
+    const cur = srMoneySum(SR.topic, SR.y, SR.m, isYear);
+
+    let prevY = SR.y, prevM = SR.m;
+    if (SR.type === 'cmp') {
+      if (SR.cmp === 'year') { prevY = SR.y - 1; }
+      else { prevM = SR.m === 1 ? 12 : SR.m - 1; prevY = SR.m === 1 ? SR.y - 1 : SR.y; }
+    }
+
+    const prev = SR.type === 'cmp' ? srMoneySum(SR.topic, prevY, prevM, isYear) : 0;
+
+    const cnt = SR.topic === 'expense'
+      ? S.d.tx.filter(x => x.type === 'expense' && (isYear ? x.jy === SR.y : (x.jy === SR.y && x.jm === SR.m))).length
+      : S.d.tx.filter(x => x.type === 'income' && (isYear ? x.jy === SR.y : (x.jy === SR.y && x.jm === SR.m))).length;
+
+    card.appendChild(el('div', 'sr-count', fa(cnt) + ' مورد وجود دارد'));
+    card.appendChild(el('div', 'sr-total', 'جمع: ' + money(cur)));
+
+    if (SR.type === 'cmp') {
+      card.appendChild(el('div', 'sr-total sm', 'دورهٔ مقایسه: ' + money(prev)));
+
+      const diff = cur - prev;
+      const pct = prev > 0 ? Math.round(diff / prev * 100) : 0;
+      const line = el('div', 'sr-diff ' + (diff >= 0 ? 'up' : 'down'),
+        (diff >= 0 ? '▲ ' : '▼ ') + fa(Math.abs(pct)) + '٪ ' + (diff >= 0 ? 'افزایش' : 'کاهش') +
+        ' نسبت به ' + (SR.cmp === 'year' ? 'سال گذشته' : 'ماه قبل'));
+      card.appendChild(line);
+    }
+
+    /* نمودار خطی */
+    const serA = srSeries(SR.topic, SR.y, SR.m, isYear);
+    let chartBox = el('div', 'sr-chart-box');
+
+    if (SR.type === 'cmp') {
+      const serB = srSeries(SR.topic, prevY, prevM, isYear);
+      chartBox.appendChild(srLineChart(serA, '#16a34a', serB, '#dc2626', 130));
+
+      const leg = el('div', 'sr-legend');
+      const l1 = el('span', 'lg green'); l1.appendChild(el('i')); l1.appendChild(document.createTextNode(MONTHS[(prevM - 1)] + ' ' + fa(prevY)));
+      const l2 = el('span', 'lg red'); l2.appendChild(el('i')); l2.appendChild(document.createTextNode(MONTHS[SR.m - 1] + ' ' + fa(SR.y)));
+      leg.append(l1, l2);
+      chartBox.appendChild(leg);
+
+      /* دو دونات */
+      const row = el('div', 'donut-row');
+      const b1 = el('div', 'donut-block');
+      b1.appendChild(el('div', 'donut-cap', MONTHS[prevM - 1] + ' ' + fa(prevY)));
+      b1.appendChild(srDonut(SR.topic, prevY, prevM));
+      const b2 = el('div', 'donut-block');
+      b2.appendChild(el('div', 'donut-cap', MONTHS[SR.m - 1] + ' ' + fa(SR.y)));
+      b2.appendChild(srDonut(SR.topic, SR.y, SR.m));
+      row.append(b1, b2);
+      chartBox.appendChild(row);
+    } else {
+      chartBox.appendChild(srLineChart(serA, '#4f46e5', null, null, 130));
+      chartBox.appendChild(el('div', 'sr-hint', isYear ? 'نمودار ماهیانه' : 'نمودار روزانه'));
+    }
+
+    card.appendChild(chartBox);
+  } else {
+    /* چک/اقساط/تعهدات */
+    const data = reportItems(SR.topic, 'all');
+    card.appendChild(el('div', 'sr-count', fa(data.rows.length) + ' مورد وجود دارد'));
+    card.appendChild(el('div', 'sr-total', 'جمع: ' + money(data.total)));
+
+    const list = el('div', 'ev-list');
+    data.rows.slice(0, 12).forEach((r, i) => {
+      const row = el('div', 'ev-item');
+      const t = el('div', 'ev-t');
+      t.appendChild(el('div', 'ev-name', fa(i + 1) + '. ' + r.t));
+      if (r.s) t.appendChild(el('div', 'ev-meta', r.s));
+      row.append(t, el('div', 'ev-amt', NUM.format(r.a)));
+      list.appendChild(row);
+    });
+    card.appendChild(list);
+  }
+
+  const btns = el('div', 'row-btns');
+  btns.style.marginTop = '10px';
+
+  const bDet = el('button', 'btn', 'جزئیات');
+  bDet.type = 'button';
+  bDet.addEventListener('click', () => openReportDetails(SR.topic, 'all'));
+
+  const bWord = el('button', 'btn primary', 'خروجی وورد');
+  bWord.type = 'button';
+  bWord.addEventListener('click', () => exportReportWord3(SR.topic, 'all'));
+
+  btns.append(bDet, bWord);
+  card.appendChild(btns);
+
+  view.appendChild(card);
+}
+
+function renderReport() { renderSmartReport(); }
+
+function renderReportLegacy() {
   view.textContent = '';
 
   const now = todayJalali();
@@ -5527,6 +5911,7 @@ function shiftYm(ym, delta) {
 
 /* ---------- ۹) فرم‌ها ---------- */
 function openTx(existing) {
+  try { refreshSmartLists(); } catch (e) { /* */ }
   const dlg = $('txDlg');
   $('txTitle').textContent = existing
     ? (existing.type === 'income' ? 'ویرایش درآمد' : 'ویرایش هزینه')
@@ -5552,16 +5937,56 @@ function segValue(seg) {
   return b ? b.dataset.kind : null;
 }
 
+
+/* ---------- پیشنهاد هوشمند متن‌ها ---------- */
+function fillDatalist(id, values) {
+  const dl = document.getElementById(id);
+  if (!dl) return;
+
+  dl.textContent = '';
+
+  for (const v of Array.from(new Set((values || []).filter(Boolean)))) {
+    const o = document.createElement('option');
+    o.value = v;
+    dl.appendChild(o);
+  }
+}
+
+function refreshSmartLists() {
+  fillDatalist('dlChqParty', S.d.cheques.map(c => c.party));
+  fillDatalist('dlChqReason', S.d.cheques.map(c => c.reason));
+  fillDatalist('dlAccName', S.d.accounts.map(a => a.name));
+  fillDatalist('dlLoanTitle', S.d.loans.map(l => l.title));
+  fillDatalist('dlLoanBank', S.d.loans.map(l => l.note));
+  fillDatalist('dlTxNote', S.d.tx.map(x => x.note));
+}
+
 const CATS = {
   expense: ['خوراک', 'حمل‌ونقل', 'خانه', 'سلامت', 'پوشاک', 'تفریح', 'قبض', 'سایر'],
   income: ['حقوق', 'فروش', 'هدیه', 'سود', 'سایر']
 };
 
 function fillCats(kind, selected) {
-  const sel = $('txCat');
-  sel.textContent = '';
-  for (const c of CATS[kind]) sel.add(new Option(c, c));
-  if (selected) sel.value = selected;
+  const inp = $('txCat');
+  const dl = $('dlTxCat');
+  if (!inp || !dl) return;
+
+  inp.value = selected || '';
+
+  const used = new Set();
+  for (const x of S.d.tx) {
+    if (x.type === kind && x.cat) used.add(x.cat);
+  }
+
+  const all = Array.from(new Set([].concat(CATS[kind] || [], Array.from(used))));
+
+  dl.textContent = '';
+  for (const c of all) {
+    const o = document.createElement('option');
+    o.value = c;
+    dl.appendChild(o);
+  }
+
   $('catLbl').textContent = kind === 'income' ? 'درآمد' : 'هزینه';
 }
 
@@ -6220,6 +6645,12 @@ $('userNameSave').addEventListener('click', () => {
     render();
     toast('نام ذخیره شد');
   });
+});
+
+$('wordPath') && $('wordPath').addEventListener('change', () => {
+  S.d.settings.wordPath = $('wordPath').value.trim() || 'Download/MyC';
+  save();
+  toast('مسیر ذخیرهٔ وورد ذخیره شد');
 });
 
 $('welcomeChk').addEventListener('change', () => {

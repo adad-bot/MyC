@@ -127,7 +127,8 @@
       <span class="hint" id="txAmountHint"></span>
     </label>
     <label>دستهٔ <span id="catLbl">هزینه</span>
-      <select id="txCat"></select>
+      <input id="txCat" list="dlTxCat" placeholder="بنویس یا انتخاب کن…" autocomplete="off">
+      <datalist id="dlTxCat"></datalist>
     </label>
     <fieldset><legend>تاریخ<span class="req">*</span></legend><div class="drow" id="dpTx"></div>
       <div class="row-btns" style="margin:4px 0 0">
@@ -544,7 +545,7 @@
     <label class="chk"><input type="checkbox" id="seasonChk"> رنگ‌بندی فصلی (بهار/تابستان/پاییز/زمستان)</label>
     <label class="chk"><input type="checkbox" id="fxChk"> گرافیک و انیمیشن (ریزش گل، برگ، برف)</label>
     <label class="chk"><input type="checkbox" id="sharpChk"> تیزکردن تصویر چک هنگام اسکن (پیش‌فرض: خاموش)</label>
-    <label class="chk"><input type="checkbox" id="welcomeChk" checked> پیام خوش‌آمد و یادآوری امروز/فردا</label>
+    <label>محل ذخیرهٔ فایل وورد<input id="wordPath" placeholder="Download/MyC" style="direction:ltr"></label>\n    <label class="chk"><input type="checkbox" id="welcomeChk" checked> پیام خوش‌آمد و یادآوری امروز/فردا</label>
     <label class="chk"><input type="checkbox" id="scrollChk" checked> نشانگر فلش اسکرول</label>
     <div>
       <div class="k" style="margin-bottom:6px">حالت فعال‌سازی (به‌جز منوهای اصلی که همیشه تک‌کلیک‌اند)</div>
