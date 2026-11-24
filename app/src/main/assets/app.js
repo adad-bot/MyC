@@ -709,19 +709,58 @@ let toastTimer = null;
 let undoFn = null;
 
 function toast(msg, undo) {
-  toastEl.textContent = '';
-  toastEl.appendChild(document.createTextNode(msg));
-  undoFn = undo || null;
+  const host = document.getElementById('toastHost');
+  if (!host) return;
+
+  /* حداکثر ۳ پیام هم‌زمان */
+  while (host.children.length >= 3) host.removeChild(host.firstChild);
+
+  const card = document.createElement('div');
+  card.className = 'toast-card';
+
+  const top = document.createElement('div');
+  top.className = 'tc-top';
+
+  const badge = document.createElement('span');
+  badge.className = 'tc-badge';
+  badge.textContent = 'MyC';
+  top.appendChild(badge);
+
+  const nm = (typeof userName === 'function') ? userName() : '';
+  const title = document.createElement('span');
+  title.className = 'tc-title';
+  title.textContent = nm ? (nm + ' جان') : 'MyC';
+  top.appendChild(title);
+
+  card.appendChild(top);
+
+  const body = document.createElement('div');
+  body.className = 'tc-msg';
+  body.textContent = msg;
+  card.appendChild(body);
+
   if (undo) {
-    const b = el('button', null, 'بازگردانی');
+    const b = document.createElement('button');
+    b.className = 'tc-undo';
+    b.textContent = 'بازگردانی';
     b.addEventListener('click', () => {
-      if (undoFn) { undoFn(); undoFn = null; toastEl.classList.remove('show'); }
+      try { undo(); } catch (e) { /* */ }
+      card.classList.remove('show');
+      setTimeout(() => card.remove(), 260);
     });
-    toastEl.appendChild(b);
+    card.appendChild(b);
   }
-  toastEl.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toastEl.classList.remove('show'); undoFn = null; }, undo ? 6000 : 2400);
+
+  host.appendChild(card);
+
+  card.classList.add('show');
+
+  const life = undo ? 6000 : 2800;
+
+  setTimeout(() => {
+    card.classList.remove('show');
+    setTimeout(() => card.remove(), 300);
+  }, life);
 }
 
 /* ---------- ۷) محاسبات ---------- */
