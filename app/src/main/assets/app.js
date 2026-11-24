@@ -1370,17 +1370,21 @@ $('imgDlgSave').addEventListener('click', () => {
   if (!src) { toast('تصویری نیست'); return; }
 
   const name = 'MyC-cheque-' + Date.now() + '.jpg';
+  const b64 = src.split(',')[1] || '';
 
+  // ۱) اپ اندروید
   try {
-    if (window.AndroidAqsat && AndroidAqsat.saveImage) {
-      const b64 = src.split(',')[1] || '';
-      if (b64 && AndroidAqsat.saveImage(b64, name)) {
-        toast('تصویر در Downloads/MyC ذخیره شد');
+    if (window.AndroidAqsat && AndroidAqsat.saveImage && b64) {
+      const where = AndroidAqsat.saveImage(b64, name);
+
+      if (where && String(where).length) {
+        toast('تصویر ذخیره شد: ' + where);
         return;
       }
     }
   } catch (e) { /* */ }
 
+  // ۲) دانلود مرورگر
   try {
     const a = document.createElement('a');
     a.href = src;
@@ -1389,8 +1393,42 @@ $('imgDlgSave').addEventListener('click', () => {
     a.click();
     a.remove();
     toast('دانلود شروع شد');
+    return;
+  } catch (e) { /* */ }
+
+  // ۳) اشتراک‌گذاری
+  try {
+    if (window.AndroidAqsat && AndroidAqsat.shareImage && b64) {
+      if (AndroidAqsat.shareImage(b64, name)) { toast('پنجرهٔ ذخیره/ارسال باز شد'); return; }
+    }
+  } catch (e) { /* */ }
+
+  toast('ذخیره نشد؛ از دکمهٔ «اشتراک» استفاده کن');
+});
+
+$('imgShare').addEventListener('click', () => {
+  const src = $('imgDlgPic').src || '';
+  const b64 = src.split(',')[1] || '';
+  if (!b64) { toast('تصویری نیست'); return; }
+
+  const name = 'MyC-cheque-' + Date.now() + '.jpg';
+
+  try {
+    if (window.AndroidAqsat && AndroidAqsat.shareImage) {
+      if (AndroidAqsat.shareImage(b64, name)) return;
+    }
+  } catch (e) { /* */ }
+
+  // مرورگر
+  try {
+    const a = document.createElement('a');
+    a.href = src;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   } catch (e) {
-    toast('دانلود ممکن نشد؛ روی تصویر نگه‌دار و ذخیره کن');
+    toast('اشتراک‌گذاری ممکن نشد');
   }
 });
 

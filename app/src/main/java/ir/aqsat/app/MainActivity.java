@@ -292,35 +292,112 @@ public class MainActivity extends Activity {
             });
         }
 
-        /** ذخیرهٔ تصویر (Base64) در Download */
+        /** ذخیرهٔ تصویر (Base64): گالری/Documents/پوشهٔ اپ — مسیر ذخیره‌شده را برمی‌گرداند */
         @JavascriptInterface
-        public boolean saveImage(String base64, String fileName) {
-            OutputStream out = null;
+        public String saveImage(String base64, String fileName) {
+            byte[] bytes;
+            try {
+                bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+            } catch (Throwable t) {
+                return "";
+            }
+
+            // ۱) گالری (Pictures/MyC)
+            try {
+                ContentValues v = new ContentValues();
+                v.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                v.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    v.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/MyC");
+                }
+                Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, v);
+                if (uri != null) {
+                    java.io.OutputStream out = getContentResolver().openOutputStream(uri);
+                    if (out != null) {
+                        out.write(bytes);
+                        out.flush();
+                        out.close();
+                        return "Pictures/MyC/" + fileName;
+                    }
+                }
+            } catch (Throwable ignored) { }
+
+            // ۲) Download
+            try {
+                ContentValues v = new ContentValues();
+                v.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
+                v.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    v.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/MyC");
+                }
+                Uri uri = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                if (uri != null) {
+                    java.io.OutputStream out = getContentResolver().openOutputStream(uri);
+                    if (out != null) {
+                        out.write(bytes);
+                        out.flush();
+                        out.close();
+                        return "Download/MyC/" + fileName;
+                    }
+                }
+            } catch (Throwable ignored) { }
+
+            // ۳) پوشهٔ اختصاصی اپ (همیشه قابل نوشتن)
+            try {
+                java.io.File dir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+                if (dir == null) dir = new java.io.File(getFilesDir(), "images");
+                if (!dir.exists()) dir.mkdirs();
+
+                java.io.File f = new java.io.File(dir, fileName);
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(f);
+                fos.write(bytes);
+                fos.flush();
+                fos.close();
+
+                try {
+                    android.media.MediaScannerConnection.scanFile(
+                            this, new String[]{ f.getAbsolutePath() }, new String[]{ "image/jpeg" }, null);
+                } catch (Throwable ignored) { }
+
+                return f.getAbsolutePath();
+            } catch (Throwable t) {
+                return "";
+            }
+        }
+
+        /** اشتراک‌گذاری تصویر (اگر ذخیره مستقیم نشد) */
+        @JavascriptInterface
+        public boolean shareImage(final String base64, String fileName) {
             try {
                 byte[] bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
 
-                ContentValues values = new ContentValues();
-                values.put(MediaStore.MediaColumns.DISPLAY_NAME, fileName);
-                values.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg");
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/MyC");
-                }
+                java.io.File dir = new java.io.File(getCacheDir(), "share");
+                if (!dir.exists()) dir.mkdirs();
 
-                Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-                if (uri == null) return false;
+                final java.io.File f = new java.io.File(dir, fileName);
+                java.io.FileOutputStream fos = new java.io.FileOutputStream(f);
+                fos.write(bytes);
+                fos.flush();
+                fos.close();
 
-                out = getContentResolver().openOutputStream(uri);
-                if (out == null) return false;
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        try {
+                            Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                                    MainActivity.this, getPackageName() + ".files", f);
 
-                out.write(bytes);
-                out.flush();
+                            android.content.Intent it = new android.content.Intent(android.content.Intent.ACTION_SEND);
+                            it.setType("image/jpeg");
+                            it.putExtra(android.content.Intent.EXTRA_STREAM, uri);
+                            it.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                            startActivity(android.content.Intent.createChooser(it, "ذخیره یا ارسال تصویر"));
+                        } catch (Throwable ignored) { }
+                    }
+                });
+
                 return true;
-            } catch (Exception e) {
+            } catch (Throwable t) {
                 return false;
-            } finally {
-                if (out != null) {
-                    try { out.close(); } catch (Exception ignored) { }
-                }
             }
         }
 
