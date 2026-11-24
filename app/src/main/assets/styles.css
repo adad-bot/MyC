@@ -1931,3 +1931,41 @@ label .req, legend .req{
   background:var(--soft);border-radius:12px;padding:12px;
   max-height:48vh;overflow:auto;color:var(--ink);
 }
+
+/* ===== پنجرهٔ اتفاقات (دایره‌ها) ===== */
+.events form{padding:12px}
+.ev-head{text-align:center;margin-bottom:8px}
+.ev-title{font-size:16px;font-weight:900;color:var(--brand)}
+.ev-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.ev-list{max-height:56vh;overflow:auto;display:flex;flex-direction:column;gap:6px}
+.ev-group{
+  margin:8px 2px 2px;font-size:10.5px;font-weight:900;color:var(--brand);
+  background:var(--brand-soft);padding:4px 8px;border-radius:8px;width:fit-content;
+}
+.ev-item{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 10px;border-radius:12px;background:var(--card);
+  border:1.5px solid var(--line);border-inline-start-width:5px;
+}
+.ev-item.brown{border-inline-start-color:#8b5e34}
+.ev-item.hot{border-inline-start-color:#e11d48;background:rgba(225,29,72,.06)}
+.ev-item.red{border-inline-start-color:#ef4444}
+.ev-item.yellow{border-inline-start-color:#eab308}
+.ev-item.orange{border-inline-start-color:#f97316}
+.ev-t{flex:1;min-width:0}
+.ev-name{font-size:12px;font-weight:800;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev-meta{display:flex;gap:8px;font-size:10px;color:var(--muted);margin-top:2px}
+.ev-amt{font-size:11.5px;font-weight:900;color:var(--red);direction:ltr;flex:0 0 auto}
+
+/* ===== گزارش‌ساز ===== */
+.rep-combo{display:flex;gap:8px;margin:0 0 8px}
+.rep-combo select{
+  flex:1;padding:11px 10px;border-radius:14px;
+  border:1.5px solid var(--brand);background:var(--brand-soft);
+  color:var(--brand);font-family:inherit;font-size:12.5px;font-weight:900;
+}
+.rep-sum{margin-bottom:10px}
+.rep-sum-title{font-size:13px;font-weight:900;color:var(--brand);margin-bottom:4px}
+.rep-sum-count{font-size:12.5px;color:var(--ink)}
+.rep-sum-count b{font-size:17px;color:var(--brand)}
+.rep-sum-total{font-size:12px;font-weight:800;color:var(--red);margin-top:2px;direction:ltr;text-align:left}

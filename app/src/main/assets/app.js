@@ -1969,6 +1969,268 @@ function restoreSearchFocus() {
 }
 
 
+
+/* ================= گزارش‌ساز (کومبو) ================= */
+function reportTypeList() {
+  return [
+    ['expense', 'هزینه‌ها'],
+    ['income', 'درآمدها'],
+    ['cheques', 'چک‌ها'],
+    ['loans', 'اقساط'],
+    ['accounts', 'تعهدات']
+  ];
+}
+
+function reportSubList(type) {
+  if (type === 'expense' || type === 'income') {
+    return [['month', 'ماهانه'], ['year', 'سالیانه']];
+  }
+  if (type === 'cheques') {
+    return [['in', 'چک‌های دریافتی'], ['out', 'چک‌های صادره'], ['past', 'چک‌های تاریخ‌گذشته'], ['all', 'همهٔ چک‌ها']];
+  }
+  if (type === 'loans') {
+    return [['all', 'همهٔ وام‌ها'], ['open', 'وام‌های جاری'], ['settled', 'وام‌های تسویه‌شده']];
+  }
+  if (type === 'accounts') {
+    return [['all', 'همه'], ['receivable', 'طلب‌ها'], ['payable', 'بدهی‌ها']];
+  }
+  return [['all', 'همه']];
+}
+
+function reportItems(type, sub) {
+  const now = todayJalali();
+  const ym = S.reportYm || monthKey(now);
+  const y = Math.floor(ym / 100);
+  const m = ym % 100;
+
+  const rows = [];
+  let title = '';
+
+  if (type === 'expense' || type === 'income') {
+    const isYear = sub === 'year';
+    title = (type === 'expense' ? 'گزارش هزینه' : 'گزارش درآمد') + ' — ' + (isYear ? ('سال ' + fa(y)) : (MONTHS[m - 1] + ' ' + fa(y)));
+
+    for (const x of S.d.tx) {
+      if (x.type !== type) continue;
+      if (isYear ? x.jy !== y : !(x.jy === y && x.jm === m)) continue;
+      rows.push({ t: (x.cat || 'بدون دسته'), s: (x.note || ''), a: x.amount, d: x });
+    }
+  }
+
+  if (type === 'cheques') {
+    const t = todayJdn();
+    title = 'گزارش چک‌ها';
+
+    for (const c of S.d.cheques) {
+      if (sub === 'in' && c.kind !== 'in') continue;
+      if (sub === 'out' && c.kind !== 'out') continue;
+      if (sub === 'past' && !(jdnOf(c) < t)) continue;
+
+      rows.push({
+        t: (c.party || 'بدون نام') + ' — ' + (c.kind === 'in' ? 'دریافتی' : 'صادره'),
+        s: (CHQ_STATUS[c.status] || '') + (c.bank ? (' • ' + c.bank) : ''),
+        a: c.amount,
+        d: c
+      });
+    }
+  }
+
+  if (type === 'loans') {
+    title = 'گزارش اقساط';
+
+    for (const l of S.d.loans) {
+      const inst = l.installments || [];
+      const settled = inst.length > 0 && inst.every(i => i.paid);
+      if (sub === 'settled' && !settled) continue;
+      if (sub === 'open' && settled) continue;
+
+      const remain = inst.filter(i => !i.paid).reduce((s2, i) => s2 + i.amount, 0);
+      rows.push({
+        t: l.title,
+        s: (l.note || '') + ' • ' + fa(inst.filter(i => i.paid).length) + '/' + fa(inst.length) + ' پرداخت‌شده',
+        a: remain,
+        d: l
+      });
+    }
+  }
+
+  if (type === 'accounts') {
+    title = 'گزارش تعهدات';
+
+    for (const a of S.d.accounts) {
+      if (sub === 'receivable' && a.kind !== 'receivable') continue;
+      if (sub === 'payable' && a.kind !== 'payable') continue;
+
+      rows.push({
+        t: a.name,
+        s: (a.kind === 'receivable' ? 'طلب' : 'بدهی') + (a.settled ? ' • تسویه‌شده' : ''),
+        a: a.amount,
+        d: a
+      });
+    }
+  }
+
+  rows.sort((a, b) => b.a - a.a);
+  const total = rows.reduce((s2, r) => s2 + r.a, 0);
+
+  return { title, rows, total };
+}
+
+function reportComboBar() {
+  const wrap = el('div', 'rep-combo');
+
+  const typeSel = document.createElement('select');
+  reportTypeList().forEach(([v, t]) => typeSel.add(new Option(t, v)));
+  typeSel.value = S.repType || 'expense';
+
+  const subSel = document.createElement('select');
+
+  const fillSub = () => {
+    subSel.textContent = '';
+    reportSubList(typeSel.value).forEach(([v, t]) => subSel.add(new Option(t, v)));
+    subSel.value = (S.repSub && reportSubList(typeSel.value).some(x => x[0] === S.repSub)) ? S.repSub : reportSubList(typeSel.value)[0][0];
+  };
+
+  fillSub();
+
+  typeSel.addEventListener('change', () => {
+    S.repType = typeSel.value;
+    S.repSub = null;
+    fillSub();
+    render();
+  });
+
+  subSel.addEventListener('change', () => {
+    S.repSub = subSel.value;
+    render();
+  });
+
+  wrap.append(typeSel, subSel);
+  return wrap;
+}
+
+function reportSummaryCard() {
+  const type = S.repType || 'expense';
+  const sub = S.repSub || reportSubList(type)[0][0];
+  const data = reportItems(type, sub);
+
+  const card = el('div', 'card pad rep-sum');
+
+  const h = el('div', 'rep-sum-title', data.title);
+  card.appendChild(h);
+
+  const cnt = el('div', 'rep-sum-count');
+  cnt.appendChild(el('b', null, fa(data.rows.length)));
+  cnt.appendChild(document.createTextNode(' مورد وجود دارد'));
+  card.appendChild(cnt);
+
+  if (data.rows.length) {
+    const tot = el('div', 'rep-sum-total', 'جمع: ' + money(data.total));
+    card.appendChild(tot);
+  }
+
+  const btns = el('div', 'row-btns');
+  btns.style.marginTop = '8px';
+
+  const bDet = el('button', 'btn', 'مشاهدهٔ جزئیات');
+  bDet.type = 'button';
+  bDet.addEventListener('click', () => openReportDetails(type, sub));
+
+  const bWord = el('button', 'btn primary', 'خروجی ورد');
+  bWord.type = 'button';
+  bWord.addEventListener('click', () => exportReportWord3(type, sub));
+
+  btns.append(bDet, bWord);
+  card.appendChild(btns);
+
+  return card;
+}
+
+function openReportDetails(type, sub) {
+  const data = reportItems(type, sub);
+
+  let dlg = document.getElementById('repDetDlg');
+
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'repDetDlg';
+    dlg.innerHTML =
+      '<form method="dialog">' +
+      '<h2 style="text-align:center" id="repDetTitle"></h2>' +
+      '<div id="repDetList" class="ev-list"></div>' +
+      '<div class="dact"><button type="button" class="primary" id="repDetClose">بستن</button></div>' +
+      '</form>';
+    document.body.appendChild(dlg);
+    dlg.querySelector('#repDetClose').addEventListener('click', () => dlg.close());
+  }
+
+  dlg.querySelector('#repDetTitle').textContent = data.title + ' — ' + fa(data.rows.length) + ' مورد';
+
+  const list = dlg.querySelector('#repDetList');
+  list.textContent = '';
+
+  if (!data.rows.length) {
+    list.appendChild(el('div', 'empty', 'موردی ثبت نشده است'));
+  }
+
+  data.rows.forEach((r, idx) => {
+    const row = el('div', 'ev-item');
+    const t = el('div', 'ev-t');
+    t.appendChild(el('div', 'ev-name', fa(idx + 1) + '. ' + r.t));
+    if (r.s) t.appendChild(el('div', 'ev-meta', r.s));
+    row.append(t, el('div', 'ev-amt', NUM.format(r.a)));
+    list.appendChild(row);
+  });
+
+  dlg.showModal();
+}
+
+function exportReportWord3(type, sub) {
+  const data = reportItems(type, sub);
+
+  const rowsHtml = data.rows.map((r, i) =>
+    '<tr><td align="center">' + (i + 1) + '</td><td>' + r.t + '</td><td>' + (r.s || '') + '</td>' +
+    '<td align="center">' + r.a.toLocaleString('fa-IR') + '</td></tr>'
+  ).join('');
+
+  const html =
+    '<html dir="rtl"><head><meta charset="utf-8"><title>' + data.title + '</title></head>' +
+    '<body style="font-family:Tahoma;direction:rtl;padding:24px">' +
+    '<div style="text-align:center">' +
+    '<img src="' + (window.__LOGO__ || '') + '" width="72" height="72" style="border-radius:16px">' +
+    '<h1 style="margin:6px 0 0;color:#4f46e5">MyC — میعاد ماندگار</h1>' +
+    '<div style="font-size:10pt;color:#666">دفتر مالی شخصی</div></div>' +
+    '<h2 style="text-align:center;margin:16px 0 4px">' + data.title + '</h2>' +
+    '<div style="text-align:center;color:#555;font-size:10pt">' + fa(data.rows.length) + ' مورد — جمع: ' +
+    data.total.toLocaleString('fa-IR') + ' تومان</div>' +
+    '<table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;width:100%;font-family:Tahoma;font-size:11pt;margin-top:12px">' +
+    '<tr style="background:#334155;color:#fff"><th>#</th><th>عنوان</th><th>توضیح</th><th>مبلغ (تومان)</th></tr>' +
+    rowsHtml +
+    '<tr style="font-weight:bold;background:#f3f4f6"><td colspan="3">جمع</td>' +
+    '<td align="center">' + data.total.toLocaleString('fa-IR') + '</td></tr>' +
+    '</table>' +
+    '<p style="margin-top:18px;font-size:9pt;color:#888;text-align:center">MyC — گروه فناوری کرانه ماندگار — علی دادمان</p>' +
+    '</body></html>';
+
+  const name = 'MyC-report-' + type + '-' + Date.now() + '.doc';
+
+  try {
+    if (window.AndroidAqsat && AndroidAqsat.saveDocs && AndroidAqsat.saveDocs(name, html)) {
+      toast('گزارش ورد ذخیره شد');
+      return;
+    }
+  } catch (e) { /* */ }
+
+  try {
+    const blob = new Blob(['\ufeff' + html], { type: 'application/msword;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('فایل گزارش دانلود شد');
+  } catch (e) { toast('ساخت فایل ممکن نشد'); }
+}
+
 /* ================= گزارش متنی و خروجی ورد ================= */
 function reportCollect(kind, y, m, isYear) {
   const map = new Map();
@@ -2280,12 +2542,20 @@ function listTools(cfg) {
 
   if (cfg.segs) {
     const seg = el('div', 'seg');
+
     for (const [val, label] of cfg.segs) {
       const b = el('button', cfg.value === val ? 'on' : '', label);
       b.type = 'button';
-      onTap(b, () => { cfg.onSeg(val); });
+      b.dataset.seg = val;
+
+      b.addEventListener('click', () => {
+        for (const x of seg.children) x.classList.toggle('on', x.dataset.seg === val);
+        cfg.onSeg(val);
+      });
+
       seg.appendChild(b);
     }
+
     box.appendChild(seg);
   }
 
@@ -4048,21 +4318,7 @@ function buildRings() {
     r.dot.textContent = fa(counts[bucket]);
     if (!counts[bucket]) r.wrap.style.opacity = '.45';
 
-    let tapTimer = null;
-
-    r.wrap.addEventListener('click', () => {
-      if (tapTimer) {
-        clearTimeout(tapTimer);
-        tapTimer = null;
-        openRing(bucket);
-        return;
-      }
-
-      tapTimer = setTimeout(() => {
-        tapTimer = null;
-        openDateDlg(effToday());
-      }, 280);
-    });
+    r.wrap.addEventListener('click', () => openRing(bucket));
 
     box.appendChild(r.wrap);
   }
@@ -4073,21 +4329,103 @@ let currentRingBucket = 'red';
 
 function openRing(bucket) {
   currentRingBucket = bucket;
+
   const items = dueItems().filter(x => bucketOf(x.days) === bucket);
-  if (!items.length) return;
-  const titles = { red: 'امروز، فردا و گذشته', yellow: '۲ تا ۳ روز آینده', orange: '۴ تا ۵ روز آینده' };
-  $('ringTitle').textContent = titles[bucket] + ' — ' + fa(items.length) + ' مورد';
 
-  const list = $('ringList');
-  list.textContent = '';
-  for (const x of items) {
-    list.appendChild(dueRow(x, true));
+  if (!items.length) {
+    toast('در این گروه موردی نیست');
+    return;
   }
-  $('ringOverlay').classList.remove('hidden');
-  $('ringDlg').show();
-}
 
-function closeRing() {
+  const titles = {
+    red: 'گذشته، امروز و فردا',
+    yellow: '۲ تا ۳ روز آینده',
+    orange: '۴ تا ۵ روز آینده'
+  };
+
+  let dlg = document.getElementById('eventsDlg');
+
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'eventsDlg';
+    dlg.className = 'events';
+    dlg.innerHTML =
+      '<form method="dialog">' +
+      '<div class="ev-head"><div class="ev-title" id="evTitle"></div>' +
+      '<div class="ev-sub" id="evSub"></div></div>' +
+      '<div class="ev-list" id="evList"></div>' +
+      '<div class="dact" style="flex-direction:column;gap:8px">' +
+      '<button type="button" class="btn block" id="evAll">مشاهدهٔ همه در تقویم</button>' +
+      '<button type="button" class="block" id="evClose">بستن</button>' +
+      '</div></form>';
+    document.body.appendChild(dlg);
+
+    dlg.querySelector('#evClose').addEventListener('click', () => dlg.close());
+    dlg.querySelector('#evAll').addEventListener('click', () => {
+      dlg.close();
+      openDateDlg(effToday());
+    });
+  }
+
+  dlg.querySelector('#evTitle').textContent = 'اتفاقات — ' + titles[bucket];
+  dlg.querySelector('#evSub').textContent = fa(items.length) + ' مورد در این گروه';
+
+  const list = dlg.querySelector('#evList');
+  list.textContent = '';
+
+  const groups = [
+    { key: 'past', title: 'گذشته', test: d => d < 0 },
+    { key: 'today', title: 'امروز', test: d => d === 0 },
+    { key: 'tomorrow', title: 'فردا', test: d => d === 1 },
+    { key: 'd2', title: '۲ روز دیگر', test: d => d === 2 },
+    { key: 'd3', title: '۳ روز دیگر', test: d => d === 3 },
+    { key: 'd4', title: '۴ روز دیگر', test: d => d === 4 },
+    { key: 'd5', title: '۵ روز دیگر', test: d => d === 5 }
+  ];
+
+  const colorOf = d => d < 0 ? 'brown' : d === 0 ? 'hot' : d === 1 ? 'red' : d <= 3 ? 'yellow' : 'orange';
+
+  for (const g of groups) {
+    const rows = items.filter(x => g.test(x.days)).sort((a, b) => a.days - b.days);
+    if (!rows.length) continue;
+
+    const head = el('div', 'ev-group', g.title + ' • ' + fa(rows.length));
+    list.appendChild(head);
+
+    for (const x of rows) {
+      const row = el('div', 'ev-item ' + colorOf(x.days));
+
+      const t = el('div', 'ev-t');
+      t.appendChild(el('div', 'ev-name', x.label + (x.cheque ? (' — ' + (x.cheque.party || '')) : (x.loan ? (' — ' + x.loan.title) : (x.account ? (' — ' + (x.account.name || '')) : '')))));
+
+      const meta = el('div', 'ev-meta');
+      meta.appendChild(el('span', null, dateLabel(x.date)));
+      meta.appendChild(el('span', null, x.days < 0 ? (fa(Math.abs(x.days)) + ' روز گذشته') : x.days === 0 ? 'امروز' : (fa(x.days) + ' روز مانده')));
+      t.appendChild(meta);
+
+      const amt = el('div', 'ev-amt', NUM.format(x.amount));
+
+      row.append(t, amt);
+
+      row.addEventListener('click', () => {
+        dlg.close();
+        markSeen(x);
+
+        if (x.kind === 'loan') {
+          S.tab = 'obl'; S.oblTab = 'loans'; S.detailLoan = x.loan.id; render();
+        } else if (x.kind === 'cheque') {
+          S.tab = 'obl'; S.oblTab = 'cheques'; render(); openCheque(x.cheque);
+        } else {
+          S.tab = 'obl'; S.oblTab = 'accounts'; render(); openAccount(x.account);
+        }
+      });
+
+      list.appendChild(row);
+    }
+  }
+
+  dlg.showModal();
+}function closeRing() {
   if ($('ringDlg').open) $('ringDlg').close();
   $('ringOverlay').classList.add('hidden');
 }
@@ -4782,6 +5120,10 @@ function renderReport() {
 
   const period = S.repPeriod || 'month';   // month | year
   const mode = S.repMode || 'none';        // none | cmp
+
+  /* ---------- گزارش‌ساز ---------- */
+  view.appendChild(reportComboBar());
+  view.appendChild(reportSummaryCard());
 
   /* ---------- دکمه‌های گزارش ---------- */
   const repBtns = el('div', 'row-btns');
