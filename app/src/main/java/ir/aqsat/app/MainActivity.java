@@ -356,7 +356,7 @@ public class MainActivity extends Activity {
 
                 try {
                     android.media.MediaScannerConnection.scanFile(
-                            this, new String[]{ f.getAbsolutePath() }, new String[]{ "image/jpeg" }, null);
+                            MainActivity.this, new String[]{ f.getAbsolutePath() }, new String[]{ "image/jpeg" }, null);
                 } catch (Throwable ignored) { }
 
                 return f.getAbsolutePath();
