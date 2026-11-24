@@ -1001,8 +1001,78 @@ function bankFromIban(iban) {
 /* ---------- تصویر چک ---------- */
 let chqPhotoData = '';
 
-function setChqPhoto(data) {
+/* ---------- تاریخچهٔ ویرایش تصویر چک ---------- */
+let photoHist = [];
+let photoPos = -1;
+
+function photoSyncHist() {
+  const row = $('photoHistRow');
+  const u = $('photoUndo');
+  const r = $('photoRedo');
+
+  if (!row) return;
+
+  const has = photoHist.length > 1;
+  row.classList.toggle('hidden', !has);
+
+  if (u) u.classList.toggle('hidden', !(has && photoPos > 0));
+  if (r) r.classList.toggle('hidden', !(has && photoPos < photoHist.length - 1));
+}
+
+function photoRecord(prev) {
+  if (prev === undefined) prev = chqPhotoData;
+  if (!prev) return;
+
+  photoHist = photoHist.slice(0, photoPos + 1);
+
+  if (photoHist[photoHist.length - 1] !== prev) {
+    photoHist.push(prev);
+  }
+
+  if (photoHist.length > 15) photoHist.shift();
+
+  photoPos = photoHist.length - 1;
+  setTimeout(photoSyncHist, 30);
+}
+
+function photoReset(data) {
+  photoHist = [];
+  photoPos = -1;
+  setChqPhoto(data || '', false);
+  photoSyncHist();
+}
+
+$('photoUndo').addEventListener('click', () => {
+  if (!photoHist.length || photoPos <= 0) return;
+  photoPos -= 1;
+  setChqPhoto(photoHist[photoPos], false);
+  photoSyncHist();
+  toast('به حالت قبل برگشت');
+});
+
+$('photoRedo').addEventListener('click', () => {
+  if (photoPos >= photoHist.length - 1) return;
+  photoPos += 1;
+  setChqPhoto(photoHist[photoPos], false);
+  photoSyncHist();
+  toast('به حالت بعد رفت');
+});
+
+function setChqPhoto(data, record) {
+  if (record !== false && chqPhotoData) photoRecord(chqPhotoData);
+
   chqPhotoData = data || '';
+
+  if (data && record !== false) {
+    if (photoHist[photoHist.length - 1] !== data) {
+      photoHist = photoHist.slice(0, photoPos + 1);
+      photoHist.push(data);
+      if (photoHist.length > 15) photoHist.shift();
+      photoPos = photoHist.length - 1;
+    }
+  }
+
+  if (data) setTimeout(photoSyncHist, 30);
   const wrap = $('chqPhotoPrev');
   if (!wrap) return;
   if (chqPhotoData) {
@@ -1182,8 +1252,8 @@ function imgGo(delta) {
   paintHist();
 }
 
-$('imgUndo').addEventListener('click', () => imgGo(-1));
-$('imgRedo').addEventListener('click', () => imgGo(+1));
+
+
 
 $('imgDlgClose').addEventListener('click', () => { imgHist = []; imgHistPos = -1; });
 
@@ -1828,7 +1898,7 @@ function listSum(n, suffix) {
 }
 
 /* حفظ فوکوس جستجو بعد از رندر */
-let searchFocus = null;
+var searchFocus = null;
 
 function rememberSearch(inp) {
   searchFocus = { key: inp.dataset.key || '', pos: inp.selectionStart || 0 };
@@ -2343,6 +2413,7 @@ Object.assign(OCCASIONS, {
 function occList(jm, jd) { return OCCASIONS[jm + '-' + jd] || []; }
 
 const WEEK_NAMES = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنجشنبه', 'جمعه'];
+const WEEK_NAMES_EN = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 
 const DECOR = {
   spring: '<svg class="dc-deco" viewBox="0 0 120 120"><circle cx="92" cy="24" r="13" fill="#ffe066" opacity=".95"/><path d="M6 100 Q38 70 74 88" stroke="#2f7d4f" stroke-width="3" fill="none"/><circle cx="34" cy="84" r="5" fill="#ff8fab"/><circle cx="56" cy="80" r="4.5" fill="#ff8fab"/><circle cx="70" cy="86" r="4" fill="#ff8fab"/></svg>',
@@ -2384,14 +2455,10 @@ function hijriMonthLabel(jdn) {
   try { return FMT_HM.format(toDate(jdn)); } catch (e) { return ''; }
 }
 
-function buildDateCard() {
-  const jdn = effToday();
+function buildDateHeader(jdn) {
   const j = d2j(jdn);
   const g = d2g(jdn);
   const season = seasonOf(j.jm);
-
-  const card = el('div', 'datecard ' + season);
-  addSeasonFx(card, season);
 
   const row = el('div', 'dc-row');
 
@@ -2404,7 +2471,6 @@ function buildDateCard() {
   circle.innerHTML = DECOR[season] +
     '<span class="dc-day">' + fa(j.jd) + '</span>' +
     '<span class="dc-y">' + fa(j.jy) + '</span>';
-  circle.addEventListener('click', ev => { ev.stopPropagation(); openDateDlg(jdn); });
 
   const left = el('div', 'dc-left');
   left.appendChild(el('div', 'dc-weekday', wLabel(jdn)));
@@ -2412,6 +2478,18 @@ function buildDateCard() {
   left.appendChild(el('div', 'dc-subnum arab', hijriDayNum(jdn)));
 
   row.append(right, circle, left);
+  return row;
+}
+
+function buildDateCard() {
+  const jdn = effToday();
+  const j = d2j(jdn);
+  const season = seasonOf(j.jm);
+
+  const card = el('div', 'datecard ' + season);
+  addSeasonFx(card, season);
+
+  const row = buildDateHeader(jdn);
   card.appendChild(row);
 
   const occs = allOcc(jdn).slice(0, 2);
@@ -2719,7 +2797,46 @@ function bindCalGrid(grid) {
   });
 }
 
+
+/* ---------- سرصفحهٔ روز انتخاب‌شده (شبیه کارت خانه) ---------- */
+function renderCalHero() {
+  const box = $('calHero');
+  if (!box) return;
+
+  const j = d2j(calSel);
+  const season = seasonOf(j.jm);
+
+  box.textContent = '';
+
+  const card = el('div', 'datecard ' + season);
+  addSeasonFx(card, season);
+  card.appendChild(buildDateHeader(calSel));
+
+  box.appendChild(card);
+}
+
+/* گرافیک فصلی برای کل صفحهٔ تقویم */
+function renderCalFx() {
+  const fx = $('calFx');
+  if (!fx) return;
+
+  const j = d2j(calSel);
+  const season = seasonOf(j.jm);
+
+  fx.textContent = '';
+
+  if (!S.d || !S.d.settings) return;
+  if (S.d.settings.seasonal === false || S.d.settings.fx === false) return;
+
+  const tmp = document.createElement('div');
+  addSeasonFx(tmp, season);
+
+  while (tmp.firstChild) fx.appendChild(tmp.firstChild);
+}
+
 function renderDateInfo() {
+  renderCalHero();
+  renderCalFx();
   const j = d2j(calSel);
   const box = $('dateInfo');
   box.textContent = '';
@@ -3107,7 +3224,7 @@ function onTap(el, fn) {
 
 
 /* ---------- جستجوی پایدار (کیبورد و فوکوس حفظ می‌شود) ---------- */
-let SEARCH_CTX = null;
+var SEARCH_CTX = null;
 
 function useSearch(key, placeholder, onChange, fields) {
   const bar = $('searchBar');
@@ -4672,7 +4789,7 @@ function openCheque(c) {
   $('cRaw').value = c ? (c.raw || '') : '';
   $('cIban').value = c ? (c.iban || '') : '';
   if ($('cAccount')) $('cAccount').value = c ? (c.account || '') : '';
-  setChqPhoto(c ? (c.photo || '') : '');
+  photoReset(c ? (c.photo || '') : '');
   setDP($('dpChq'), c || todayJalali());
   $('chqDlg').showModal();
 }
@@ -6174,45 +6291,79 @@ function autoStraighten() {
 }
 
 function detectChequeBox(img) {
-  const c = imgToCanvas(img, 400);
+  const c = imgToCanvas(img, 420);
   const ctx = c.getContext('2d');
-  const { width: W, height: H } = c;
+  const W = c.width, H = c.height;
   const data = ctx.getImageData(0, 0, W, H).data;
 
-  const colDark = new Float32Array(W);
-  const rowDark = new Float32Array(H);
+  const lum = new Float32Array(W * H);
+  for (let i = 0, j = 0; i < data.length; i += 4, j++) {
+    lum[j] = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+  }
 
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = (y * W + x) * 4;
-      const l = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
-      const d = 255 - l;
-      if (d > 45) { colDark[x] += d; rowDark[y] += d; }
+  /* رنگ پس‌زمینه: میانهٔ نوار لبه‌های تصویر */
+  const bgVals = [];
+  const bx = Math.max(2, Math.round(W * 0.03));
+  const by = Math.max(2, Math.round(H * 0.03));
+
+  for (let x = 0; x < W; x += 2) {
+    for (let y = 0; y < by; y++) {
+      bgVals.push(lum[y * W + x]);
+      bgVals.push(lum[(H - 1 - y) * W + x]);
+    }
+  }
+  for (let y = 0; y < H; y += 2) {
+    for (let x = 0; x < bx; x++) {
+      bgVals.push(lum[y * W + x]);
+      bgVals.push(lum[y * W + (W - 1 - x)]);
     }
   }
 
-  const thresh = (arr, factor) => {
-    const mx = Math.max.apply(null, Array.from(arr)) || 1;
-    const t = mx * factor;
+  bgVals.sort((a, b) => a - b);
+  const bg = bgVals[Math.floor(bgVals.length / 2)] || 128;
+
+  /* اختلاف هر پیکسل با پس‌زمینه */
+  const rowS = new Float32Array(H);
+  const colS = new Float32Array(W);
+  const TH = 26;
+
+  for (let y = 0; y < H; y++) {
+    let rs = 0;
+    for (let x = 0; x < W; x++) {
+      const d = Math.abs(lum[y * W + x] - bg);
+      if (d > TH) { rs++; colS[x]++; }
+    }
+    rowS[y] = rs;
+  }
+
+  const pick = arr => {
+    let mx = 0;
+    for (let i = 0; i < arr.length; i++) if (arr[i] > mx) mx = arr[i];
+    if (mx < 3) return null;
+
+    const t = Math.max(2, mx * 0.30);
     let a = 0, b = arr.length - 1;
     while (a < arr.length && arr[a] < t) a++;
-    while (b > 0 && arr[b] < t) b--;
+    while (b >= 0 && arr[b] < t) b--;
+    if (b - a < arr.length * 0.2) return null;
     return [a, b];
   };
 
-  const [x0, x1] = thresh(colDark, 0.12);
-  const [y0, y1] = thresh(rowDark, 0.12);
+  const xs = pick(colS);
+  const ys = pick(rowS);
 
-  if (x1 - x0 < W * 0.2 || y1 - y0 < H * 0.2) return null;
+  if (!xs || !ys) return null;
 
-  const sx = img.width / W, sy = img.height / H;
-  const padX = img.width * 0.015, padY = img.height * 0.015;
+  const kx = img.width / W;
+  const ky = img.height / H;
+  const padX = img.width * 0.01;
+  const padY = img.height * 0.01;
 
   return {
-    x: Math.max(0, x0 * sx - padX),
-    y: Math.max(0, y0 * sy - padY),
-    w: Math.min(img.width, (x1 - x0) * sx + padX * 2),
-    h: Math.min(img.height, (y1 - y0) * sy + padY * 2)
+    x: Math.max(0, xs[0] * kx - padX),
+    y: Math.max(0, ys[0] * ky - padY),
+    w: Math.min(img.width, (xs[1] - xs[0]) * kx + padX * 2),
+    h: Math.min(img.height, (ys[1] - ys[0]) * ky + padY * 2)
   };
 }
 
@@ -6367,3 +6518,177 @@ function openCropDlg() {
 document.getElementById('photoStraighten').addEventListener('click', autoStraighten);
 document.getElementById('photoAutoCrop').addEventListener('click', autoCropCheque);
 document.getElementById('photoManualCrop').addEventListener('click', openCropDlg);
+
+/* ================= موتور اسکن هوشمند چک ================= */
+
+/* تاری جعبه‌ای جداشدنی (برای تخمین نور و نرم‌کردن) */
+function boxBlur(src, w, h, r) {
+  const tmp = new Float32Array(w * h);
+  const out = new Float32Array(w * h);
+  const d = r * 2 + 1;
+
+  for (let y = 0; y < h; y++) {
+    let sum = 0;
+    const row = y * w;
+    for (let x = -r; x <= r; x++) sum += src[row + Math.min(w - 1, Math.max(0, x))];
+    for (let x = 0; x < w; x++) {
+      tmp[row + x] = sum / d;
+      const xa = Math.min(w - 1, x + r + 1);
+      const xr = Math.max(0, x - r);
+      sum += src[row + xa] - src[row + xr];
+    }
+  }
+
+  for (let x = 0; x < w; x++) {
+    let sum = 0;
+    for (let y = -r; y <= r; y++) sum += tmp[Math.min(h - 1, Math.max(0, y)) * w + x];
+    for (let y = 0; y < h; y++) {
+      out[y * w + x] = sum / d;
+      const ya = Math.min(h - 1, y + r + 1);
+      const yr = Math.max(0, y - r);
+      sum += tmp[ya * w + x] - tmp[yr * w + x];
+    }
+  }
+
+  return out;
+}
+
+/* اصلاح نور موضعی (سایه‌ها) + کنتراست + تیزکردن */
+function enhanceDocument(canvas) {
+  const g = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const img = g.getImageData(0, 0, W, H);
+  const d = img.data;
+
+  /* ۱) نقشهٔ روشنایی */
+  const lum = new Float32Array(W * H);
+  for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+    lum[j] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  }
+
+  /* ۲) نور پس‌زمینه (سایه = نور کم موضعی) */
+  const radius = Math.max(6, Math.round(Math.min(W, H) / 14));
+  const bg = boxBlur(lum, W, H, radius);
+
+  let bgMean = 0;
+  for (let i = 0; i < bg.length; i++) bgMean += bg[i];
+  bgMean /= bg.length;
+  if (bgMean < 1) bgMean = 1;
+
+  /* ۳) تقسیم بر نور موضعی (سایه روشن می‌شود، نه یکنواخت‌سازی کامل) */
+  const norm = new Float32Array(W * H);
+  for (let i = 0; i < lum.length; i++) {
+    const f = bgMean / (bg[i] + 1);
+    const damp = 1 + (Math.min(f, 3) - 1) * 0.82;   // ملایم‌سازی
+    norm[i] = Math.min(255, lum[i] * damp);
+  }
+
+  /* ۴) کشش کنتراست بر پایهٔ صدک‌ها */
+  const sample = [];
+  for (let i = 0; i < norm.length; i += 7) sample.push(norm[i]);
+  sample.sort((a, b) => a - b);
+  const lo = sample[Math.floor(sample.length * 0.02)];
+  const hi = sample[Math.floor(sample.length * 0.98)];
+  const span = Math.max(1, hi - lo);
+
+  const stretched = new Float32Array(W * H);
+  for (let i = 0; i < norm.length; i++) {
+    stretched[i] = Math.min(255, Math.max(0, (norm[i] - lo) * 255 / span));
+  }
+
+  /* ۵) تیزکردن (unsharp mask) */
+  const soft = boxBlur(stretched, W, H, 2);
+  const amount = 0.65;
+
+  for (let j = 0, i = 0; j < stretched.length; j++, i += 4) {
+    let v = stretched[j] + amount * (stretched[j] - soft[j]);
+
+    /* انتقال جزئی به کانال‌های رنگی برای حفظ رنگ */
+    const ratio = lum[j] > 1 ? (v / lum[j]) : 1;
+    const r2 = Math.min(255, d[i] * ratio);
+    const g2 = Math.min(255, d[i + 1] * ratio);
+    const b2 = Math.min(255, d[i + 2] * ratio);
+
+    d[i] = r2; d[i + 1] = g2; d[i + 2] = b2; d[i + 3] = 255;
+  }
+
+  g.putImageData(img, 0, 0);
+  return canvas;
+}
+
+function enhancePhoto() {
+  loadPhotoImage(img => {
+    const k = Math.min(1, 1400 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k);
+    c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+
+    enhanceDocument(c);
+    setChqPhoto(c.toDataURL('image/jpeg', 0.78));
+    toast('نور و وضوح تصویر اصلاح شد');
+  });
+}
+
+/* اسکن کامل: برش هوشمند → صاف‌کردن → اصلاح نور و تیز کردن */
+function smartScan() {
+  loadPhotoImage(img => {
+    const box = detectChequeBox(img);
+
+    let sx = 0, sy = 0, sw = img.width, sh = img.height;
+
+    if (box) {
+      sx = box.x; sy = box.y; sw = box.w; sh = box.h;
+    } else {
+      sx = img.width * 0.04; sy = img.height * 0.04;
+      sw = img.width * 0.92; sh = img.height * 0.92;
+    }
+
+    const c = document.createElement('canvas');
+    c.width = Math.round(sw);
+    c.height = Math.round(sh);
+    c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+
+    /* صاف‌کردن */
+    const skew = detectSkew(img);
+    let work = c;
+
+    if (skew && Math.abs(skew) >= 0.6) {
+      work = rotateCanvas(c, -skew);
+    }
+
+    /* برش دوباره بعد از چرخش (حاشیه‌های سفید) */
+    const tmpImg = new Image();
+    tmpImg.onload = () => {
+      const box2 = detectChequeBox(tmpImg);
+
+      if (box2) {
+        const c2 = document.createElement('canvas');
+        c2.width = Math.round(box2.w);
+        c2.height = Math.round(box2.h);
+        c2.getContext('2d').drawImage(
+          tmpImg, box2.x, box2.y, box2.w, box2.h, 0, 0, c2.width, c2.height
+        );
+        work = c2;
+      }
+
+      /* اصلاح نور و تیزکردن */
+      const k2 = Math.min(1, 1400 / Math.max(work.width, work.height));
+      const out = document.createElement('canvas');
+      out.width = Math.round(work.width * k2);
+      out.height = Math.round(work.height * k2);
+      out.getContext('2d').drawImage(work, 0, 0, out.width, out.height);
+
+      enhanceDocument(out);
+
+      setChqPhoto(out.toDataURL('image/jpeg', 0.78));
+      toast('اسکن هوشمند انجام شد');
+    };
+
+    tmpImg.src = work.toDataURL('image/png');
+  });
+}
+
+document.getElementById('photoSmart').addEventListener('click', smartScan);
+document.getElementById('photoEnhance') &&
+  document.getElementById('photoEnhance').addEventListener('click', enhancePhoto);

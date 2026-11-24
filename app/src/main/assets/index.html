@@ -234,14 +234,22 @@
         <button type="button" class="btn ghost" id="photoDark" style="flex:1;font-size:10.5px">تیره‌تر</button>
         <button type="button" class="btn ghost" id="photoRot" style="flex:1;font-size:10.5px">چرخش</button>
       </div>
+      <button type="button" class="btn primary block" id="photoSmart" style="margin:4px 0;font-size:12px">✨ اسکن هوشمند (برش + صاف + بهینه‌سازی)</button>
+
       <div class="row-btns" style="margin-top:4px">
         <button type="button" class="btn ghost" id="photoStraighten" style="flex:1;font-size:10.5px">صاف‌کردن</button>
         <button type="button" class="btn ghost" id="photoAutoCrop" style="flex:1;font-size:10.5px">برش هوشمند</button>
+        <button type="button" class="btn ghost" id="photoEnhance" style="flex:1;font-size:10.5px">اصلاح نور</button>
       </div>
       <div class="row-btns" style="margin-top:4px">
         <button type="button" class="btn ghost" id="photoManualCrop" style="flex:1;font-size:10.5px">برش دستی</button>
         <button type="button" class="btn ghost" id="photoCrop" style="flex:1;font-size:10.5px">حذف حاشیه</button>
         <button type="button" class="btn danger" id="chqPhotoDel" style="flex:1;font-size:10.5px">حذف تصویر</button>
+      </div>
+      <div class="row-btns photo-hist hidden" id="photoHistRow" style="margin-top:4px">
+        <button type="button" class="btn" id="photoUndo" style="flex:1;font-size:13px;font-weight:900">↶ واگرد</button>
+        <button type="button" class="btn" id="photoRedo" style="flex:1;font-size:13px;font-weight:900">↷ از نو</button>
+      </div>
       </div>
     </div>
     <label>نام طرف حساب<span class="req">*</span>
@@ -331,9 +339,8 @@
 <dialog id="imgDlg" class="imgdlg">
   <form method="dialog">
     <div class="imgbar">
-      <button type="button" class="imgbtn big" id="imgUndo" title="واگرد">↶</button>
+      <button type="button" class="imgbtn" id="imgBack" title="بازگشت">↩</button>
       <span class="imgtitle">تصویر چک</span>
-      <button type="button" class="imgbtn big" id="imgRedo" title="از نو">↷</button>
       <button type="button" class="imgbtn" id="imgFull" title="تمام‌صفحه">⛶</button>
     </div>
 
@@ -616,11 +623,13 @@
 
 <dialog id="dateDlg">
   <form method="dialog">
+    <div id="calFx" class="cal-fx"></div>
     <div class="cal-head">
       <button type="button" id="calPrev" aria-label="ماه قبل">‹</button>
       <div id="calTitle">—</div>
       <button type="button" id="calNext" aria-label="ماه بعد">›</button>
     </div>
+    <div class="cal-hero" id="calHero"></div>
     <div class="cal-sub" id="calSub"></div>
     <div class="cal-week" id="calWeek"></div>
     <div class="cal-grid" id="calGrid"></div>
