@@ -4359,6 +4359,11 @@ function render() {
 
 function renderCore() {
   hideSearch();
+
+  try {
+    const fab = $('fab');
+    if (fab) fab.style.display = (S.tab === 'report') ? 'none' : '';
+  } catch (e) { /* */ }
   renderRings();
   if (S.tab === 'home') renderHome();
   else if (S.tab === 'tx') renderTx();
@@ -5494,6 +5499,23 @@ function renderSmartReport() {
   head.appendChild(el('div', 'sr-sub', 'موضوع و دوره را انتخاب کن؛ نمودارها خودکار رسم می‌شوند'));
   view.appendChild(head);
 
+  /* تب حالت */
+  const modeSeg = el('div', 'seg sr-mode');
+  [['report', 'گزارش'], ['cmp', 'مقایسه']].forEach(([v, t]) => {
+    const b = el('button', (SR.type === 'cmp' ? 'cmp' : 'report') === v ? 'on' : '', t);
+    b.type = 'button';
+    b.dataset.mode = v;
+
+    b.addEventListener('click', () => {
+      for (const x of modeSeg.children) x.classList.toggle('on', x.dataset.mode === v);
+      SR.type = (v === 'cmp') ? 'cmp' : (SR.type === 'cmp' ? 'month' : SR.type);
+      render();
+    });
+
+    modeSeg.appendChild(b);
+  });
+  view.appendChild(modeSeg);
+
   /* موضوع */
   const bar1 = el('div', 'sr-bar');
 
@@ -5508,15 +5530,18 @@ function renderSmartReport() {
   ts.addEventListener('change', () => { SR.topic = ts.value; render(); });
   tf.appendChild(ts);
 
-  const gf = el('div', 'sr-field');
-  gf.appendChild(el('div', 'sr-lbl', 'نوع گزارش'));
-  const gs = document.createElement('select');
-  [['month', 'ماهیانه'], ['year', 'سالیانه'], ['cmp', 'مقایسه‌ای']].forEach(([v, t]) => gs.add(new Option(t, v)));
-  gs.value = SR.type;
-  gs.addEventListener('change', () => { SR.type = gs.value; render(); });
-  gf.appendChild(gs);
-
-  bar1.append(tf, gf);
+  if (SR.type !== 'cmp') {
+    const gf = el('div', 'sr-field');
+    gf.appendChild(el('div', 'sr-lbl', 'نوع گزارش'));
+    const gs = document.createElement('select');
+    [['month', 'ماهیانه'], ['year', 'سالیانه']].forEach(([v, t]) => gs.add(new Option(t, v)));
+    gs.value = SR.type === 'year' ? 'year' : 'month';
+    gs.addEventListener('change', () => { SR.type = gs.value; render(); });
+    gf.appendChild(gs);
+    bar1.append(tf, gf);
+  } else {
+    bar1.append(tf);
+  }
   view.appendChild(bar1);
 
   const isYear = SR.type === 'year' || (SR.type === 'cmp' && SR.cmpYearly);
@@ -5638,11 +5663,42 @@ function renderSmartReport() {
         : SR.topic === 'loans' ? srLoanRows(SR.y2, SR.m2, SR.cmpYearly, 'all')
           : srAccountRows(SR.y2, SR.m2, SR.cmpYearly, 'all');
 
-      const sum = arr => arr.reduce((s2, r) => s2 + (r.amount !== undefined ? r.amount : r.amount), 0);
+      const sum = arr => arr.reduce((s2, r) => s2 + r.amount, 0);
+
+      const ta = sum(rowsA);
+      const tb = sum(rowsB);
+
+      /* نمودار مقایسهٔ دو دوره */
+      chartBox.appendChild(srLineChart([
+        { data: [{ label: 'دوره ۲', v: tb }, { label: 'دوره ۱', v: ta }], color: '#4f46e5' }
+      ], 140));
+
+      const lg = el('div', 'sr-legend');
+      const l1 = el('span', 'lg red'); l1.appendChild(el('i')); l1.appendChild(document.createTextNode(periodLabel(SR.y2, SR.m2, SR.cmpYearly)));
+      const l2 = el('span', 'lg green'); l2.appendChild(el('i')); l2.appendChild(document.createTextNode(periodLabel(SR.y, SR.m, SR.cmpYearly)));
+      lg.append(l1, l2);
+      chartBox.appendChild(lg);
 
       card.appendChild(chartBox);
-      card.appendChild(el('div', 'sr-count', 'دورهٔ اول: ' + fa(rowsA.length) + ' مورد — جمع ' + money(sum(rowsA))));
-      card.appendChild(el('div', 'sr-count', 'دورهٔ دوم: ' + fa(rowsB.length) + ' مورد — جمع ' + money(sum(rowsB))));
+
+      card.appendChild(el('div', 'sr-count', 'دورهٔ اول (' + periodLabel(SR.y, SR.m, SR.cmpYearly) + '): ' + fa(rowsA.length) + ' مورد — ' + money(ta)));
+      card.appendChild(el('div', 'sr-count', 'دورهٔ دوم (' + periodLabel(SR.y2, SR.m2, SR.cmpYearly) + '): ' + fa(rowsB.length) + ' مورد — ' + money(tb)));
+
+      const diff2 = ta - tb;
+      const pct2 = tb > 0 ? Math.round(diff2 / tb * 100) : 0;
+      card.appendChild(el('div', 'sr-diff ' + (diff2 >= 0 ? 'up' : 'down'),
+        (diff2 >= 0 ? '▲ ' : '▼ ') + fa(Math.abs(pct2)) + '٪ ' + (diff2 >= 0 ? 'افزایش' : 'کاهش') + ' نسبت به دورهٔ دوم'));
+
+      const listA = el('div', 'ev-list');
+      rowsA.slice(0, 8).forEach((r, idx) => {
+        const row = el('div', 'ev-item');
+        const t = el('div', 'ev-t');
+        t.appendChild(el('div', 'ev-name', fa(idx + 1) + '. ' + (r.party || r.loan && r.loan.title || r.name || 'مورد')));
+        row.append(t, el('div', 'ev-amt', NUM.format(r.amount)));
+        listA.appendChild(row);
+      });
+      card.appendChild(el('div', 'sr-block-t', 'اقلام دورهٔ اول'));
+      card.appendChild(listA);
     }
   } else if (SR.topic === 'both') {
     const incSer = srTxSeries('income', SR.y, SR.m, isYear);

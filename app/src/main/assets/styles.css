@@ -2117,3 +2117,9 @@ label .req, legend .req{
   box-shadow:0 10px 26px rgba(0,0,0,.5);
   border-color:rgba(255,255,255,.12);
 }
+
+/* فضای پایین تا دکمه‌های شناور روی محتوا نیفتند */
+#view{padding-bottom:100px}
+.sr-mode{margin:0 0 10px}
+.sr-mode button{font-size:12px;padding:9px 14px}
+#view .sr-card .row-btns{padding-bottom:6px}
