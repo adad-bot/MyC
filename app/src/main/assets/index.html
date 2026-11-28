@@ -529,6 +529,30 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>
     </div>
     <h2 style="text-align:center">تنظیمات</h2>
+    <div id="licBox" class="lic-box">
+      <div class="lic-row">
+        <span class="lic-k">وضعیت نسخه</span>
+        <span class="lic-v" id="licState">—</span>
+      </div>
+      <div class="lic-row">
+        <span class="lic-k">زمان باقی‌مانده</span>
+        <span class="lic-v" id="licLeft">—</span>
+      </div>
+      <div class="lic-row">
+        <span class="lic-k">تاریخ پایان</span>
+        <span class="lic-v" id="licEnd">—</span>
+      </div>
+
+      <div class="lic-code">کد دستگاه (برای تیم پشتیبانی):
+        <b id="licCode" dir="ltr">—</b>
+        <button type="button" class="lic-copy" id="licCopy">کپی</button>
+      </div>
+
+      <div class="lic-renew">
+        <input id="licKeyInput" dir="ltr" placeholder="کد تمدید را وارد کن">
+        <button type="button" class="btn primary" id="licApply">فعال‌سازی</button>
+      </div>
+    </div>
     <div class="row-btns" style="align-items:center;gap:6px">
       <input id="userName" placeholder="نام شما" style="flex:1;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--soft);font-family:inherit;font-size:12.5px">
       <button type="button" class="btn" id="userNameSave" style="flex:0 0 auto">ذخیرهٔ نام</button>

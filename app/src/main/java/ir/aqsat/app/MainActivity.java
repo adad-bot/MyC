@@ -401,6 +401,68 @@ public class MainActivity extends Activity {
             }
         }
 
+        /** خواندن فایل لایسنس از Documents/MyC (پایدار پس از حذف اپ) */
+        @JavascriptInterface
+        public String readLic() {
+            try {
+                Uri collection = MediaStore.Files.getContentUri("external");
+                String[] projection = { MediaStore.MediaColumns._ID };
+
+                String sel = MediaStore.MediaColumns.DISPLAY_NAME + "=?";
+                String[] args = { "myc_license.dat" };
+
+                android.database.Cursor c = getContentResolver().query(collection, projection, sel, args, null);
+                if (c == null) return "";
+
+                String out = "";
+                if (c.moveToFirst()) {
+                    long id = c.getLong(0);
+                    Uri uri = android.content.ContentUris.withAppendedId(collection, id);
+
+                    java.io.InputStream in = getContentResolver().openInputStream(uri);
+                    if (in != null) {
+                        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+                        byte[] buf = new byte[4096];
+                        int n;
+                        while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
+                        in.close();
+                        out = bos.toString("UTF-8");
+                    }
+                }
+
+                c.close();
+                return out;
+            } catch (Throwable t) {
+                return "";
+            }
+        }
+
+        /** نوشتن فایل لایسنس در Documents/MyC */
+        @JavascriptInterface
+        public boolean saveLic(String content) {
+            try {
+                ContentValues v = new ContentValues();
+                v.put(MediaStore.MediaColumns.DISPLAY_NAME, "myc_license.dat");
+                v.put(MediaStore.MediaColumns.MIME_TYPE, "text/plain");
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    v.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOCUMENTS + "/MyC");
+                }
+
+                Uri uri = getContentResolver().insert(MediaStore.Files.getContentUri("external"), v);
+                if (uri == null) return false;
+
+                java.io.OutputStream out = getContentResolver().openOutputStream(uri);
+                if (out == null) return false;
+
+                out.write(content.getBytes("UTF-8"));
+                out.flush();
+                out.close();
+                return true;
+            } catch (Throwable t) {
+                return false;
+            }
+        }
+
         /** ذخیرهٔ فایل باینری (Base64) در Documents */
         @JavascriptInterface
         public boolean saveBase64File(String base64, String fileName) {

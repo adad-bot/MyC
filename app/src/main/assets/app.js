@@ -535,6 +535,17 @@ function endLock() {
   $('app').classList.remove('hidden');
   if (lockTimer) { clearInterval(lockTimer); lockTimer = null; }
   render();
+
+  try {
+    licInit();
+    const inf0 = licInfo();
+    if (inf0.tamper || inf0.expired) {
+      setTimeout(() => { try { licBlock(); } catch (e) { } }, 400);
+    } else {
+      setTimeout(() => { try { licWelcome(); licWarnIfNeeded(); } catch (e) { } }, 900);
+    }
+  } catch (e) { /* */ }
+
   setTimeout(() => {
     try {
       if (!userName()) askName(true);
@@ -4786,7 +4797,7 @@ function renderObl() {
   if (S.detailLoan) { renderLoanDetail(); return; }
 
   const seg = el('div', 'seg');
-  const defs = [['cheques', 'چک‌ها'], ['loans', 'اقساط'], ['accounts', 'طلب و بدهی']];
+  const defs = [['cheques', 'چک‌ها'], ['loans', 'اقساط'], ['accounts', 'طلب و بدهی'], ['rems', 'یادآوری‌ها']];
   for (const [k, lbl] of defs) {
     const b = el('button', S.oblTab === k ? 'on' : '', lbl);
     b.type = 'button';
@@ -4797,7 +4808,94 @@ function renderObl() {
 
   if (S.oblTab === 'loans') renderLoans();
   else if (S.oblTab === 'accounts') renderAccounts();
+  else if (S.oblTab === 'rems') renderReminders();
   else renderCheques();
+}
+
+
+/* ================= یادآوری‌ها ================= */
+function renderReminders() {
+  const t = todayJdn();
+
+  const all = (S.d.reminders || []).slice().sort((a, b) => jdnOf(a) - jdnOf(b));
+
+  const future = all.filter(r => jdnOf(r) >= t);
+  const past = all.filter(r => jdnOf(r) < t).reverse();
+
+  const tools = el('div', 'row-btns');
+  tools.style.margin = '0 0 10px';
+
+  const addBtn = el('button', 'btn primary', '+ یادآوری جدید');
+  addBtn.type = 'button';
+  addBtn.addEventListener('click', () => openRem(null));
+
+  tools.appendChild(addBtn);
+  view.appendChild(tools);
+
+  const sum = el('div', 'listsum');
+  sum.appendChild(el('b', null, fa(future.length)));
+  sum.appendChild(document.createTextNode(' یادآوری پیش رو'));
+  view.appendChild(sum);
+
+  if (!future.length) {
+    const e = el('div', 'empty');
+    e.innerHTML = '<b>یادآوری پیش رو نداری</b>با دکمهٔ بالا یکی بساز.';
+    view.appendChild(e);
+  }
+
+  const list = el('div', 'list');
+
+  future.forEach(r => {
+    const d = jdnOf(r) - t;
+
+    const row = el('div', 'item');
+    const ico = el('div', 'ico', '⏰');
+
+    const main = el('div', 'main');
+    main.appendChild(el('div', 't', r.title || 'یادآوری'));
+
+    const m = el('div', 'm');
+    m.appendChild(el('span', null, dateLabel(r)));
+    m.appendChild(el('span', 'pill ' + (d === 0 ? 'late' : d <= 3 ? 'info' : 'ok'),
+      d === 0 ? 'امروز' : (fa(d) + ' روز مانده')));
+    if (r.note) m.appendChild(el('span', null, r.note));
+    main.appendChild(m);
+
+    row.append(ico, main);
+    row.addEventListener('click', () => openRem(r));
+    list.appendChild(row);
+  });
+
+  if (future.length) view.appendChild(list);
+
+  if (past.length) {
+    const h = el('div', 'mhead');
+    h.style.marginTop = '12px';
+    h.appendChild(el('span', null, 'گذشته'));
+    view.appendChild(h);
+
+    const ol = el('div', 'list');
+
+    past.slice(0, 20).forEach(r => {
+      const row = el('div', 'item');
+      const ico = el('div', 'ico', '🗓');
+      const main = el('div', 'main');
+      main.appendChild(el('div', 't', r.title || 'یادآوری'));
+      const m = el('div', 'm');
+      m.appendChild(el('span', null, dateLabel(r)));
+      main.appendChild(m);
+
+      row.append(ico, main);
+      row.style.opacity = '.6';
+      row.addEventListener('click', () => openRem(r));
+      ol.appendChild(row);
+    });
+
+    view.appendChild(ol);
+  }
+
+  /* جستجو */
+  useSearch('rems', 'جستجوی یادآوری…', v => { S.remQuery = v; }, []);
 }
 
 function renderLoans() {
@@ -6891,6 +6989,7 @@ function openSettings() {
   $('fxChk').checked = st.fx !== false;
   if ($('sharpChk')) $('sharpChk').checked = st.docSharpen === true;
   if ($('userName')) $('userName').value = st.name || '';
+  try { licRefreshBox(); } catch (e) { /* */ }
   if ($('welcomeChk')) $('welcomeChk').checked = st.welcome !== false;
   if ($('scrollChk')) $('scrollChk').checked = st.scrollHint !== false;
   if ($('tapHintChk')) $('tapHintChk').checked = st.tapHint !== false;
@@ -8979,3 +9078,316 @@ function fallbackBlob(blob, name, path) {
     toast('ذخیرهٔ فایل ممکن نشد');
   }
 }
+
+
+/* ================= لایسنس و دورهٔ رایگان ================= */
+const LIC = {
+  KEY: 'myc_lic_v1',
+  TRIAL_DAYS: 30,
+  WARN_DAYS: 7,
+  SECRET: 'MyC-2026-KARANE-MANDEGAR'
+};
+
+let LIC_STATE = null;
+
+/* ---------- ذخیره‌سازی پایدار ---------- */
+function licLoad() {
+  let raw = '';
+
+  try {
+    if (window.AndroidAqsat && AndroidAqsat.readLic) raw = AndroidAqsat.readLic() || '';
+  } catch (e) { /* */ }
+
+  if (!raw) {
+    try { raw = localStorage.getItem(LIC.KEY) || ''; } catch (e) { raw = ''; }
+  }
+
+  try { return JSON.parse(raw) || null; } catch (e) { return null; }
+}
+
+function licSave(obj) {
+  const txt = JSON.stringify(obj);
+
+  try { localStorage.setItem(LIC.KEY, txt); } catch (e) { /* */ }
+
+  try {
+    if (window.AndroidAqsat && AndroidAqsat.saveLic) AndroidAqsat.saveLic(txt);
+  } catch (e) { /* */ }
+}
+
+/* ---------- هش و کد ---------- */
+function licHash(str) {
+  let h1 = 0x811c9dc5, h2 = 0x1000193;
+
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 = (h1 ^ c) * 16777619 >>> 0;
+    h2 = ((h2 << 5) - h2 + c) >>> 0;
+  }
+
+  return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
+}
+
+function licDeviceSeed() {
+  const nav = (navigator.userAgent || '') + '|' + (screen.width || 0) + 'x' + (screen.height || 0) +
+    '|' + (navigator.language || '') + '|' + (navigator.hardwareConcurrency || 0);
+
+  return licHash(nav);
+}
+
+function licFormatCode(str) {
+  const s2 = str.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const parts = [];
+  for (let i = 0; i < 12 && i < s2.length; i += 4) parts.push(s2.slice(i, i + 4));
+  return parts.join('-');
+}
+
+function licDeviceCode(state) {
+  return 'MYC-' + licFormatCode(licHash(licDeviceSeed() + '|' + (state.installDate || '')));
+}
+
+function licMakeKey(deviceCode) {
+  return licFormatCode(licHash(String(deviceCode).toUpperCase() + '|' + LIC.SECRET));
+}
+
+/* ---------- وضعیت ---------- */
+function licDaysLeft(state) {
+  const end = state.licensedUntil || (new Date(state.installDate).getTime() + LIC.TRIAL_DAYS * 86400000);
+  return Math.ceil((end - Date.now()) / 86400000);
+}
+
+function licInit() {
+  let st = licLoad();
+
+  if (!st) {
+    st = {
+      installDate: new Date().toISOString(),
+      lastSeen: Date.now(),
+      licensedUntil: 0,
+      welcomed: false,
+      warnDate: '',
+      warnCount: 0
+    };
+    licSave(st);
+  }
+
+  /* تشخیص عقب بردن ساعت */
+  if (st.lastSeen && Date.now() < st.lastSeen - 12 * 3600 * 1000) {
+    st.tamper = true;
+  }
+
+  if (!st.tamper) st.lastSeen = Date.now();
+
+  licSave(st);
+
+  LIC_STATE = st;
+
+  return st;
+}
+
+function licInfo() {
+  const st = LIC_STATE || licInit();
+  const end = st.licensedUntil || (new Date(st.installDate).getTime() + LIC.TRIAL_DAYS * 86400000);
+  const left = Math.ceil((end - Date.now()) / 86400000);
+
+  return {
+    state: st,
+    end: end,
+    daysLeft: left,
+    expired: left <= 0,
+    licensed: !!st.licensedUntil && st.licensedUntil > Date.now(),
+    tamper: !!st.tamper,
+    deviceCode: licDeviceCode(st)
+  };
+}
+
+/* ---------- پیام‌های زیبا ---------- */
+function licDialog(title, bodyHtml, buttons) {
+  let dlg = document.getElementById('licDlg');
+
+  if (!dlg) {
+    dlg = document.createElement('dialog');
+    dlg.id = 'licDlg';
+    dlg.className = 'lic-dlg';
+    dlg.innerHTML =
+      '<form method="dialog">' +
+      '<div class="lic-hero"><div class="lic-icon">✦</div></div>' +
+      '<h2 class="lic-title" id="licTitle"></h2>' +
+      '<div class="lic-body" id="licBody"></div>' +
+      '<div class="dact" style="flex-direction:column;gap:8px" id="licActs"></div>' +
+      '</form>';
+    document.body.appendChild(dlg);
+  }
+
+  dlg.querySelector('#licTitle').textContent = title;
+  dlg.querySelector('#licBody').innerHTML = bodyHtml || '';
+
+  const acts = dlg.querySelector('#licActs');
+  acts.textContent = '';
+
+  (buttons || [{ t: 'متوجه شدم', primary: true }]).forEach(b => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = (b.primary ? 'primary ' : '') + 'block';
+    btn.textContent = b.t;
+    btn.addEventListener('click', () => {
+      dlg.close();
+      if (typeof b.fn === 'function') b.fn();
+    });
+    acts.appendChild(btn);
+  });
+
+  dlg.showModal();
+  return dlg;
+}
+
+function licWelcome() {
+  const inf = licInfo();
+  if (inf.state.welcomed) return;
+
+  const nm = userName();
+
+  licDialog(
+    (nm ? nm + ' جان، خوش آمدی 👋' : 'خوش آمدی 👋'),
+    '<p>این نرم‌افزار از امروز به مدت <b>' + fa(LIC.TRIAL_DAYS) + ' روز رایگان</b> در اختیار توست.</p>' +
+    '<p class="lic-end">پایان دورهٔ رایگان: <b>' + licEndLabel(inf.end) + '</b></p>' +
+    '<p class="lic-hint">اگر از برنامه راضی بودی، از بخش «تنظیمات → تمدید نرم‌افزار» اشتراک را فعال کن.</p>',
+    [
+      { t: 'شروع استفاده', primary: true },
+      { t: 'رفتن به تنظیمات', fn: () => { try { openSettings(); } catch (e) { } } }
+    ]
+  );
+
+  inf.state.welcomed = true;
+  licSave(inf.state);
+}
+
+function licEndLabel(ms) {
+  const j = d2j(j2d(new Date(ms).getFullYear(), 1, 1));
+  const d = new Date(ms);
+  const jj = d2j(j2d(d.getFullYear(), d.getMonth() + 1, d.getDate()));
+  return fa(jj.jd) + ' ' + MONTHS[jj.jm - 1] + ' ' + fa(jj.jy);
+}
+
+/* هشدار روزانه (دو بار در روز) در هفت روز آخر */
+function licWarnIfNeeded() {
+  const inf = licInfo();
+  if (inf.expired || inf.tamper) return;
+
+  if (inf.daysLeft > LIC.WARN_DAYS) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  if (inf.state.warnDate !== today) {
+    inf.state.warnDate = today;
+    inf.state.warnCount = 0;
+  }
+
+  if (inf.state.warnCount >= 2) return;
+
+  inf.state.warnCount += 1;
+  licSave(inf.state);
+
+  const nm = userName();
+
+  toast((nm ? nm + ' جان، ' : '') + 'تنها ' + fa(inf.daysLeft) + ' روز از دورهٔ رایگان مانده است');
+
+  setTimeout(() => {
+    licDialog(
+      'یادآوری پایان دوره',
+      '<p>دورهٔ رایگان تو در <b>' + licEndLabel(inf.end) + '</b> به پایان می‌رسد.</p>' +
+      '<p class="lic-hint">برای ادامهٔ استفاده، از «تنظیمات → تمدید نرم‌افزار» کد دستگاه را برای پشتیبانی بفرست.</p>',
+      [
+        { t: 'مشاهدهٔ تنظیمات', primary: true, fn: () => { try { openSettings(); } catch (e) { } } },
+        { t: 'بعداً' }
+      ]
+    );
+  }, 900);
+}
+
+/* صفحهٔ قفل هنگام انقضا */
+function licBlock() {
+  const inf = licInfo();
+  const nm = userName();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'lic-block';
+  overlay.innerHTML =
+    '<div class="lic-block-in">' +
+    '<div class="lic-icon">⏳</div>' +
+    '<h2>' + (nm ? nm + ' جان، ' : '') + 'دورهٔ رایگان به پایان رسید</h2>' +
+    '<p>برای ادامهٔ استفاده، کد دستگاه را برای پشتیبانی بفرست و کد تمدید را وارد کن.</p>' +
+    '<div class="lic-code">کد دستگاه: <b dir="ltr">' + inf.deviceCode + '</b></div>' +
+    '<input id="licBlockKey" dir="ltr" placeholder="کد تمدید">' +
+    '<button type="button" class="btn primary block" id="licBlockApply">فعال‌سازی</button>' +
+    '<div class="lic-err" id="licBlockErr"></div>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  const apply = () => licApplyKey(document.getElementById('licBlockKey').value, msg => {
+    document.getElementById('licBlockErr').textContent = msg;
+  }, ok => { if (ok) overlay.remove(); });
+
+  document.getElementById('licBlockApply').addEventListener('click', apply);
+}
+
+/* فعال‌سازی کد */
+function licApplyKey(input, onErr, onOk) {
+  const inf = licInfo();
+  const code = String(input || '').trim().toUpperCase();
+
+  if (!code) { onErr && onErr('کد را وارد کن'); return; }
+
+  const expected = licMakeKey(inf.deviceCode);
+
+  if (code.replace(/[^A-Z0-9]/g, '') !== expected.replace(/[^A-Z0-9]/g, '')) {
+    onErr && onErr('کد نامعتبر است');
+    return;
+  }
+
+  inf.state.licensedUntil = Math.max(Date.now(), inf.state.licensedUntil || 0) + 365 * 86400000;
+  inf.state.tamper = false;
+  licSave(inf.state);
+
+  const nm = userName();
+
+  licDialog(
+    (nm ? nm + ' جان، ' : '') + 'تمدید انجام شد ✅',
+    '<p>نسخهٔ شما تا <b>' + licEndLabel(inf.state.licensedUntil) + '</b> فعال شد.</p>',
+    [{ t: 'عالی', primary: true }]
+  );
+
+  onOk && onOk(true);
+  licRefreshBox();
+}
+
+/* ---------- جعبهٔ تنظیمات ---------- */
+function licRefreshBox() {
+  if (!S.d) return;
+
+  const inf = licInfo();
+
+  const st = $('licState'), left = $('licLeft'), end = $('licEnd'), code = $('licCode');
+  if (!st) return;
+
+  if (inf.tamper) { st.textContent = 'قفل (تغییر ساعت)'; st.className = 'lic-v bad'; }
+  else if (inf.expired) { st.textContent = 'منقضی'; st.className = 'lic-v bad'; }
+  else if (inf.licensed) { st.textContent = 'فعال'; st.className = 'lic-v good'; }
+  else { st.textContent = 'دورهٔ رایگان'; st.className = 'lic-v'; }
+
+  left.textContent = inf.expired ? '۰ روز' : (fa(inf.daysLeft) + ' روز');
+  end.textContent = licEndLabel(inf.end);
+  code.textContent = inf.deviceCode;
+}
+
+try {
+  document.addEventListener('click', ev => {
+    if (ev.target && ev.target.id === 'licCopy') {
+      try { navigator.clipboard.writeText($('licCode').textContent); toast('کد کپی شد'); } catch (e) { }
+    }
+    if (ev.target && ev.target.id === 'licApply') {
+      licApplyKey($('licKeyInput').value, m => toast(m), () => { $('licKeyInput').value = ''; });
+    }
+  });
+} catch (e) { /* */ }

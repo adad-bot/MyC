@@ -2123,3 +2123,63 @@ label .req, legend .req{
 .sr-mode{margin:0 0 10px}
 .sr-mode button{font-size:12px;padding:9px 14px}
 #view .sr-card .row-btns{padding-bottom:6px}
+
+/* ===== جعبهٔ تمدید در تنظیمات ===== */
+.lic-box{
+  margin:10px 0 12px;padding:12px;border-radius:16px;
+  background:linear-gradient(135deg,var(--brand-soft),rgba(255,255,255,.5));
+  border:1px solid color-mix(in srgb,var(--brand) 22%,transparent);
+}
+.lic-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:4px 2px}
+.lic-k{color:var(--muted);font-weight:700}
+.lic-v{font-weight:900;color:var(--ink)}
+.lic-v.good{color:#15803d}
+.lic-v.bad{color:#b91c1c}
+.lic-code{
+  margin-top:8px;padding:8px 10px;border-radius:12px;background:#fff;
+  font-size:11px;color:var(--ink);text-align:center;line-height:1.9;
+}
+.lic-code b{font-size:13px;letter-spacing:1px;color:var(--brand)}
+.lic-copy{
+  margin-inline-start:6px;border:0;background:var(--brand-soft);color:var(--brand);
+  border-radius:8px;padding:3px 8px;font-family:inherit;font-size:10px;font-weight:900;cursor:pointer;
+}
+.lic-renew{display:flex;gap:6px;margin-top:10px}
+.lic-renew input{
+  flex:1;padding:9px 10px;border-radius:12px;border:1px solid var(--line);
+  background:#fff;font-family:inherit;font-size:12px;letter-spacing:1px;
+}
+.lic-renew .btn{flex:0 0 auto;padding:9px 12px;font-size:11.5px}
+
+/* ===== پیام‌های لایسنس ===== */
+.lic-dlg .lic-hero{text-align:center;margin-bottom:4px}
+.lic-icon{
+  display:inline-grid;place-items:center;width:56px;height:56px;border-radius:50%;
+  background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;
+  font-size:26px;font-weight:900;box-shadow:0 8px 20px rgba(0,0,0,.18);
+}
+.lic-title{font-size:16px;font-weight:900;text-align:center;color:var(--brand);margin:8px 0}
+.lic-body{font-size:12.5px;line-height:2;text-align:center;color:var(--ink)}
+.lic-body b{color:var(--brand)}
+.lic-end{font-size:12px;color:var(--ink)}
+.lic-hint{font-size:11px;color:var(--muted);margin-top:6px}
+
+/* ===== صفحهٔ قفل انقضا ===== */
+.lic-block{
+  position:fixed;inset:0;z-index:9500;
+  background:rgba(10,12,18,.78);backdrop-filter:blur(4px);
+  display:grid;place-items:center;padding:20px;
+  font-family:inherit;direction:rtl;
+}
+.lic-block-in{
+  width:min(92vw,380px);background:#fff;border-radius:20px;padding:20px 16px;
+  text-align:center;box-shadow:0 24px 60px rgba(0,0,0,.45);
+}
+.lic-block-in h2{font-size:15px;font-weight:900;color:#b91c1c;margin:8px 0}
+.lic-block-in p{font-size:12px;color:#374151;line-height:2}
+.lic-block-in input{
+  width:100%;margin-top:10px;padding:11px;border-radius:12px;border:1px solid #e5e7eb;
+  font-family:inherit;font-size:12.5px;letter-spacing:1px;text-align:center;
+}
+.lic-block-in .btn{margin-top:8px}
+.lic-err{min-height:16px;font-size:11px;color:#b91c1c;margin-top:6px}
